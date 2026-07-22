@@ -1,0 +1,7 @@
+<Project>
+  <!-- Work around broken MSVC File Tracker elevation + global vcpkg inject on this machine. -->
+  <PropertyGroup>
+    <TrackFileAccess>false</TrackFileAccess>
+    <VcpkgEnabled>false</VcpkgEnabled>
+  </PropertyGroup>
+</Project>

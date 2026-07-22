@@ -56,10 +56,20 @@ flutter build linux --debug
 
 ### Exit criteria
 
-- [ ] App launches on Android, Windows, Linux to empty shell / onboarding.
-- [ ] No network permission required for core Android manifest.
-- [ ] CI green for analyze + unit/db smoke.
-- [ ] `device_id` generated once and persisted.
+- [x] App launches on Android, Windows, and Linux to empty shell / onboarding.
+- [x] No network permission required for core Android manifest.
+- [x] CI green for analyze + unit/db smoke.
+- [x] `device_id` generated once and persisted.
+
+**Phase 0 notes (2026-07-22 / verified 2026-07-23):** Scaffold on `cursor/phase-0-flutter-scaffold`. Main AndroidManifest has no `INTERNET` (debug/profile overlays retain it for Flutter tooling only).
+
+Real platform smoke evidence:
+
+| Platform | Evidence |
+|---|---|
+| **Windows** | `flutter build windows --debug` → `build\windows\x64\runner\Debug\ayutam.exe`; process stayed alive ~5s (`WIN_SMOKE_OK`). Needs Developer Mode (plugin symlinks). If MSVC `cl.exe` fails with “requires elevation”, clear bogus `RUNASADMIN` AppCompat on `cl.exe` and/or set `__COMPAT_LAYER=RunAsInvoker` for the build shell. |
+| **Android** | SDK at `%LOCALAPPDATA%\Android\Sdk`; AVD `ayutam_api34` (API 34 google_apis x86_64); `flutter build apk --debug` → install + `am start` → `pidof com.ayutam.ayutam` (`ANDROID_SMOKE_OK`). |
+| **Linux** | WSL2 Ubuntu (`abr`) + WSLg; Flutter in `~/flutter`; `flutter build linux --debug` → `build/linux/x64/debug/bundle/ayutam`; short GUI launch (`LINUX_SMOKE_OK`). |
 
 ---
 

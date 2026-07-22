@@ -8,8 +8,7 @@
 
 ## Status
 
-Documentation and execution plan are ready. **Application code is not started yet** — begin at [Phase 0](docs/plan/execution-plan.md).
-
+Documentation is authoritative. **Phase 0** (Flutter scaffold, Drift schema v1, Riverpod shell) is in progress on branch work — see [execution plan](docs/plan/execution-plan.md).
 ## Documentation map
 
 | Doc | Purpose |
@@ -39,16 +38,20 @@ Create skills → start a stopwatch or Pomodoro from a skill card → immersive 
 3. Treat `docs/` as source of truth; do not implement from `docs/archive/`.  
 4. Keep documentation updated as features land.
 
-## Development (after Phase 0)
+## Development
+
+Requires [Flutter](https://docs.flutter.dev/get-started/install) stable (Android / Windows / Linux targets).
+
+On **Windows**, enable [Developer Mode](ms-settings:developers) so Flutter can create plugin symlinks (`flutter build windows` / `flutter run -d windows`).
 
 ```bash
 flutter pub get
-flutter run
+dart run build_runner build --delete-conflicting-outputs
+flutter run -d windows   # or an Android device/emulator when SDK is configured
+dart format --set-exit-if-changed .
+flutter analyze
 flutter test
 ```
-
-Exact package pins and CI land in Phase 0.
-
 ## Contributing / security
 
 See `CONTRIBUTING.md` and `SECURITY.md` once created in Phase 0. Until then: open issues for proposals; never add telemetry or backends.
