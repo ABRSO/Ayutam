@@ -11,8 +11,8 @@
 | Area | Status |
 |---|---|
 | Docs (product / UX / architecture) | Authoritative baseline |
-| Application code | **Phase 1 complete** — skills CRUD, stopwatch start/pause/resume/stop, completion save/discard, crash recovery + Recovery Review, startup routing |
-| Next | Phase 2 — flip clock + visual identity ([execution plan](docs/plan/execution-plan.md)) |
+| Application code | **Phase 2 complete** — flip clock, skill accents, timer a11y controls, theme polish |
+| Next | Phase 3 — notes, tags, Learning Log ([execution plan](docs/plan/execution-plan.md)) |
 | Platforms verified | Android emulator, Windows, Linux (WSLg) — see [platform smoke](docs/testing/platform-smoke.md) |
 
 ## Documentation map

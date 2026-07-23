@@ -3,11 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_theme.dart';
 import '../../../app/ayutam_app.dart';
 import '../../../app/providers.dart';
+import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/duration_format.dart';
+import '../../skills/domain/skill.dart';
 import '../domain/models.dart';
 import 'completion_screen.dart';
+import 'widgets/flip_clock.dart';
+import 'widgets/timer_icon_control.dart';
 
 class TimerScreen extends ConsumerStatefulWidget {
   const TimerScreen({super.key, this.skillId, this.embeddedInShell = false});
@@ -47,44 +52,80 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   Widget build(BuildContext context) {
     final snapAsync = ref.watch(timerSessionProvider);
     final theme = Theme.of(context);
+    final skillId = widget.skillId;
+    final skills = ref.watch(activeSkillsProvider).asData?.value;
+    Skill? skill;
+    if (skillId != null && skills != null) {
+      for (final s in skills) {
+        if (s.id == skillId) {
+          skill = s;
+          break;
+        }
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stopwatch'),
+        title: Text(skill?.name ?? 'Stopwatch'),
         automaticallyImplyLeading: Navigator.canPop(context),
       ),
       body: snapAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (snap) {
-          final display = _liveActiveSeconds(snap);
+          final sessionActive = _liveActiveSeconds(snap);
+          final completed = skill?.completedActiveSeconds ?? 0;
+          final accumulated = completed + sessionActive;
           final paused = snap.runtime.machineState == TimerMachineState.paused;
+          final accent = SkillAccentPalette.fromArgb(
+            skill?.accentArgb,
+            fallback: theme.colorScheme.primary,
+          );
+          final narrow = MediaQuery.sizeOf(context).width < 420;
+          final digitW = narrow ? 42.0 : 56.0;
+          final digitH = narrow ? 64.0 : 84.0;
+
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
                   const Spacer(),
-                  Text(
-                    formatActiveDuration(display),
-                    style: theme.textTheme.displayLarge?.copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      fontFamily: 'monospace',
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: FlipClock(
+                      totalSeconds: accumulated,
+                      digitWidth: digitW,
+                      digitHeight: digitH,
+                      semanticLabel:
+                          'Skill total ${formatFlipClockDuration(accumulated)}',
                     ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Current session  ${formatActiveDuration(sessionActive)}',
+                    style: durationMonoStyle(
+                      context,
+                      base: theme.textTheme.titleMedium,
+                    ).copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     paused ? 'Paused' : 'Running',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const Spacer(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _ControlButton(
+                      TimerIconControl(
                         tooltip: paused ? 'Resume' : 'Pause',
+                        semanticLabel: paused
+                            ? 'Resume stopwatch'
+                            : 'Pause stopwatch',
                         icon: paused ? Icons.play_arrow : Icons.pause,
                         onPressed: () async {
                           final error = paused
@@ -101,8 +142,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
                           }
                         },
                       ),
-                      _ControlButton(
+                      TimerIconControl(
                         tooltip: 'Stop',
+                        semanticLabel: 'Stop stopwatch',
                         icon: Icons.stop,
                         onPressed: () async {
                           final error = await ref
@@ -149,34 +191,5 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     } else {
       await ayutamNavigatorKey.currentState?.pushReplacement(route);
     }
-  }
-}
-
-class _ControlButton extends StatelessWidget {
-  const _ControlButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: IconButton.filledTonal(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon, size: 28),
-        style: IconButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          fixedSize: const Size(56, 56),
-        ),
-      ),
-    );
   }
 }

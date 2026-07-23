@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Phase 2: custom flip clock (unbounded hours, reduced-motion path), skill accent palette auto-assign, timer icon controls with semantics/tooltips.
 - Phase 1 vertical slice: skill create/edit/archive, stopwatch start/pause/resume/stop, completion save/discard, crash recovery + Recovery Review, startup routing.
 - Phase 0 foundation: Flutter multi-platform shell (Android, Windows, Linux).
 - Drift schema v1 with session-segments tables and device identity seeding.
@@ -19,3 +20,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Agent/human phase workflow: README status must update each phase; Android/Windows/Linux platform smokes are mandatory before claiming a phase done; phase branches PR into `main` before starting the next phase.
+- Timer screen shows skill-total flip clock plus monospace current-session duration; Home skill cards use accent strip and polished card theme.

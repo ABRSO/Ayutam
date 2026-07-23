@@ -41,7 +41,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 | Area | Status |
 |---|---|
 | Product / UX / architecture docs | Authoritative baseline |
-| Flutter application code | Phase 1 complete (stopwatch vertical slice); next is Phase 2 |
+| Flutter application code | Phase 2 complete (flip clock + visual identity); next is Phase 3 |
 | Package versions cited in docs | Re-verify on pub.dev when adding/upgrading deps |
 
 ## Related root files

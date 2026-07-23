@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/app_theme.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/duration_format.dart';
 import '../domain/skill.dart';
 import '../../timer/presentation/pre_session_sheet.dart';
@@ -91,47 +93,68 @@ class _SkillCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final accent = _skillAccent(skill);
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(skill.name, style: theme.textTheme.titleMedium),
+            Container(width: 6, color: accent),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            skill.name,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Edit skill',
+                          onPressed: () =>
+                              _openSkillEditor(context, ref, skill: skill),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Archive skill',
+                          onPressed: () => _confirmArchive(context, ref, skill),
+                          icon: const Icon(Icons.archive_outlined),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${formatHoursMinutes(skill.completedActiveSeconds)} / '
+                      '${formatHoursMinutes(skill.targetSeconds)}',
+                      style: durationMonoStyle(
+                        context,
+                        base: theme.textTheme.bodyMedium,
+                      ).copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: skill.progressFraction,
+                      color: accent,
+                      backgroundColor: accent.withValues(alpha: 0.18),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.tonalIcon(
+                        onPressed: () =>
+                            showPreSessionSheet(context, skill: skill),
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Play'),
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: 'Edit skill',
-                  onPressed: () => _openSkillEditor(context, ref, skill: skill),
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Archive skill',
-                  onPressed: () => _confirmArchive(context, ref, skill),
-                  icon: const Icon(Icons.archive_outlined),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${formatHoursMinutes(skill.completedActiveSeconds)} / '
-              '${formatHoursMinutes(skill.targetSeconds)}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(value: skill.progressFraction),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.tonalIcon(
-                onPressed: () => showPreSessionSheet(context, skill: skill),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Play'),
               ),
             ),
           ],
@@ -139,6 +162,14 @@ class _SkillCard extends ConsumerWidget {
       ),
     );
   }
+}
+
+Color _skillAccent(Skill skill) {
+  if (skill.accentArgb != null) {
+    return SkillAccentPalette.fromArgb(skill.accentArgb);
+  }
+  final index = skill.id.hashCode.abs() % SkillAccentPalette.colors.length;
+  return SkillAccentPalette.colors[index];
 }
 
 Future<void> _openSkillEditor(
