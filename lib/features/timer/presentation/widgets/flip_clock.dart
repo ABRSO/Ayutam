@@ -6,8 +6,8 @@ import 'flip_digit.dart';
 
 /// Split-flap duration display. Hours expand unbounded (min 2 digits).
 ///
-/// Fliqlo-style: large charcoal unit panels (HH / MM / SS) with a shared hinge,
-/// light digits, black immersive backdrop expected from the parent.
+/// Each numeral is an independent [FlipDigit] card with a small gap between
+/// cards (Fliqlo / mechanical flip aesthetic).
 class FlipClock extends StatelessWidget {
   const FlipClock({
     super.key,
@@ -46,38 +46,40 @@ class FlipClock extends StatelessWidget {
           );
           final w = digitWidth ?? sized.width;
           final h = digitHeight ?? sized.height;
-          final gap = spacing ?? math.max(10.0, w * 0.16);
-          final colonW = math.max(16.0, w * 0.5);
+          final gap = spacing ?? math.max(6.0, w * 0.1);
+          final colonW = math.max(14.0, w * 0.45);
+
+          Widget digitRow(List<int> unitDigits) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < unitDigits.length; i++) ...[
+                  if (i > 0) SizedBox(width: gap * 0.55),
+                  FlipDigit(
+                    digit: unitDigits[i],
+                    width: w,
+                    height: h,
+                    reduceMotion: reduce,
+                  ),
+                ],
+              ],
+            );
+          }
 
           return FittedBox(
             fit: BoxFit.contain,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _FlipUnit(
-                  digits: digits.hours,
-                  digitWidth: w,
-                  digitHeight: h,
-                  reduceMotion: reduce,
-                ),
-                SizedBox(width: gap * 0.35),
+                digitRow(digits.hours),
+                SizedBox(width: gap * 0.4),
                 _Colon(width: colonW, height: h),
-                SizedBox(width: gap * 0.35),
-                _FlipUnit(
-                  digits: digits.minutes,
-                  digitWidth: w,
-                  digitHeight: h,
-                  reduceMotion: reduce,
-                ),
-                SizedBox(width: gap * 0.35),
+                SizedBox(width: gap * 0.4),
+                digitRow(digits.minutes),
+                SizedBox(width: gap * 0.4),
                 _Colon(width: colonW, height: h),
-                SizedBox(width: gap * 0.35),
-                _FlipUnit(
-                  digits: digits.seconds,
-                  digitWidth: w,
-                  digitHeight: h,
-                  reduceMotion: reduce,
-                ),
+                SizedBox(width: gap * 0.4),
+                digitRow(digits.seconds),
               ],
             ),
           );
@@ -93,9 +95,8 @@ class FlipClock extends StatelessWidget {
     final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : 900.0;
     final maxH = constraints.maxHeight.isFinite ? constraints.maxHeight : 320.0;
 
-    // Slightly tall flaps; clock should dominate width.
     const aspect = 0.72;
-    final widthFromW = (maxW * 0.88) / (digitCount + 1.2);
+    final widthFromW = (maxW * 0.9) / (digitCount + 1.4);
     var width = widthFromW;
     var height = width / aspect;
     if (height > maxH * 0.95) {
@@ -103,81 +104,6 @@ class FlipClock extends StatelessWidget {
       width = height * aspect;
     }
     return (width: width.clamp(48.0, 180.0), height: height.clamp(68.0, 260.0));
-  }
-}
-
-class _FlipUnit extends StatelessWidget {
-  const _FlipUnit({
-    required this.digits,
-    required this.digitWidth,
-    required this.digitHeight,
-    required this.reduceMotion,
-  });
-
-  final List<int> digits;
-  final double digitWidth;
-  final double digitHeight;
-  final bool reduceMotion;
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(math.max(10.0, digitWidth * 0.2));
-    final padX = math.max(8.0, digitWidth * 0.1);
-    final padY = math.max(6.0, digitHeight * 0.05);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: FlipClockStyle.card,
-        borderRadius: radius,
-        border: Border.all(color: FlipClockStyle.cardEdge, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.55),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: padX, vertical: padY),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final d in digits)
-                  FlipDigit(
-                    digit: d,
-                    width: digitWidth,
-                    height: digitHeight,
-                    reduceMotion: reduceMotion,
-                    showOwnCard: false,
-                    backgroundColor: FlipClockStyle.card,
-                  ),
-              ],
-            ),
-          ),
-          Positioned(
-            left: 6,
-            right: 6,
-            child: Container(
-              height: math.max(2.5, digitHeight * 0.016),
-              decoration: BoxDecoration(
-                color: FlipClockStyle.hinge,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.65),
-                    blurRadius: 1.5,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

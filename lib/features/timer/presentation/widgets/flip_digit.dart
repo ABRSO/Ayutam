@@ -11,7 +11,13 @@ abstract final class FlipClockStyle {
   static const Color cardEdge = Color(0xFF2C2C2C);
 }
 
-/// Single split-flap digit with optional rotateX flip on change.
+/// One mechanical flip-clock digit card.
+///
+/// Transition is a two-stage rotateX around the horizontal center hinge:
+/// 1. Outgoing upper flap: 0 → π/2
+/// 2. Incoming lower flap: π/2 → 0
+///
+/// Numerals never translate; halves are clipped from a full-size centered face.
 class FlipDigit extends StatefulWidget {
   const FlipDigit({
     super.key,
@@ -22,7 +28,6 @@ class FlipDigit extends StatefulWidget {
     this.reduceMotion = false,
     this.backgroundColor = FlipClockStyle.card,
     this.foregroundColor = FlipClockStyle.digit,
-    this.showOwnCard = true,
   }) : assert(digit >= 0 && digit <= 9);
 
   final int digit;
@@ -33,9 +38,6 @@ class FlipDigit extends StatefulWidget {
   final Color backgroundColor;
   final Color foregroundColor;
 
-  /// When false, only the digit face is drawn (parent supplies the card chrome).
-  final bool showOwnCard;
-
   @override
   State<FlipDigit> createState() => _FlipDigitState();
 }
@@ -43,221 +45,286 @@ class FlipDigit extends StatefulWidget {
 class _FlipDigitState extends State<FlipDigit>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late int _current;
-  late int _next;
+  late final Animation<double> _outgoingTop;
+  late final Animation<double> _incomingBottom;
+
+  late int _currentValue;
+  late int _nextValue;
+  bool _isAnimating = false;
+  int? _pendingValue;
+
+  static const double _perspective = 0.0015;
 
   @override
   void initState() {
     super.initState();
-    _current = widget.digit;
-    _next = widget.digit;
+    _currentValue = widget.digit;
+    _nextValue = widget.digit;
     _controller = AnimationController(vsync: this, duration: widget.duration)
-      ..addStatusListener((status) {
-        if (status == AnimationStatus.completed && mounted) {
-          setState(() => _current = _next);
-          _controller.value = 0;
-        }
-      });
+      ..addStatusListener(_onStatus);
+    _outgoingTop = Tween<double>(begin: 0, end: math.pi / 2).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeInCubic),
+      ),
+    );
+    _incomingBottom = Tween<double>(begin: math.pi / 2, end: 0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+  }
+
+  void _onStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted) {
+      return;
+    }
+    setState(() {
+      _currentValue = _nextValue;
+      _isAnimating = false;
+    });
+    _controller.value = 0;
+    final pending = _pendingValue;
+    _pendingValue = null;
+    if (pending != null && pending != _currentValue) {
+      _beginFlip(pending);
+    }
   }
 
   @override
   void didUpdateWidget(covariant FlipDigit oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.digit == _next) {
-      return;
+    if (widget.duration != oldWidget.duration) {
+      _controller.duration = widget.duration;
     }
+    if (widget.digit != oldWidget.digit) {
+      _requestValue(widget.digit);
+    }
+  }
+
+  void _requestValue(int value) {
     final reduce =
         widget.reduceMotion || MediaQuery.disableAnimationsOf(context);
     if (reduce) {
       _controller.stop();
       setState(() {
-        _current = widget.digit;
-        _next = widget.digit;
+        _currentValue = value;
+        _nextValue = value;
+        _isAnimating = false;
+        _pendingValue = null;
       });
+      _controller.value = 0;
       return;
     }
-    if (_controller.isAnimating) {
-      _controller.stop();
-      _current = _next;
+    if (value == _nextValue && _isAnimating) {
+      _pendingValue = null;
+      return;
     }
-    setState(() => _next = widget.digit);
+    if (value == _currentValue && !_isAnimating) {
+      return;
+    }
+    if (_isAnimating) {
+      _pendingValue = value;
+      return;
+    }
+    _beginFlip(value);
+  }
+
+  void _beginFlip(int value) {
+    if (value == _currentValue) {
+      return;
+    }
+    setState(() {
+      _nextValue = value;
+      _isAnimating = true;
+    });
     _controller.forward(from: 0);
   }
 
   @override
   void dispose() {
+    _controller.removeStatusListener(_onStatus);
     _controller.dispose();
     super.dispose();
   }
+
+  double get _radius => math.max(6.0, widget.width * 0.14);
 
   TextStyle get _textStyle => TextStyle(
     fontFamily: 'monospace',
     fontFeatures: const [FontFeature.tabularFigures()],
     fontWeight: FontWeight.w700,
-    height: 1,
+    height: 1.0,
     color: widget.foregroundColor,
-    fontSize: widget.height * 0.82,
+    fontSize: widget.height * 0.78,
   );
 
   @override
   Widget build(BuildContext context) {
     return ExcludeSemantics(
-      child: SizedBox(
-        width: widget.width,
-        height: widget.height,
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            final t = Curves.easeIn.transform(_controller.value);
-            final flipping = _controller.isAnimating && _current != _next;
-            final upperDigit = flipping ? _next : _current;
-            final lowerDigit = flipping ? _current : _current;
+      child: RepaintBoundary(
+        child: SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final animating = _isAnimating && _currentValue != _nextValue;
+              final phase1 = animating && _controller.value < 0.5;
+              final phase2 = animating && _controller.value >= 0.5;
 
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                _HalfClip(
-                  isTop: true,
-                  child: _DigitFace(
-                    digit: upperDigit,
-                    width: widget.width,
-                    height: widget.height,
-                    background: widget.backgroundColor,
-                    textStyle: _textStyle,
-                    showCard: widget.showOwnCard,
-                  ),
-                ),
-                _HalfClip(
-                  isTop: false,
-                  child: _DigitFace(
-                    digit: lowerDigit,
-                    width: widget.width,
-                    height: widget.height,
-                    background: widget.backgroundColor,
-                    textStyle: _textStyle,
-                    showCard: widget.showOwnCard,
-                  ),
-                ),
-                if (flipping && t < 0.5)
-                  Transform(
-                    alignment: Alignment.bottomCenter,
-                    transform: Matrix4.identity()
-                      ..setEntry(3, 2, 0.0015)
-                      ..rotateX(-t * math.pi),
-                    child: _HalfClip(
-                      isTop: true,
-                      child: _DigitFace(
-                        digit: _current,
-                        width: widget.width,
-                        height: widget.height,
-                        background: widget.backgroundColor,
-                        textStyle: _textStyle,
-                        showCard: widget.showOwnCard,
-                        shade: t * 0.35,
+              // Stationary layers (see layer model in product notes).
+              final staticTop = _DigitHalf(
+                value: animating ? _nextValue : _currentValue,
+                isTop: true,
+                width: widget.width,
+                height: widget.height,
+                radius: _radius,
+                background: widget.backgroundColor,
+                textStyle: _textStyle,
+              );
+              final staticBottom = _DigitHalf(
+                value: animating ? _currentValue : _currentValue,
+                isTop: false,
+                width: widget.width,
+                height: widget.height,
+                radius: _radius,
+                background: widget.backgroundColor,
+                textStyle: _textStyle,
+              );
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Phase-agnostic backgrounds: new top + old bottom while flipping.
+                  Positioned(top: 0, left: 0, right: 0, child: staticTop),
+                  Positioned(bottom: 0, left: 0, right: 0, child: staticBottom),
+                  if (phase1)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Transform(
+                        alignment: Alignment.bottomCenter,
+                        transform: Matrix4.identity()
+                          ..setEntry(3, 2, _perspective)
+                          ..rotateX(_outgoingTop.value),
+                        child: _DigitHalf(
+                          value: _currentValue,
+                          isTop: true,
+                          width: widget.width,
+                          height: widget.height,
+                          radius: _radius,
+                          background: widget.backgroundColor,
+                          textStyle: _textStyle,
+                          shade: math.sin(_outgoingTop.value) * 0.45,
+                        ),
                       ),
                     ),
-                  ),
-                if (flipping && t >= 0.5)
-                  Transform(
-                    alignment: Alignment.topCenter,
-                    transform: Matrix4.identity()
-                      ..setEntry(3, 2, 0.0015)
-                      ..rotateX((1 - t) * math.pi),
-                    child: _HalfClip(
-                      isTop: false,
-                      child: _DigitFace(
-                        digit: _next,
-                        width: widget.width,
-                        height: widget.height,
-                        background: Color.lerp(
-                          widget.backgroundColor,
-                          Colors.black,
-                          0.22,
-                        )!,
-                        textStyle: _textStyle,
-                        showCard: widget.showOwnCard,
-                        shade: (1 - t) * 0.25,
+                  if (phase2)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Transform(
+                        alignment: Alignment.topCenter,
+                        transform: Matrix4.identity()
+                          ..setEntry(3, 2, _perspective)
+                          ..rotateX(_incomingBottom.value),
+                        child: _DigitHalf(
+                          value: _nextValue,
+                          isTop: false,
+                          width: widget.width,
+                          height: widget.height,
+                          radius: _radius,
+                          background: widget.backgroundColor,
+                          textStyle: _textStyle,
+                          shade: math.sin(_incomingBottom.value) * 0.45,
+                        ),
                       ),
                     ),
-                  ),
-                if (widget.showOwnCard)
-                  Align(
-                    child: Container(
-                      height: math.max(2, widget.height * 0.015),
-                      color: FlipClockStyle.hinge,
-                    ),
-                  ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
 
-class _HalfClip extends StatelessWidget {
-  const _HalfClip({required this.isTop, required this.child});
-
-  final bool isTop;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: Align(
-        alignment: isTop ? Alignment.topCenter : Alignment.bottomCenter,
-        heightFactor: 0.5,
-        child: child,
-      ),
-    );
-  }
-}
-
-class _DigitFace extends StatelessWidget {
-  const _DigitFace({
-    required this.digit,
+/// Full-size digit face clipped to upper or lower half (identical baseline).
+class _DigitHalf extends StatelessWidget {
+  const _DigitHalf({
+    required this.value,
+    required this.isTop,
     required this.width,
     required this.height,
+    required this.radius,
     required this.background,
     required this.textStyle,
-    required this.showCard,
     this.shade = 0,
   });
 
-  final int digit;
+  final int value;
+  final bool isTop;
   final double width;
   final double height;
+  final double radius;
   final Color background;
   final TextStyle textStyle;
-  final bool showCard;
   final double shade;
 
   @override
   Widget build(BuildContext context) {
-    final text = Text('$digit', style: textStyle);
-    final shaded = shade <= 0
-        ? text
-        : ColorFiltered(
-            colorFilter: ColorFilter.mode(
-              Colors.black.withValues(alpha: shade.clamp(0.0, 1.0)),
-              BlendMode.srcATop,
-            ),
-            child: text,
-          );
+    final halfHeight = height / 2;
+    final borderRadius = isTop
+        ? BorderRadius.vertical(top: Radius.circular(radius))
+        : BorderRadius.vertical(bottom: Radius.circular(radius));
 
-    return Container(
+    // Paint the complete digit in full card coordinates, then clip to a half.
+    final face = SizedBox(
       width: width,
       height: height,
-      decoration: showCard
-          ? BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(math.max(6, width * 0.12)),
-              border: Border.all(color: FlipClockStyle.cardEdge),
-            )
-          : BoxDecoration(color: background),
-      alignment: Alignment.center,
-      child: shaded,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          border: Border.all(color: FlipClockStyle.cardEdge, width: 1),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(child: Text('$value', style: textStyle)),
+            // Hinge edge as geometry of the half — not a permanent overlay.
+            Align(
+              alignment: isTop ? Alignment.bottomCenter : Alignment.topCenter,
+              child: Container(
+                height: 1,
+                color: FlipClockStyle.hinge.withValues(alpha: 0.85),
+              ),
+            ),
+            if (shade > 0)
+              ColoredBox(
+                color: Colors.black.withValues(alpha: shade.clamp(0.0, 0.7)),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    return SizedBox(
+      width: width,
+      height: halfHeight,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        clipBehavior: Clip.hardEdge,
+        child: Align(
+          alignment: isTop ? Alignment.topCenter : Alignment.bottomCenter,
+          heightFactor: 0.5,
+          child: face,
+        ),
+      ),
     );
   }
 }
