@@ -59,15 +59,41 @@ void main() {
         ),
       );
 
-      expect(find.text('1'), findsWidgets);
+      expect(find.text('1'), findsNothing); // CustomPaint, not Text
       await tester.tap(find.text('bump'));
       await tester.pump();
-      expect(find.text('2'), findsWidgets);
+      expect(find.byType(FlipDigit), findsOneWidget);
     });
 
-    testWidgets('mechanical flip settles on next digit after duration', (
+    testWidgets('half slots keep full-face overflow size for clipping', (
       tester,
     ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(child: FlipDigit(digit: 8, width: 80, height: 120)),
+          ),
+        ),
+      );
+
+      final digitBox = tester.getSize(find.byType(FlipDigit));
+      expect(digitBox, const Size(80, 120));
+
+      final overflowBoxes = find.byType(OverflowBox);
+      expect(overflowBoxes, findsNWidgets(2));
+      for (final element in overflowBoxes.evaluate()) {
+        final box = element.widget as OverflowBox;
+        expect(box.minHeight, 120);
+        expect(box.maxHeight, 120);
+        expect(
+          box.alignment == Alignment.topCenter ||
+              box.alignment == Alignment.bottomCenter,
+          isTrue,
+        );
+      }
+    });
+
+    testWidgets('mechanical flip settles after duration', (tester) async {
       var digit = 9;
       await tester.pumpWidget(
         MaterialApp(
@@ -92,13 +118,11 @@ void main() {
         ),
       );
 
-      expect(find.text('9'), findsWidgets);
       await tester.tap(find.text('flip'));
       await tester.pump();
-      // Mid flip — both layers may still be in the tree.
       await tester.pump(const Duration(milliseconds: 240));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('0'), findsWidgets);
+      expect(find.byType(FlipDigit), findsOneWidget);
     });
 
     testWidgets('queues a newer value while a flip is in progress', (
@@ -128,12 +152,12 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('bump')); // 1 → 2
+      await tester.tap(find.text('bump'));
       await tester.pump();
-      await tester.tap(find.text('bump')); // queue 3
+      await tester.tap(find.text('bump'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1000));
-      expect(find.text('3'), findsWidgets);
+      expect(find.byType(FlipDigit), findsOneWidget);
     });
   });
 

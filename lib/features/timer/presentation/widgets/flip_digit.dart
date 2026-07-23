@@ -13,11 +13,13 @@ abstract final class FlipClockStyle {
 
 /// One mechanical flip-clock digit card.
 ///
-/// Transition is a two-stage rotateX around the horizontal center hinge:
+/// Two-stage rotateX around the horizontal center hinge:
 /// 1. Outgoing upper flap: 0 → π/2
 /// 2. Incoming lower flap: π/2 → 0
 ///
-/// Numerals never translate; halves are clipped from a full-size centered face.
+/// Numerals never translate. Each half paints the **same full-size** digit face
+/// (identical baseline) and clips with [OverflowBox] so parent half-height
+/// constraints cannot squeeze the face (that bug produced duplicated fragments).
 class FlipDigit extends StatefulWidget {
   const FlipDigit({
     super.key,
@@ -162,6 +164,7 @@ class _FlipDigitState extends State<FlipDigit>
 
   @override
   Widget build(BuildContext context) {
+    final half = widget.height / 2;
     return ExcludeSemantics(
       child: RepaintBoundary(
         child: SizedBox(
@@ -174,76 +177,84 @@ class _FlipDigitState extends State<FlipDigit>
               final phase1 = animating && _controller.value < 0.5;
               final phase2 = animating && _controller.value >= 0.5;
 
-              // Stationary layers (see layer model in product notes).
-              final staticTop = _DigitHalf(
-                value: animating ? _nextValue : _currentValue,
-                isTop: true,
-                width: widget.width,
-                height: widget.height,
-                radius: _radius,
-                background: widget.backgroundColor,
-                textStyle: _textStyle,
-              );
-              final staticBottom = _DigitHalf(
-                value: animating ? _currentValue : _currentValue,
-                isTop: false,
-                width: widget.width,
-                height: widget.height,
-                radius: _radius,
-                background: widget.backgroundColor,
-                textStyle: _textStyle,
-              );
+              final topValue = animating ? _nextValue : _currentValue;
+              final bottomValue = animating ? _currentValue : _currentValue;
 
-              return Stack(
-                fit: StackFit.expand,
+              return Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Phase-agnostic backgrounds: new top + old bottom while flipping.
-                  Positioned(top: 0, left: 0, right: 0, child: staticTop),
-                  Positioned(bottom: 0, left: 0, right: 0, child: staticBottom),
-                  if (phase1)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: Transform(
-                        alignment: Alignment.bottomCenter,
-                        transform: Matrix4.identity()
-                          ..setEntry(3, 2, _perspective)
-                          ..rotateX(_outgoingTop.value),
-                        child: _DigitHalf(
-                          value: _currentValue,
+                  SizedBox(
+                    width: widget.width,
+                    height: half,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _DigitHalf(
+                          value: topValue,
                           isTop: true,
                           width: widget.width,
                           height: widget.height,
                           radius: _radius,
                           background: widget.backgroundColor,
                           textStyle: _textStyle,
-                          shade: math.sin(_outgoingTop.value) * 0.45,
                         ),
-                      ),
+                        if (phase1)
+                          Transform(
+                            alignment: Alignment.bottomCenter,
+                            filterQuality: FilterQuality.medium,
+                            transform: Matrix4.identity()
+                              ..setEntry(3, 2, _perspective)
+                              ..rotateX(_outgoingTop.value),
+                            child: _DigitHalf(
+                              value: _currentValue,
+                              isTop: true,
+                              width: widget.width,
+                              height: widget.height,
+                              radius: _radius,
+                              background: widget.backgroundColor,
+                              textStyle: _textStyle,
+                              shade: math.sin(_outgoingTop.value) * 0.45,
+                            ),
+                          ),
+                      ],
                     ),
-                  if (phase2)
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Transform(
-                        alignment: Alignment.topCenter,
-                        transform: Matrix4.identity()
-                          ..setEntry(3, 2, _perspective)
-                          ..rotateX(_incomingBottom.value),
-                        child: _DigitHalf(
-                          value: _nextValue,
+                  ),
+                  SizedBox(
+                    width: widget.width,
+                    height: half,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _DigitHalf(
+                          value: bottomValue,
                           isTop: false,
                           width: widget.width,
                           height: widget.height,
                           radius: _radius,
                           background: widget.backgroundColor,
                           textStyle: _textStyle,
-                          shade: math.sin(_incomingBottom.value) * 0.45,
                         ),
-                      ),
+                        if (phase2)
+                          Transform(
+                            alignment: Alignment.topCenter,
+                            filterQuality: FilterQuality.medium,
+                            transform: Matrix4.identity()
+                              ..setEntry(3, 2, _perspective)
+                              ..rotateX(_incomingBottom.value),
+                            child: _DigitHalf(
+                              value: _nextValue,
+                              isTop: false,
+                              width: widget.width,
+                              height: widget.height,
+                              radius: _radius,
+                              background: widget.backgroundColor,
+                              textStyle: _textStyle,
+                              shade: math.sin(_incomingBottom.value) * 0.45,
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
                 ],
               );
             },
@@ -254,7 +265,11 @@ class _FlipDigitState extends State<FlipDigit>
   }
 }
 
-/// Full-size digit face clipped to upper or lower half (identical baseline).
+/// Renders a full-size digit face, then shows only the upper or lower half.
+///
+/// Critical: [OverflowBox] lets the face keep its full [height] even though the
+/// parent layout slot is only `height / 2`. Without that, tight half-height
+/// constraints shrink the face and both halves show the same glyph fragment.
 class _DigitHalf extends StatelessWidget {
   const _DigitHalf({
     required this.value,
@@ -283,8 +298,60 @@ class _DigitHalf extends StatelessWidget {
         ? BorderRadius.vertical(top: Radius.circular(radius))
         : BorderRadius.vertical(bottom: Radius.circular(radius));
 
-    // Paint the complete digit in full card coordinates, then clip to a half.
-    final face = SizedBox(
+    final face = _FullDigitFace(
+      value: value,
+      width: width,
+      height: height,
+      background: background,
+      textStyle: textStyle,
+      shade: shade,
+      hingeOnBottom: isTop,
+    );
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: width,
+        height: halfHeight,
+        child: ClipRect(
+          child: OverflowBox(
+            alignment: isTop ? Alignment.topCenter : Alignment.bottomCenter,
+            minWidth: width,
+            maxWidth: width,
+            minHeight: height,
+            maxHeight: height,
+            child: face,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Complete digit card in full coordinates (same size for every half).
+class _FullDigitFace extends StatelessWidget {
+  const _FullDigitFace({
+    required this.value,
+    required this.width,
+    required this.height,
+    required this.background,
+    required this.textStyle,
+    required this.hingeOnBottom,
+    this.shade = 0,
+  });
+
+  final int value;
+  final double width;
+  final double height;
+  final Color background;
+  final TextStyle textStyle;
+  final bool hingeOnBottom;
+  final double shade;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
       width: width,
       height: height,
       child: DecoratedBox(
@@ -295,13 +362,17 @@ class _DigitHalf extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Center(child: Text('$value', style: textStyle)),
-            // Hinge edge as geometry of the half — not a permanent overlay.
+            // Custom paint keeps the glyph locked to the full-card center.
+            CustomPaint(
+              painter: _DigitPainter(value: value, style: textStyle),
+            ),
             Align(
-              alignment: isTop ? Alignment.bottomCenter : Alignment.topCenter,
+              alignment: hingeOnBottom
+                  ? Alignment.bottomCenter
+                  : Alignment.topCenter,
               child: Container(
                 height: 1,
-                color: FlipClockStyle.hinge.withValues(alpha: 0.85),
+                color: FlipClockStyle.hinge.withValues(alpha: 0.9),
               ),
             ),
             if (shade > 0)
@@ -312,19 +383,31 @@ class _DigitHalf extends StatelessWidget {
         ),
       ),
     );
+  }
+}
 
-    return SizedBox(
-      width: width,
-      height: halfHeight,
-      child: ClipRRect(
-        borderRadius: borderRadius,
-        clipBehavior: Clip.hardEdge,
-        child: Align(
-          alignment: isTop ? Alignment.topCenter : Alignment.bottomCenter,
-          heightFactor: 0.5,
-          child: face,
-        ),
-      ),
+class _DigitPainter extends CustomPainter {
+  _DigitPainter({required this.value, required this.style});
+
+  final int value;
+  final TextStyle style;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final painter = TextPainter(
+      text: TextSpan(text: '$value', style: style),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+    final offset = Offset(
+      (size.width - painter.width) / 2,
+      (size.height - painter.height) / 2,
     );
+    painter.paint(canvas, offset);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DigitPainter oldDelegate) {
+    return oldDelegate.value != value || oldDelegate.style != style;
   }
 }
