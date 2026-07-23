@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   analyze-test:
     runs-on: ubuntu-latest
@@ -14,6 +17,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.44.7"
           cache: true
       - name: Pub get
         run: flutter pub get
@@ -23,5 +27,21 @@ jobs:
         run: dart format --set-exit-if-changed .
       - name: Analyze
         run: flutter analyze
-      - name: Test
-        run: flutter test
+      - name: Test with coverage
+        run: flutter test --coverage
+      - name: Coverage summary
+        run: |
+          PCT=$(awk -F: '/^LH/{h+=$2} /^LF/{f+=$2} END{ if (f>0) printf "%.1f", 100*h/f; else print "0.0" }' coverage/lcov.info)
+          {
+            echo "## Test coverage"
+            echo ""
+            echo "**Line coverage: ${PCT}%**"
+            echo ""
+            echo "Full lcov report is attached as the \`coverage-lcov\` artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          retention-days: 14
