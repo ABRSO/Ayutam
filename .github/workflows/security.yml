@@ -1,0 +1,44 @@
+name: Security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Weekly full scan (Monday 03:00 UTC) so new CVEs in unchanged deps still surface.
+    - cron: "0 3 * * 1"
+
+permissions: {}
+
+jobs:
+  # Reports only vulnerabilities newly introduced by the PR (reads pubspec.lock).
+  osv-scan-pr:
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.3.8
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  # Full dependency scan on main pushes and weekly schedule.
+  osv-scan-full:
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  # Secret-leak scan over full git history.
+  gitleaks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
