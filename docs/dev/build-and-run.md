@@ -243,12 +243,38 @@ flutter pub get
 
 ## 5. Suggested manual UI checklist (current app)
 
-Use after `flutter run` on any platform — useful when reviewing a PR’s test plan:
+**Important:** use a build from current `main` after Phase 2 (flip clock). If the timer
+shows plain large text like `00:09` with no digit cards and no “Current session …”
+line underneath, you are on an **old binary** — pull and rebuild (§1.2 + §2.2 / §3.3).
+
+What Phase 2 **should** look like on the timer:
+
+- App bar: skill name (or “Stopwatch” if skill metadata is still loading).
+- **Large flip clock:** separate digit **cards** with a horizontal hinge line through
+  each digit, colons between groups, format at least `HH:MM:SS` (e.g. `00:00:09`,
+  not `00:09`). Digits flip when the second changes.
+- Below that: a smaller monospace line `Current session  …`.
+- Status: `Running` / `Paused`.
+- Bottom: Pause and Stop icon buttons.
+
+Checklist:
 
 1. **Home:** create a skill → accent colour strip appears on the card.
-2. **Play → Start:** immersive timer opens; **flip clock** shows skill total; smaller mono line shows **current session**.
+2. **Play → Start:** immersive timer opens; confirm the **flip-card** clock above
+   (not plain text); smaller mono line shows **current session**.
 3. **Pause / Resume / Stop:** controls work; hover shows tooltips (desktop).
-4. **Reduced motion:** enable OS “animation effects off” / reduced motion (or Flutter `disableAnimations` in tests) → digits should change **without** 3D flip.
+4. **Reduced motion (OS, not in-app yet):** there is **no** “Reduced motion” toggle
+   in Ayutam Settings today (Appearance still says theme follows system). Use the
+   **operating system** accessibility setting instead:
+
+   - **Windows 11:** Settings → Accessibility → Visual effects → turn **Animation
+     effects** **Off** (or Settings → Accessibility → Contrast themes / related
+     motion options on your build). Restart or re-open the app, then run a session —
+     digits should **change instantly** without a 3D flip.
+   - **Android:** Settings → Accessibility → Remove animations (wording varies by OEM).
+   - An in-app Settings toggle is planned with the fuller Appearance settings later;
+     until then the flip widgets honour the platform “disable animations” flag.
+
 5. **Save session:** return Home; skill total increases.
 6. Create a second skill → accents differ when possible.
 
