@@ -15,7 +15,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check tag against pubspec and CHANGELOG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -32,7 +32,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -47,8 +47,8 @@ jobs:
     needs: [verify, test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -64,7 +64,7 @@ jobs:
       - run: flutter build apk --release
       - name: Rename artifact
         run: cp build/app/outputs/flutter-apk/app-release.apk "ayutam-${GITHUB_REF_NAME}-android.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android
           path: ayutam-*.apk
@@ -74,7 +74,7 @@ jobs:
     needs: [verify, test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
@@ -89,7 +89,7 @@ jobs:
       - run: flutter build linux --release
       - name: Package bundle
         run: tar -czf "ayutam-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: ayutam-*.tar.gz
@@ -99,7 +99,7 @@ jobs:
     needs: [verify, test]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -110,7 +110,7 @@ jobs:
       - run: flutter build windows --release
       - name: Package bundle
         run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "ayutam-$env:GITHUB_REF_NAME-windows-x64.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: ayutam-*.zip
@@ -122,8 +122,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
