@@ -64,7 +64,7 @@ jobs:
       - run: flutter build apk --release
       - name: Rename artifact
         run: cp build/app/outputs/flutter-apk/app-release.apk "ayutam-${GITHUB_REF_NAME}-android.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android
           path: ayutam-*.apk
@@ -89,7 +89,7 @@ jobs:
       - run: flutter build linux --release
       - name: Package bundle
         run: tar -czf "ayutam-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: ayutam-*.tar.gz
@@ -110,7 +110,7 @@ jobs:
       - run: flutter build windows --release
       - name: Package bundle
         run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "ayutam-$env:GITHUB_REF_NAME-windows-x64.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: ayutam-*.zip
