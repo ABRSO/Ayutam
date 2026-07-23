@@ -18,6 +18,10 @@ flutter analyze
 flutter test
 ```
 
+After completing an execution-plan phase, also run the per-platform build + launch
+smoke on Android, Windows, and Linux — see
+[`docs/testing/platform-smoke.md`](docs/testing/platform-smoke.md).
+
 ## Pull requests
 
 - Keep changes focused and tested.

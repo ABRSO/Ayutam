@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 /// Skills tracked by the user.
+@DataClassName('SkillRow')
 class Skills extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
@@ -21,6 +22,7 @@ class Skills extends Table {
 }
 
 /// Practice sessions (completed, active, paused, or completion_pending).
+@DataClassName('SessionRow')
 class Sessions extends Table {
   TextColumn get id => text()();
   TextColumn get skillId => text().references(Skills, #id)();
@@ -45,6 +47,7 @@ class Sessions extends Table {
 }
 
 /// Work / pause / pomodoro_break intervals for a session.
+@DataClassName('SessionSegmentRow')
 class SessionSegments extends Table {
   TextColumn get id => text()();
   TextColumn get sessionId =>

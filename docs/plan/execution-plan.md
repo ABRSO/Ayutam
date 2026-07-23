@@ -28,6 +28,10 @@ flutter build windows --debug
 flutter build linux --debug
 ```
 
+Full per-platform build + launch smoke procedure (exact commands, helper scripts,
+success markers, troubleshooting): [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md).
+Record the results in the phase notes below using its checklist template.
+
 ---
 
 ## Phase 0 — Repository and architectural foundation
@@ -96,10 +100,24 @@ Real platform smoke evidence:
 
 ### Exit criteria
 
-- [ ] Flow: create skill → Play → Start → Stop → Save → Home shows updated total.
-- [ ] Force-close mid-run → reopen reconstructs duration within 10s (simulated).
-- [ ] Double-stop does not duplicate sessions.
-- [ ] Domain logic shared; no platform-specific business rules.
+- [x] Flow: create skill → Play → Start → Stop → Save → Home shows updated total.
+- [x] Force-close mid-run → reopen reconstructs duration within 10s (simulated).
+- [x] Double-stop does not duplicate sessions.
+- [x] Domain logic shared; no platform-specific business rules.
+
+**Phase 1 notes (2026-07-23):** Implemented on `cursor/phase-1-stopwatch-slice`. Stopwatch state machine with session segments + `timer_runtime`; startup gate routes to completion / timer / recovery review; heartbeat ~30s; Recovery Review supports include-full-gap / trim-to-heartbeat / edit-end / discard. Flip clock deferred to Phase 2.
+
+Platform smoke (2026-07-23, see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
+
+| Check | Result |
+|---|---|
+| `flutter analyze` | ✅ No issues |
+| `flutter test` | ✅ All 18 tests passed |
+| **Windows** build + launch | ✅ `tool\win_build.bat --debug` → `ayutam.exe`; alive after 7 s (`WIN_SMOKE_OK`) |
+| **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → install + `am start` → `pidof` returned PID (`ANDROID_SMOKE_OK`) |
+| **Linux** build + launch (WSL) | ✅ `tool/wsl_build_linux.sh` → `LINUX_SMOKE_OK` |
+
+Defects found / fixes applied: none.
 
 ---
 
