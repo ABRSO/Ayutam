@@ -89,13 +89,21 @@ Put suggestions in issues. Do not implement opportunistically.
 
 Update docs in the **same change** when altering user-visible behavior, schema, backup format, state machine, package choice, permissions, or security model. Material decisions → ADR under `docs/architecture/decisions/`.
 
+When finishing an **execution-plan phase**, also update in the same change:
+
+- Root [`README.md`](README.md) **Status** table (what is complete, what is next).
+- [`docs/README.md`](docs/README.md) status row for application code.
+- Phase notes / exit criteria checkboxes in [`docs/plan/execution-plan.md`](docs/plan/execution-plan.md).
+- [`CHANGELOG.md`](CHANGELOG.md) under `[Unreleased]` when user-visible.
+
 ## Before claiming done
 
 1. Relevant tests pass (`flutter test` + targeted integration).  
 2. Schema change includes migration + migration test.  
 3. New dependency documented (purpose, licence, platforms) or ADR notes substitution.  
 4. No new network/analytics call.  
-5. Phase exit criteria in execution plan met if implementing a phase.
+5. Phase exit criteria in execution plan met if implementing a phase.  
+6. **If finishing a phase:** run the full Android + Windows + Linux build & launch smoke per [`docs/testing/platform-smoke.md`](docs/testing/platform-smoke.md), record the evidence table in that phase’s notes, and update root `README.md` status — do this without waiting to be reminded.
 
 ## Completion report format
 

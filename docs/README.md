@@ -33,7 +33,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 - **Backup format change** → update `architecture/backup-format.md`, bump `formatVersion`, keep backward import support.
 - **Timer / recovery change** → update `architecture/timer-state-machine.md` and related tests.
 - **Material decision** (package choice, model change, platform policy) → add or update an ADR under `architecture/decisions/`.
-- **Phase completion** → check off exit criteria in `plan/execution-plan.md`.
+- **Phase completion** → check off exit criteria in `plan/execution-plan.md`, record platform-smoke evidence, and update root [`../README.md`](../README.md) Status plus this file’s status row.
 - Do **not** edit archived files in `archive/` except to correct archive metadata.
 
 ## Status
@@ -41,7 +41,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 | Area | Status |
 |---|---|
 | Product / UX / architecture docs | Authoritative baseline |
-| Flutter application code | Phase 1 stopwatch vertical slice in progress |
+| Flutter application code | Phase 1 complete (stopwatch vertical slice); next is Phase 2 |
 | Package versions cited in docs | Re-verify on pub.dev when adding/upgrading deps |
 
 ## Related root files

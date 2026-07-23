@@ -22,11 +22,22 @@ After completing an execution-plan phase, also run the per-platform build + laun
 smoke on Android, Windows, and Linux — see
 [`docs/testing/platform-smoke.md`](docs/testing/platform-smoke.md).
 
-## Pull requests
+## Pull requests and phase branches
 
-- Keep changes focused and tested.
-- Update docs/ADRs when behavior, schema, or backup format changes.
-- Use the checklist in `AGENTS.md` before claiming done.
+Phase work uses short-lived branches off `main` (e.g. `cursor/phase-1-stopwatch-slice`):
+
+1. Finish the phase (tests + [platform smokes](docs/testing/platform-smoke.md) + docs/`README.md` status).
+2. Open a PR **into `main`**, wait for CI, merge.
+3. Delete the phase branch; start the next phase from updated `main`.
+
+Do not leave completed phases only on feature branches. Keep PRs focused and tested; update docs/ADRs when behavior, schema, or backup format changes. Use the checklist in `AGENTS.md` before claiming done.
+
+### Dependabot PRs
+
+Weekly version bumps target `main`. Review before merging:
+
+- **GitHub Actions** major bumps are usually fine if CI is green; prefer merging upload-artifact and download-artifact updates close together because `release.yml` uses both.
+- **Pub** bumps that look like `+eol`, remove native code, or fail `analyze`/`test` — **close** (or migrate properly in a dedicated change). Do not merge EOL stubs.
 
 ## CI/CD
 

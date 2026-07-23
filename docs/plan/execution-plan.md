@@ -313,12 +313,27 @@ Defects found / fixes applied: none.
 
 ---
 
+## Branching and merge strategy
+
+Work one phase at a time on a dedicated branch off current `main`:
+
+1. `git checkout main && git pull`
+2. `git checkout -b cursor/phase-N-<short-slug>`
+3. Implement until exit criteria + platform smokes pass; update docs/`README.md`/`CHANGELOG`.
+4. Push the branch and **open a PR into `main`**.
+5. Wait for CI (`validate` + `security`) to pass; merge (squash or merge commit — either is fine).
+6. Delete the remote phase branch after merge. Start Phase N+1 from the updated `main`.
+
+Do **not** stack multiple unfinished phases on diverging long-lived branches, and do **not** leave completed phase branches unmerged — Dependabot and the next phase both expect `main` to be the integration tip. Dependabot PRs also target `main`; review them separately (never auto-merge major/`+eol` bumps blindly).
+
 ## Agent checklist per phase
 
 1. Read `AGENTS.md` + relevant docs/ADRs.  
 2. Restate acceptance criteria in the PR/commit message.  
 3. Implement smallest vertical change.  
 4. Add tests.  
-5. Run global verification commands.  
-6. Update docs if behavior/schema/format changed.  
-7. Mark phase exit criteria complete only when demonstrably true.
+5. Run global verification commands (`dart format`, `flutter analyze`, `flutter test`).  
+6. Run **Android + Windows + Linux** build & launch smokes per [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md); record the evidence table in this phase’s notes.  
+7. Update docs if behavior/schema/format changed; always refresh root `README.md` Status and `docs/README.md` when completing a phase.  
+8. Mark phase exit criteria complete only when demonstrably true.  
+9. Open a PR into `main` and merge before starting the next phase.
