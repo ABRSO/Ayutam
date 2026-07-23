@@ -22,3 +22,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Agent/human phase workflow: README status must update each phase; Android/Windows/Linux platform smokes are mandatory before claiming a phase done; phase branches PR into `main` before starting the next phase.
 - Timer screen shows skill-total flip clock plus monospace current-session duration; Home skill cards use accent strip and polished card theme.
 - Added [`docs/dev/build-and-run.md`](docs/dev/build-and-run.md): prerequisites and how to build/install/run on Windows, Android, and Linux for manual checks.
+- Flip clock visuals: fixed digit half-clipping (ghosted digits), Fliqlo-style large HH/MM/SS unit panels with shared hinge, immersive black timer canvas.

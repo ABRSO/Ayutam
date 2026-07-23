@@ -34,7 +34,12 @@ void main() {
               return Scaffold(
                 body: Column(
                   children: [
-                    FlipDigit(digit: digit, reduceMotion: true),
+                    FlipDigit(
+                      digit: digit,
+                      width: 48,
+                      height: 72,
+                      reduceMotion: true,
+                    ),
                     TextButton(
                       onPressed: () => setState(() => digit = 2),
                       child: const Text('bump'),
@@ -59,7 +64,13 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: FlipClock(totalSeconds: 3661, reduceMotion: true),
+            body: Center(
+              child: SizedBox(
+                width: 800,
+                height: 240,
+                child: FlipClock(totalSeconds: 3661, reduceMotion: true),
+              ),
+            ),
           ),
         ),
       );
