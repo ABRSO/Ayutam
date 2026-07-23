@@ -1,23 +1,28 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'flip_digit.dart';
 
 /// Split-flap duration display. Hours expand unbounded (min 2 digits).
+///
+/// Each numeral is an independent [FlipDigit] card with a small gap between
+/// cards (Fliqlo / mechanical flip aesthetic).
 class FlipClock extends StatelessWidget {
   const FlipClock({
     super.key,
     required this.totalSeconds,
-    this.digitWidth = 56,
-    this.digitHeight = 84,
-    this.spacing = 6,
+    this.digitWidth,
+    this.digitHeight,
+    this.spacing,
     this.reduceMotion,
     this.semanticLabel,
   });
 
   final int totalSeconds;
-  final double digitWidth;
-  final double digitHeight;
-  final double spacing;
+  final double? digitWidth;
+  final double? digitHeight;
+  final double? spacing;
   final bool? reduceMotion;
   final String? semanticLabel;
 
@@ -27,72 +32,100 @@ class FlipClock extends StatelessWidget {
     final digits = flipClockDigits(totalSeconds);
     final label =
         semanticLabel ?? 'Duration ${formatFlipClockDuration(totalSeconds)}';
+    final digitCount =
+        digits.hours.length + digits.minutes.length + digits.seconds.length;
 
     return Semantics(
       label: label,
       readOnly: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < digits.hours.length; i++) ...[
-            if (i > 0) SizedBox(width: spacing),
-            FlipDigit(
-              digit: digits.hours[i],
-              width: digitWidth,
-              height: digitHeight,
-              reduceMotion: reduce,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final sized = _resolveSizes(
+            constraints: constraints,
+            digitCount: digitCount,
+          );
+          final w = digitWidth ?? sized.width;
+          final h = digitHeight ?? sized.height;
+          final gap = spacing ?? math.max(6.0, w * 0.1);
+          final colonW = math.max(14.0, w * 0.45);
+
+          Widget digitRow(List<int> unitDigits) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < unitDigits.length; i++) ...[
+                  if (i > 0) SizedBox(width: gap * 0.55),
+                  FlipDigit(
+                    digit: unitDigits[i],
+                    width: w,
+                    height: h,
+                    reduceMotion: reduce,
+                  ),
+                ],
+              ],
+            );
+          }
+
+          return FittedBox(
+            fit: BoxFit.contain,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                digitRow(digits.hours),
+                SizedBox(width: gap * 0.4),
+                _Colon(width: colonW, height: h),
+                SizedBox(width: gap * 0.4),
+                digitRow(digits.minutes),
+                SizedBox(width: gap * 0.4),
+                _Colon(width: colonW, height: h),
+                SizedBox(width: gap * 0.4),
+                digitRow(digits.seconds),
+              ],
             ),
-          ],
-          _Colon(
-            height: digitHeight,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-          for (var i = 0; i < digits.minutes.length; i++) ...[
-            if (i > 0) SizedBox(width: spacing),
-            FlipDigit(
-              digit: digits.minutes[i],
-              width: digitWidth,
-              height: digitHeight,
-              reduceMotion: reduce,
-            ),
-          ],
-          _Colon(
-            height: digitHeight,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-          for (var i = 0; i < digits.seconds.length; i++) ...[
-            if (i > 0) SizedBox(width: spacing),
-            FlipDigit(
-              digit: digits.seconds[i],
-              width: digitWidth,
-              height: digitHeight,
-              reduceMotion: reduce,
-            ),
-          ],
-        ],
+          );
+        },
       ),
     );
+  }
+
+  static ({double width, double height}) _resolveSizes({
+    required BoxConstraints constraints,
+    required int digitCount,
+  }) {
+    final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : 900.0;
+    final maxH = constraints.maxHeight.isFinite ? constraints.maxHeight : 320.0;
+
+    const aspect = 0.72;
+    final widthFromW = (maxW * 0.9) / (digitCount + 1.4);
+    var width = widthFromW;
+    var height = width / aspect;
+    if (height > maxH * 0.95) {
+      height = maxH * 0.95;
+      width = height * aspect;
+    }
+    return (width: width.clamp(48.0, 180.0), height: height.clamp(68.0, 260.0));
   }
 }
 
 class _Colon extends StatelessWidget {
-  const _Colon({required this.height, required this.color});
+  const _Colon({required this.width, required this.height});
 
+  final double width;
   final double height;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final dot = math.max(7.0, height * 0.075);
     return ExcludeSemantics(
       child: SizedBox(
-        width: height * 0.35,
+        width: width,
         height: height,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _Dot(color: color),
+            _Dot(size: dot),
             SizedBox(height: height * 0.18),
-            _Dot(color: color),
+            _Dot(size: dot),
           ],
         ),
       ),
@@ -101,16 +134,19 @@ class _Colon extends StatelessWidget {
 }
 
 class _Dot extends StatelessWidget {
-  const _Dot({required this.color});
+  const _Dot({required this.size});
 
-  final Color color;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 7,
-      height: 7,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        color: FlipClockStyle.colon,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }
@@ -127,7 +163,6 @@ final class FlipClockDigits {
   final List<int> seconds;
 }
 
-/// Hours: at least 2 digits, unbounded. Minutes/seconds always 2 digits.
 FlipClockDigits flipClockDigits(int totalSeconds) {
   final seconds = totalSeconds < 0 ? 0 : totalSeconds;
   final h = seconds ~/ 3600;
