@@ -22,6 +22,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 | [`architecture/timer-state-machine.md`](architecture/timer-state-machine.md) | Timer states, transitions, recovery, Pomodoro overlay, clock model |
 | [`architecture/decisions/`](architecture/decisions/) | Architectural Decision Records (ADRs) |
 | [`testing/testing-strategy.md`](testing/testing-strategy.md) | Test pyramid, matrices, performance fixture, CI gates |
+| [`testing/platform-smoke.md`](testing/platform-smoke.md) | Per-phase Android/Windows/Linux build + launch smoke procedure, troubleshooting, checklist |
 | [`plan/execution-plan.md`](plan/execution-plan.md) | Phased agent-executable implementation plan (Phases 0–8) |
 | [`archive/`](archive/) | Superseded brainstorming specs (historical only) |
 
@@ -32,7 +33,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 - **Backup format change** → update `architecture/backup-format.md`, bump `formatVersion`, keep backward import support.
 - **Timer / recovery change** → update `architecture/timer-state-machine.md` and related tests.
 - **Material decision** (package choice, model change, platform policy) → add or update an ADR under `architecture/decisions/`.
-- **Phase completion** → check off exit criteria in `plan/execution-plan.md`.
+- **Phase completion** → check off exit criteria in `plan/execution-plan.md`, record platform-smoke evidence, and update root [`../README.md`](../README.md) Status plus this file’s status row.
 - Do **not** edit archived files in `archive/` except to correct archive metadata.
 
 ## Status
@@ -40,7 +41,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 | Area | Status |
 |---|---|
 | Product / UX / architecture docs | Authoritative baseline |
-| Flutter application code | Phase 0 scaffold in progress |
+| Flutter application code | Phase 1 complete (stopwatch vertical slice); next is Phase 2 |
 | Package versions cited in docs | Re-verify on pub.dev when adding/upgrading deps |
 
 ## Related root files

@@ -3,7 +3,7 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
-class $SkillsTable extends Skills with TableInfo<$SkillsTable, Skill> {
+class $SkillsTable extends Skills with TableInfo<$SkillsTable, SkillRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -159,7 +159,7 @@ class $SkillsTable extends Skills with TableInfo<$SkillsTable, Skill> {
   static const String $name = 'skills';
   @override
   VerificationContext validateIntegrity(
-    Insertable<Skill> instance, {
+    Insertable<SkillRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -272,9 +272,9 @@ class $SkillsTable extends Skills with TableInfo<$SkillsTable, Skill> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Skill map(Map<String, dynamic> data, {String? tablePrefix}) {
+  SkillRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Skill(
+    return SkillRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -332,7 +332,7 @@ class $SkillsTable extends Skills with TableInfo<$SkillsTable, Skill> {
   }
 }
 
-class Skill extends DataClass implements Insertable<Skill> {
+class SkillRow extends DataClass implements Insertable<SkillRow> {
   final String id;
   final String name;
   final String? descriptionMarkdown;
@@ -345,7 +345,7 @@ class Skill extends DataClass implements Insertable<Skill> {
   final int updatedAtUtc;
   final String sourceDeviceId;
   final int? deletedAtUtc;
-  const Skill({
+  const SkillRow({
     required this.id,
     required this.name,
     this.descriptionMarkdown,
@@ -406,12 +406,12 @@ class Skill extends DataClass implements Insertable<Skill> {
     );
   }
 
-  factory Skill.fromJson(
+  factory SkillRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Skill(
+    return SkillRow(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       descriptionMarkdown: serializer.fromJson<String?>(
@@ -447,7 +447,7 @@ class Skill extends DataClass implements Insertable<Skill> {
     };
   }
 
-  Skill copyWith({
+  SkillRow copyWith({
     String? id,
     String? name,
     Value<String?> descriptionMarkdown = const Value.absent(),
@@ -460,7 +460,7 @@ class Skill extends DataClass implements Insertable<Skill> {
     int? updatedAtUtc,
     String? sourceDeviceId,
     Value<int?> deletedAtUtc = const Value.absent(),
-  }) => Skill(
+  }) => SkillRow(
     id: id ?? this.id,
     name: name ?? this.name,
     descriptionMarkdown: descriptionMarkdown.present
@@ -476,8 +476,8 @@ class Skill extends DataClass implements Insertable<Skill> {
     sourceDeviceId: sourceDeviceId ?? this.sourceDeviceId,
     deletedAtUtc: deletedAtUtc.present ? deletedAtUtc.value : this.deletedAtUtc,
   );
-  Skill copyWithCompanion(SkillsCompanion data) {
-    return Skill(
+  SkillRow copyWithCompanion(SkillsCompanion data) {
+    return SkillRow(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       descriptionMarkdown: data.descriptionMarkdown.present
@@ -511,7 +511,7 @@ class Skill extends DataClass implements Insertable<Skill> {
 
   @override
   String toString() {
-    return (StringBuffer('Skill(')
+    return (StringBuffer('SkillRow(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('descriptionMarkdown: $descriptionMarkdown, ')
@@ -546,7 +546,7 @@ class Skill extends DataClass implements Insertable<Skill> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Skill &&
+      (other is SkillRow &&
           other.id == this.id &&
           other.name == this.name &&
           other.descriptionMarkdown == this.descriptionMarkdown &&
@@ -561,7 +561,7 @@ class Skill extends DataClass implements Insertable<Skill> {
           other.deletedAtUtc == this.deletedAtUtc);
 }
 
-class SkillsCompanion extends UpdateCompanion<Skill> {
+class SkillsCompanion extends UpdateCompanion<SkillRow> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> descriptionMarkdown;
@@ -610,7 +610,7 @@ class SkillsCompanion extends UpdateCompanion<Skill> {
        createdAtUtc = Value(createdAtUtc),
        updatedAtUtc = Value(updatedAtUtc),
        sourceDeviceId = Value(sourceDeviceId);
-  static Insertable<Skill> custom({
+  static Insertable<SkillRow> custom({
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? descriptionMarkdown,
@@ -741,7 +741,8 @@ class SkillsCompanion extends UpdateCompanion<Skill> {
   }
 }
 
-class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
+class $SessionsTable extends Sessions
+    with TableInfo<$SessionsTable, SessionRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -956,7 +957,7 @@ class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
   static const String $name = 'sessions';
   @override
   VerificationContext validateIntegrity(
-    Insertable<Session> instance, {
+    Insertable<SessionRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1114,9 +1115,9 @@ class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Session map(Map<String, dynamic> data, {String? tablePrefix}) {
+  SessionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Session(
+    return SessionRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -1194,7 +1195,7 @@ class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
   }
 }
 
-class Session extends DataClass implements Insertable<Session> {
+class SessionRow extends DataClass implements Insertable<SessionRow> {
   final String id;
   final String skillId;
   final String? title;
@@ -1212,7 +1213,7 @@ class Session extends DataClass implements Insertable<Session> {
   final int updatedAtUtc;
   final String sourceDeviceId;
   final int? deletedAtUtc;
-  const Session({
+  const SessionRow({
     required this.id,
     required this.skillId,
     this.title,
@@ -1292,12 +1293,12 @@ class Session extends DataClass implements Insertable<Session> {
     );
   }
 
-  factory Session.fromJson(
+  factory SessionRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Session(
+    return SessionRow(
       id: serializer.fromJson<String>(json['id']),
       skillId: serializer.fromJson<String>(json['skillId']),
       title: serializer.fromJson<String?>(json['title']),
@@ -1345,7 +1346,7 @@ class Session extends DataClass implements Insertable<Session> {
     };
   }
 
-  Session copyWith({
+  SessionRow copyWith({
     String? id,
     String? skillId,
     Value<String?> title = const Value.absent(),
@@ -1363,7 +1364,7 @@ class Session extends DataClass implements Insertable<Session> {
     int? updatedAtUtc,
     String? sourceDeviceId,
     Value<int?> deletedAtUtc = const Value.absent(),
-  }) => Session(
+  }) => SessionRow(
     id: id ?? this.id,
     skillId: skillId ?? this.skillId,
     title: title.present ? title.value : this.title,
@@ -1382,8 +1383,8 @@ class Session extends DataClass implements Insertable<Session> {
     sourceDeviceId: sourceDeviceId ?? this.sourceDeviceId,
     deletedAtUtc: deletedAtUtc.present ? deletedAtUtc.value : this.deletedAtUtc,
   );
-  Session copyWithCompanion(SessionsCompanion data) {
-    return Session(
+  SessionRow copyWithCompanion(SessionsCompanion data) {
+    return SessionRow(
       id: data.id.present ? data.id.value : this.id,
       skillId: data.skillId.present ? data.skillId.value : this.skillId,
       title: data.title.present ? data.title.value : this.title,
@@ -1426,7 +1427,7 @@ class Session extends DataClass implements Insertable<Session> {
 
   @override
   String toString() {
-    return (StringBuffer('Session(')
+    return (StringBuffer('SessionRow(')
           ..write('id: $id, ')
           ..write('skillId: $skillId, ')
           ..write('title: $title, ')
@@ -1471,7 +1472,7 @@ class Session extends DataClass implements Insertable<Session> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Session &&
+      (other is SessionRow &&
           other.id == this.id &&
           other.skillId == this.skillId &&
           other.title == this.title &&
@@ -1491,7 +1492,7 @@ class Session extends DataClass implements Insertable<Session> {
           other.deletedAtUtc == this.deletedAtUtc);
 }
 
-class SessionsCompanion extends UpdateCompanion<Session> {
+class SessionsCompanion extends UpdateCompanion<SessionRow> {
   final Value<String> id;
   final Value<String> skillId;
   final Value<String?> title;
@@ -1558,7 +1559,7 @@ class SessionsCompanion extends UpdateCompanion<Session> {
        createdAtUtc = Value(createdAtUtc),
        updatedAtUtc = Value(updatedAtUtc),
        sourceDeviceId = Value(sourceDeviceId);
-  static Insertable<Session> custom({
+  static Insertable<SessionRow> custom({
     Expression<String>? id,
     Expression<String>? skillId,
     Expression<String>? title,
@@ -1735,7 +1736,7 @@ class SessionsCompanion extends UpdateCompanion<Session> {
 }
 
 class $SessionSegmentsTable extends SessionSegments
-    with TableInfo<$SessionSegmentsTable, SessionSegment> {
+    with TableInfo<$SessionSegmentsTable, SessionSegmentRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -1872,7 +1873,7 @@ class $SessionSegmentsTable extends SessionSegments
   static const String $name = 'session_segments';
   @override
   VerificationContext validateIntegrity(
-    Insertable<SessionSegment> instance, {
+    Insertable<SessionSegmentRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1973,9 +1974,9 @@ class $SessionSegmentsTable extends SessionSegments
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  SessionSegment map(Map<String, dynamic> data, {String? tablePrefix}) {
+  SessionSegmentRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return SessionSegment(
+    return SessionSegmentRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -2025,7 +2026,8 @@ class $SessionSegmentsTable extends SessionSegments
   }
 }
 
-class SessionSegment extends DataClass implements Insertable<SessionSegment> {
+class SessionSegmentRow extends DataClass
+    implements Insertable<SessionSegmentRow> {
   final String id;
   final String sessionId;
   final String segmentType;
@@ -2036,7 +2038,7 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
   final int durationSeconds;
   final int createdAtUtc;
   final int updatedAtUtc;
-  const SessionSegment({
+  const SessionSegmentRow({
     required this.id,
     required this.sessionId,
     required this.segmentType,
@@ -2091,12 +2093,12 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
     );
   }
 
-  factory SessionSegment.fromJson(
+  factory SessionSegmentRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return SessionSegment(
+    return SessionSegmentRow(
       id: serializer.fromJson<String>(json['id']),
       sessionId: serializer.fromJson<String>(json['sessionId']),
       segmentType: serializer.fromJson<String>(json['segmentType']),
@@ -2126,7 +2128,7 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
     };
   }
 
-  SessionSegment copyWith({
+  SessionSegmentRow copyWith({
     String? id,
     String? sessionId,
     String? segmentType,
@@ -2137,7 +2139,7 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
     int? durationSeconds,
     int? createdAtUtc,
     int? updatedAtUtc,
-  }) => SessionSegment(
+  }) => SessionSegmentRow(
     id: id ?? this.id,
     sessionId: sessionId ?? this.sessionId,
     segmentType: segmentType ?? this.segmentType,
@@ -2151,8 +2153,8 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
     createdAtUtc: createdAtUtc ?? this.createdAtUtc,
     updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
   );
-  SessionSegment copyWithCompanion(SessionSegmentsCompanion data) {
-    return SessionSegment(
+  SessionSegmentRow copyWithCompanion(SessionSegmentsCompanion data) {
+    return SessionSegmentRow(
       id: data.id.present ? data.id.value : this.id,
       sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       segmentType: data.segmentType.present
@@ -2182,7 +2184,7 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
 
   @override
   String toString() {
-    return (StringBuffer('SessionSegment(')
+    return (StringBuffer('SessionSegmentRow(')
           ..write('id: $id, ')
           ..write('sessionId: $sessionId, ')
           ..write('segmentType: $segmentType, ')
@@ -2213,7 +2215,7 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is SessionSegment &&
+      (other is SessionSegmentRow &&
           other.id == this.id &&
           other.sessionId == this.sessionId &&
           other.segmentType == this.segmentType &&
@@ -2226,7 +2228,7 @@ class SessionSegment extends DataClass implements Insertable<SessionSegment> {
           other.updatedAtUtc == this.updatedAtUtc);
 }
 
-class SessionSegmentsCompanion extends UpdateCompanion<SessionSegment> {
+class SessionSegmentsCompanion extends UpdateCompanion<SessionSegmentRow> {
   final Value<String> id;
   final Value<String> sessionId;
   final Value<String> segmentType;
@@ -2269,7 +2271,7 @@ class SessionSegmentsCompanion extends UpdateCompanion<SessionSegment> {
        startAtUtc = Value(startAtUtc),
        createdAtUtc = Value(createdAtUtc),
        updatedAtUtc = Value(updatedAtUtc);
-  static Insertable<SessionSegment> custom({
+  static Insertable<SessionSegmentRow> custom({
     Expression<String>? id,
     Expression<String>? sessionId,
     Expression<String>? segmentType,
@@ -6124,12 +6126,11 @@ typedef $$SkillsTableUpdateCompanionBuilder =
     });
 
 final class $$SkillsTableReferences
-    extends BaseReferences<_$AppDatabase, $SkillsTable, Skill> {
+    extends BaseReferences<_$AppDatabase, $SkillsTable, SkillRow> {
   $$SkillsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static MultiTypedResultKey<$SessionsTable, List<Session>> _sessionsRefsTable(
-    _$AppDatabase db,
-  ) => MultiTypedResultKey.fromTable(
+  static MultiTypedResultKey<$SessionsTable, List<SessionRow>>
+  _sessionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.sessions,
     aliasName: 'skills__id__sessions__skill_id',
   );
@@ -6404,14 +6405,14 @@ class $$SkillsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $SkillsTable,
-          Skill,
+          SkillRow,
           $$SkillsTableFilterComposer,
           $$SkillsTableOrderingComposer,
           $$SkillsTableAnnotationComposer,
           $$SkillsTableCreateCompanionBuilder,
           $$SkillsTableUpdateCompanionBuilder,
-          (Skill, $$SkillsTableReferences),
-          Skill,
+          (SkillRow, $$SkillsTableReferences),
+          SkillRow,
           PrefetchHooks Function({bool sessionsRefs})
         > {
   $$SkillsTableTableManager(_$AppDatabase db, $SkillsTable table)
@@ -6499,7 +6500,11 @@ class $$SkillsTableTableManager
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (sessionsRefs)
-                    await $_getPrefetchedData<Skill, $SkillsTable, Session>(
+                    await $_getPrefetchedData<
+                      SkillRow,
+                      $SkillsTable,
+                      SessionRow
+                    >(
                       currentTable: table,
                       referencedTable: $$SkillsTableReferences
                           ._sessionsRefsTable(db),
@@ -6521,14 +6526,14 @@ typedef $$SkillsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $SkillsTable,
-      Skill,
+      SkillRow,
       $$SkillsTableFilterComposer,
       $$SkillsTableOrderingComposer,
       $$SkillsTableAnnotationComposer,
       $$SkillsTableCreateCompanionBuilder,
       $$SkillsTableUpdateCompanionBuilder,
-      (Skill, $$SkillsTableReferences),
-      Skill,
+      (SkillRow, $$SkillsTableReferences),
+      SkillRow,
       PrefetchHooks Function({bool sessionsRefs})
     >;
 typedef $$SessionsTableCreateCompanionBuilder =
@@ -6575,7 +6580,7 @@ typedef $$SessionsTableUpdateCompanionBuilder =
     });
 
 final class $$SessionsTableReferences
-    extends BaseReferences<_$AppDatabase, $SessionsTable, Session> {
+    extends BaseReferences<_$AppDatabase, $SessionsTable, SessionRow> {
   $$SessionsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static $SkillsTable _skillIdTable(_$AppDatabase db) =>
@@ -6595,7 +6600,7 @@ final class $$SessionsTableReferences
     );
   }
 
-  static MultiTypedResultKey<$SessionSegmentsTable, List<SessionSegment>>
+  static MultiTypedResultKey<$SessionSegmentsTable, List<SessionSegmentRow>>
   _sessionSegmentsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
     db.sessionSegments,
     aliasName: 'sessions__id__session_segments__session_id',
@@ -7134,14 +7139,14 @@ class $$SessionsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $SessionsTable,
-          Session,
+          SessionRow,
           $$SessionsTableFilterComposer,
           $$SessionsTableOrderingComposer,
           $$SessionsTableAnnotationComposer,
           $$SessionsTableCreateCompanionBuilder,
           $$SessionsTableUpdateCompanionBuilder,
-          (Session, $$SessionsTableReferences),
-          Session,
+          (SessionRow, $$SessionsTableReferences),
+          SessionRow,
           PrefetchHooks Function({
             bool skillId,
             bool sessionSegmentsRefs,
@@ -7298,9 +7303,9 @@ class $$SessionsTableTableManager
                     return [
                       if (sessionSegmentsRefs)
                         await $_getPrefetchedData<
-                          Session,
+                          SessionRow,
                           $SessionsTable,
-                          SessionSegment
+                          SessionSegmentRow
                         >(
                           currentTable: table,
                           referencedTable: $$SessionsTableReferences
@@ -7319,7 +7324,7 @@ class $$SessionsTableTableManager
                         ),
                       if (timerRuntimeRefs)
                         await $_getPrefetchedData<
-                          Session,
+                          SessionRow,
                           $SessionsTable,
                           TimerRuntimeData
                         >(
@@ -7340,7 +7345,7 @@ class $$SessionsTableTableManager
                         ),
                       if (sessionTagsRefs)
                         await $_getPrefetchedData<
-                          Session,
+                          SessionRow,
                           $SessionsTable,
                           SessionTag
                         >(
@@ -7371,14 +7376,14 @@ typedef $$SessionsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $SessionsTable,
-      Session,
+      SessionRow,
       $$SessionsTableFilterComposer,
       $$SessionsTableOrderingComposer,
       $$SessionsTableAnnotationComposer,
       $$SessionsTableCreateCompanionBuilder,
       $$SessionsTableUpdateCompanionBuilder,
-      (Session, $$SessionsTableReferences),
-      Session,
+      (SessionRow, $$SessionsTableReferences),
+      SessionRow,
       PrefetchHooks Function({
         bool skillId,
         bool sessionSegmentsRefs,
@@ -7417,7 +7422,11 @@ typedef $$SessionSegmentsTableUpdateCompanionBuilder =
 
 final class $$SessionSegmentsTableReferences
     extends
-        BaseReferences<_$AppDatabase, $SessionSegmentsTable, SessionSegment> {
+        BaseReferences<
+          _$AppDatabase,
+          $SessionSegmentsTable,
+          SessionSegmentRow
+        > {
   $$SessionSegmentsTableReferences(
     super.$_db,
     super.$_table,
@@ -7677,14 +7686,14 @@ class $$SessionSegmentsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $SessionSegmentsTable,
-          SessionSegment,
+          SessionSegmentRow,
           $$SessionSegmentsTableFilterComposer,
           $$SessionSegmentsTableOrderingComposer,
           $$SessionSegmentsTableAnnotationComposer,
           $$SessionSegmentsTableCreateCompanionBuilder,
           $$SessionSegmentsTableUpdateCompanionBuilder,
-          (SessionSegment, $$SessionSegmentsTableReferences),
-          SessionSegment,
+          (SessionSegmentRow, $$SessionSegmentsTableReferences),
+          SessionSegmentRow,
           PrefetchHooks Function({bool sessionId})
         > {
   $$SessionSegmentsTableTableManager(
@@ -7811,14 +7820,14 @@ typedef $$SessionSegmentsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $SessionSegmentsTable,
-      SessionSegment,
+      SessionSegmentRow,
       $$SessionSegmentsTableFilterComposer,
       $$SessionSegmentsTableOrderingComposer,
       $$SessionSegmentsTableAnnotationComposer,
       $$SessionSegmentsTableCreateCompanionBuilder,
       $$SessionSegmentsTableUpdateCompanionBuilder,
-      (SessionSegment, $$SessionSegmentsTableReferences),
-      SessionSegment,
+      (SessionSegmentRow, $$SessionSegmentsTableReferences),
+      SessionSegmentRow,
       PrefetchHooks Function({bool sessionId})
     >;
 typedef $$TimerRuntimeTableCreateCompanionBuilder =

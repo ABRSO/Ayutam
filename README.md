@@ -8,7 +8,13 @@
 
 ## Status
 
-Documentation is authoritative. **Phase 0** (Flutter scaffold, Drift schema v1, Riverpod shell) is in progress on branch work — see [execution plan](docs/plan/execution-plan.md).
+| Area | Status |
+|---|---|
+| Docs (product / UX / architecture) | Authoritative baseline |
+| Application code | **Phase 1 complete** — skills CRUD, stopwatch start/pause/resume/stop, completion save/discard, crash recovery + Recovery Review, startup routing |
+| Next | Phase 2 — flip clock + visual identity ([execution plan](docs/plan/execution-plan.md)) |
+| Platforms verified | Android emulator, Windows, Linux (WSLg) — see [platform smoke](docs/testing/platform-smoke.md) |
+
 ## Documentation map
 
 | Doc | Purpose |
@@ -36,7 +42,7 @@ Create skills → start a stopwatch or Pomodoro from a skill card → immersive 
 1. Read [AGENTS.md](AGENTS.md).  
 2. Follow [docs/plan/execution-plan.md](docs/plan/execution-plan.md) in order.  
 3. Treat `docs/` as source of truth; do not implement from `docs/archive/`.  
-4. Keep documentation updated as features land.
+4. After each phase: update this README status table, check off exit criteria, run [platform smokes](docs/testing/platform-smoke.md), open a PR into `main`.
 
 ## Development
 
@@ -52,6 +58,9 @@ dart format --set-exit-if-changed .
 flutter analyze
 flutter test
 ```
+
+Per-phase platform build + launch smoke (Android / Windows / Linux): [`docs/testing/platform-smoke.md`](docs/testing/platform-smoke.md).
+
 ## Contributing / security
 
-See `CONTRIBUTING.md` and `SECURITY.md` once created in Phase 0. Until then: open issues for proposals; never add telemetry or backends.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) (branching / PR merge strategy) and [`SECURITY.md`](SECURITY.md). Never add telemetry or backends.

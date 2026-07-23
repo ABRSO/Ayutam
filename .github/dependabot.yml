@@ -6,6 +6,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # 0.6.0+eol is an empty EOL stub. Migrating off this package requires a
+      # deliberate sqlite3 3.x native-assets change — never take the EOL bump alone.
+      - dependency-name: sqlite3_flutter_libs
+        versions: [">=0.6.0"]
 
   # Keep GitHub Actions versions current (checkout, flutter-action, etc.)
   - package-ecosystem: github-actions
