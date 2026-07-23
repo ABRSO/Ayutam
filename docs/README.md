@@ -22,6 +22,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 | [`architecture/timer-state-machine.md`](architecture/timer-state-machine.md) | Timer states, transitions, recovery, Pomodoro overlay, clock model |
 | [`architecture/decisions/`](architecture/decisions/) | Architectural Decision Records (ADRs) |
 | [`testing/testing-strategy.md`](testing/testing-strategy.md) | Test pyramid, matrices, performance fixture, CI gates |
+| [`dev/build-and-run.md`](dev/build-and-run.md) | Human guide: install SDKs, build, install, and run on Windows / Android / Linux |
 | [`testing/platform-smoke.md`](testing/platform-smoke.md) | Per-phase Android/Windows/Linux build + launch smoke procedure, troubleshooting, checklist |
 | [`plan/execution-plan.md`](plan/execution-plan.md) | Phased agent-executable implementation plan (Phases 0–8) |
 | [`archive/`](archive/) | Superseded brainstorming specs (historical only) |

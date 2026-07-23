@@ -29,6 +29,8 @@
 | [docs/architecture/timer-state-machine.md](docs/architecture/timer-state-machine.md) | Timer & recovery |
 | [docs/architecture/decisions/](docs/architecture/decisions/) | ADRs |
 | [docs/testing/testing-strategy.md](docs/testing/testing-strategy.md) | Testing strategy |
+| [docs/dev/build-and-run.md](docs/dev/build-and-run.md) | **Install prerequisites, build, run, and try the app** (Windows / Android / Linux) |
+| [docs/testing/platform-smoke.md](docs/testing/platform-smoke.md) | Per-phase platform smoke checklist (agents + CI-style verify) |
 | [docs/plan/execution-plan.md](docs/plan/execution-plan.md) | Phased implementation plan (0–8) |
 
 Historical brainstorming specs (superseded): [`docs/archive/`](docs/archive/).
@@ -46,20 +48,23 @@ Create skills → start a stopwatch or Pomodoro from a skill card → immersive 
 
 ## Development
 
-Requires [Flutter](https://docs.flutter.dev/get-started/install) stable (Android / Windows / Linux targets).
+Full **prerequisites, build, install, and run** instructions for Windows, Android, and Linux (including SDK/JDK/VS/WSL setup and a short manual UI checklist):
 
-On **Windows**, enable [Developer Mode](ms-settings:developers) so Flutter can create plugin symlinks (`flutter build windows` / `flutter run -d windows`).
+→ **[`docs/dev/build-and-run.md`](docs/dev/build-and-run.md)**
+
+Quick start (once Flutter + platform toolchains are installed):
 
 ```bash
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
-flutter run -d windows   # or an Android device/emulator when SDK is configured
-dart format --set-exit-if-changed .
+flutter run -d windows   # or an Android emulator / device
 flutter analyze
 flutter test
 ```
 
-Per-phase platform build + launch smoke (Android / Windows / Linux): [`docs/testing/platform-smoke.md`](docs/testing/platform-smoke.md).
+On **Windows**, enable [Developer Mode](ms-settings:developers) before desktop builds. Prefer `tool\win_build.bat` for Windows release/debug binaries.
+
+Per-phase automated-style platform smokes: [`docs/testing/platform-smoke.md`](docs/testing/platform-smoke.md).
 
 ## Contributing / security
 
