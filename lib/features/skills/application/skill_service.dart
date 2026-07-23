@@ -1,6 +1,7 @@
 import '../../../core/constants/app_constants.dart';
 import '../../../core/id/id_generator.dart';
 import '../../../core/result/result.dart';
+import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/clock_service.dart';
 import '../domain/skill.dart';
 import '../domain/skill_repository.dart';
@@ -42,6 +43,10 @@ final class SkillService {
         '${local.year.toString().padLeft(4, '0')}-'
         '${local.month.toString().padLeft(2, '0')}-'
         '${local.day.toString().padLeft(2, '0')}';
+    final existing = await _skills.listActiveSkillsWithProgress();
+    final accent = SkillAccentPalette.nextAccent(
+      existing.map((s) => s.accentArgb),
+    );
     final skill = Skill(
       id: _ids.v4(),
       name: trimmed,
@@ -50,6 +55,7 @@ final class SkillService {
           : descriptionMarkdown?.trim(),
       targetSeconds: targetSeconds ?? AppConstants.defaultTargetSeconds,
       createdLocalDate: localDate,
+      accentArgb: SkillAccentPalette.toArgb(accent),
       status: SkillStatus.active,
       sortOrder: 0,
       createdAtUtc: now,

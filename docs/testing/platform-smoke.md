@@ -2,7 +2,7 @@
 
 **Status:** Authoritative verification procedure
 **Audience:** Coding agents and humans verifying a phase on real platforms
-**Related:** [`testing-strategy.md`](testing-strategy.md), [`../plan/execution-plan.md`](../plan/execution-plan.md)
+**Related:** [`testing-strategy.md`](testing-strategy.md), [`../plan/execution-plan.md`](../plan/execution-plan.md), human install/run guide [`../dev/build-and-run.md`](../dev/build-and-run.md)
 
 ## Purpose and policy
 

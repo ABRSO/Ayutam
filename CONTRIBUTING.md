@@ -10,6 +10,9 @@ Thanks for interest in Ayutam.
 
 ## Development
 
+To install toolchains and run the app locally (manual UI checks), follow
+[`docs/dev/build-and-run.md`](docs/dev/build-and-run.md).
+
 ```bash
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs

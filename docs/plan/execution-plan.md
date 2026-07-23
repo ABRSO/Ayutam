@@ -139,9 +139,22 @@ Defects found / fixes applied: none.
 
 ### Exit criteria
 
-- [ ] Timer matches UX flip-clock intent.
-- [ ] Reduced Motion disables 3D flip.
-- [ ] Hours unbounded (e.g. > 99).
+- [x] Timer matches UX flip-clock intent.
+- [x] Reduced Motion disables 3D flip.
+- [x] Hours unbounded (e.g. > 99).
+
+**Phase 2 notes (2026-07-23):** Implemented on `cursor/phase-2-flip-clock`. Custom `FlipDigit`/`FlipClock` with rotateX (~450 ms, fast-out-slow-in); reduced motion / `MediaQuery.disableAnimations` → instant digit swap. Timer shows skill-total flip clock + mono current-session line; `TimerIconControl` for Pause/Stop (≥48×48, semantics + tooltips). Ten-colour accent palette auto-assigned on skill create; Home cards show accent strip. Theme: bordered flat cards, mono duration helper.
+
+Platform smoke (2026-07-23, see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
+
+| Platform | Result | Evidence |
+|---|---|---|
+| Analyze / tests | Pass | `flutter analyze` clean; 24 tests passed |
+| Windows | Pass | `tool\win_build.bat --debug` → `WIN_SMOKE_OK` |
+| Android | Pass | emulator `ayutam_api34` → install/launch → `ANDROID_SMOKE_OK` |
+| Linux (WSL) | Pass | `tool/wsl_build_linux.sh` → `LINUX_SMOKE_OK` |
+
+Defects found / fixes applied: none.
 
 ---
 
