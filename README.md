@@ -48,7 +48,7 @@ Create skills → start a stopwatch or Pomodoro from a skill card → immersive 
 
 ## Development
 
-Full **prerequisites, build, install, and run** instructions for Windows, Android, and Linux (including SDK/JDK/VS/WSL setup and a short manual UI checklist):
+Full **prerequisites, build, install, and run** instructions for Windows, Android (JDK/SDK/emulator), Linux via WSL, and **native Linux**:
 
 → **[`docs/dev/build-and-run.md`](docs/dev/build-and-run.md)**
 
