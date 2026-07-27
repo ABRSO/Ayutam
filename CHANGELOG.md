@@ -22,3 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Agent/human phase workflow: README status must update each phase; Android/Windows/Linux platform smokes are mandatory before claiming a phase done; phase branches PR into `main` before starting the next phase.
 - Timer screen shows skill-total flip clock plus monospace current-session duration; Home skill cards use accent strip and polished card theme.
 - Expanded [`docs/dev/build-and-run.md`](docs/dev/build-and-run.md): step-by-step JDK 17 / Android SDK / AVD / env vars; WSL Linux; **native Linux** (Ubuntu/Debian) setup, build, and run.
+- Flip clock visuals: true two-stage mechanical flip (rotateX upper 0→90°, then lower 90°→0°), clipped full-face halves, individual digit cards, no permanent hinge overlay / slot-machine slide.
+
+### Fixed
+
+- Skill editor sheet owns its text controllers for the sheet lifetime so Android IME/focus teardown cannot use a disposed controller (red-screen crash on New Skill).

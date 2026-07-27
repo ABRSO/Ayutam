@@ -177,94 +177,129 @@ Future<void> _openSkillEditor(
   WidgetRef ref, {
   Skill? skill,
 }) async {
-  final nameController = TextEditingController(text: skill?.name ?? '');
-  final hoursController = TextEditingController(
-    text: ((skill?.targetSeconds ?? AppConstants.defaultTargetSeconds) / 3600)
-        .round()
-        .toString(),
-  );
-
   final saved = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 8,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
-        ),
+    builder: (sheetContext) => _SkillEditorSheet(skill: skill),
+  );
+
+  if (saved == true) {
+    ref.invalidate(activeSkillsProvider);
+  }
+}
+
+/// Owns [TextEditingController]s for the lifetime of the sheet so IME/focus
+/// teardown cannot notify disposed controllers (common on Android).
+class _SkillEditorSheet extends ConsumerStatefulWidget {
+  const _SkillEditorSheet({required this.skill});
+
+  final Skill? skill;
+
+  @override
+  ConsumerState<_SkillEditorSheet> createState() => _SkillEditorSheetState();
+}
+
+class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _hoursController;
+  var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final skill = widget.skill;
+    _nameController = TextEditingController(text: skill?.name ?? '');
+    _hoursController = TextEditingController(
+      text: ((skill?.targetSeconds ?? AppConstants.defaultTargetSeconds) / 3600)
+          .round()
+          .toString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _hoursController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final name = _nameController.text;
+    final hours = int.tryParse(_hoursController.text.trim());
+    final targetSeconds = (hours ?? AppConstants.defaultTargetHours) * 3600;
+    final service = ref.read(skillServiceProvider);
+    final skill = widget.skill;
+    final result = skill == null
+        ? await service.create(name: name, targetSeconds: targetSeconds)
+        : await service.update(
+            id: skill.id,
+            name: name,
+            targetSeconds: targetSeconds,
+          );
+    if (!mounted) return;
+    result.when(
+      success: (_) => Navigator.pop(context, true),
+      failure: (f) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(f.message)));
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 8,
+        bottom: bottomInset + 24,
+      ),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              skill == null ? 'New skill' : 'Edit skill',
+              widget.skill == null ? 'New skill' : 'Edit skill',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: nameController,
+              controller: _nameController,
               autofocus: true,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 labelText: 'Name',
                 border: OutlineInputBorder(),
               ),
+              onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: hoursController,
+              controller: _hoursController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Target hours',
                 border: OutlineInputBorder(),
               ),
+              onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () async {
-                final name = nameController.text;
-                final hours = int.tryParse(hoursController.text.trim());
-                final targetSeconds =
-                    (hours ?? AppConstants.defaultTargetHours) * 3600;
-                final service = ref.read(skillServiceProvider);
-                final result = skill == null
-                    ? await service.create(
-                        name: name,
-                        targetSeconds: targetSeconds,
-                      )
-                    : await service.update(
-                        id: skill.id,
-                        name: name,
-                        targetSeconds: targetSeconds,
-                      );
-                if (!context.mounted) {
-                  return;
-                }
-                result.when(
-                  success: (_) => Navigator.pop(context, true),
-                  failure: (f) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(f.message)));
-                  },
-                );
-              },
-              child: Text(skill == null ? 'Create' : 'Save'),
+              onPressed: _saving ? null : _submit,
+              child: Text(widget.skill == null ? 'Create' : 'Save'),
             ),
           ],
         ),
-      );
-    },
-  );
-
-  nameController.dispose();
-  hoursController.dispose();
-  if (saved == true) {
-    ref.invalidate(activeSkillsProvider);
+      ),
+    );
   }
 }
 

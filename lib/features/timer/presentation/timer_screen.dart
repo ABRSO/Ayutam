@@ -65,7 +65,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
         title: Text(skill?.name ?? 'Stopwatch'),
         automaticallyImplyLeading: Navigator.canPop(context),
       ),
@@ -81,43 +84,60 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
             skill?.accentArgb,
             fallback: theme.colorScheme.primary,
           );
-          final narrow = MediaQuery.sizeOf(context).width < 420;
-          final digitW = narrow ? 42.0 : 56.0;
-          final digitH = narrow ? 64.0 : 84.0;
 
           return SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               child: Column(
                 children: [
-                  const Spacer(),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: FlipClock(
-                      totalSeconds: accumulated,
-                      digitWidth: digitW,
-                      digitHeight: digitH,
-                      semanticLabel:
-                          'Skill total ${formatFlipClockDuration(accumulated)}',
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Column(
+                          children: [
+                            Expanded(
+                              flex: 7,
+                              child: Center(
+                                child: SizedBox(
+                                  width: constraints.maxWidth,
+                                  height: constraints.maxHeight * 0.72,
+                                  child: FlipClock(
+                                    totalSeconds: accumulated,
+                                    semanticLabel:
+                                        'Skill total ${formatFlipClockDuration(accumulated)}',
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              'Skill total',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: Colors.white70,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Current session  ${formatActiveDuration(sessionActive)}',
+                              style: durationMonoStyle(
+                                context,
+                                base: theme.textTheme.titleMedium,
+                              ).copyWith(color: Colors.white60),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              paused ? 'Paused' : 'Running',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: accent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        );
+                      },
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Current session  ${formatActiveDuration(sessionActive)}',
-                    style: durationMonoStyle(
-                      context,
-                      base: theme.textTheme.titleMedium,
-                    ).copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    paused ? 'Paused' : 'Running',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: accent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -164,7 +184,6 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 32),
                 ],
               ),
             ),
