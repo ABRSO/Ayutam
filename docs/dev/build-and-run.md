@@ -449,7 +449,41 @@ flutter build apk --release
 
 Wireless debugging is optional (Android 11+); use Android Studio’s Device Manager docs if you prefer Wi‑Fi.
 
-### 3.9 Android troubleshooting
+#### Xiaomi / Redmi / POCO (HyperOS / MIUI)
+
+`adb install` often fails with **`INSTALL_FAILED_USER_RESTRICTED`** even when USB debugging is on. In **Developer options** also enable:
+
+- **Install via USB**
+- **USB debugging (Security settings)** (wording varies)
+
+These toggles may require a **Mi / Xiaomi account** and sometimes a **SIM** inserted. If `adb` still refuses installs, copy the APK to the phone (USB file transfer, Drive, etc.) and open it with the system package installer as a fallback.
+
+### 3.9 Debug vs release APK size and performance
+
+| Build | Typical size | Feel |
+|---|---|---|
+| `flutter build apk --debug` / `flutter run` | **~150+ MB** (all ABIs + JIT/debug symbols) | Visibly janky; New Skill sheet lag is expected |
+| `flutter build apk --release --split-per-abi` | **~10–25 MB per ABI** | Use this for real-device evaluation (e.g. POCO F5) |
+
+```bash
+flutter build apk --release --split-per-abi
+# → build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+# → build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+# → build/app/outputs/flutter-apk/app-x86_64-release.apk
+```
+
+Install the ABI that matches the device (`arm64-v8a` for most modern phones):
+
+```bash
+adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+```
+
+Notes:
+
+- Android Settings “App info → User data / cache” on a **debug** install is mostly **JIT cache**, not SQLite content. Real practice data stays small.
+- Profile performance only with **`--profile`** or **`--release`** builds — never judge lag from a debug APK alone.
+
+### 3.10 Android troubleshooting
 
 | Symptom | Likely fix |
 |---|---|
@@ -459,6 +493,7 @@ Wireless debugging is optional (Android 11+); use Android Studio’s Device Mana
 | Emulator `offline` forever | Wait for boot; `adb kill-server` / `adb start-server`; cold boot AVD from Device Manager |
 | Emulator won’t start (hypervisor) | Enable virtualization in BIOS; on Windows install “Windows Hypervisor Platform” / WHPX, or use a software GPU flag |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | `adb uninstall com.ayutam.ayutam` then reinstall |
+| `INSTALL_FAILED_USER_RESTRICTED` (Xiaomi / HyperOS) | Enable **Install via USB** + **USB debugging (Security settings)**; see [§3.8](#38-physical-phone); or sideload the APK manually |
 | After building Linux in WSL against a Windows checkout | Run `flutter pub get` again on Windows (`.dart_tool` may have Linux paths) |
 
 ---
@@ -689,7 +724,8 @@ Checklist:
 | Android licenses | `flutter doctor --android-licenses` |
 | Start Android emulator | `emulator -avd ayutam_api34` (then wait for `adb` `device`) |
 | Android interactive | `flutter run -d emulator-5554` |
-| Android APK | `flutter build apk --debug` then `adb install -r …` |
+| Android APK (debug) | `flutter build apk --debug` then `adb install -r …` |
+| Android APK (device eval) | `flutter build apk --release --split-per-abi` then install matching ABI |
 | Linux interactive (native or WSL) | `flutter run -d linux` |
 | Linux WSL smoke helper | `tool/wsl_build_linux.sh` via `wsl …` |
 | Linux bundle | `flutter build linux --debug` |
