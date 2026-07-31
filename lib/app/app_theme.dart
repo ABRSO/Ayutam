@@ -1,4 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+/// Transparent system bars for edge-to-edge; disables Android nav-bar contrast scrim.
+SystemUiOverlayStyle ayutamSystemUiOverlayStyle(Brightness brightness) {
+  final lightIcons = brightness == Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: lightIcons ? Brightness.light : Brightness.dark,
+    statusBarBrightness: brightness,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarIconBrightness: lightIcons
+        ? Brightness.light
+        : Brightness.dark,
+    systemNavigationBarContrastEnforced: false,
+  );
+}
 
 ThemeData buildAyutamTheme(Brightness brightness) {
   final colorScheme = ColorScheme.fromSeed(
@@ -23,6 +40,7 @@ ThemeData buildAyutamTheme(Brightness brightness) {
       foregroundColor: colorScheme.onSurface,
       elevation: 0,
       scrolledUnderElevation: 1,
+      systemOverlayStyle: ayutamSystemUiOverlayStyle(brightness),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
@@ -33,6 +51,7 @@ ThemeData buildAyutamTheme(Brightness brightness) {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: colorScheme.surface,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       indicatorColor: colorScheme.secondaryContainer,
     ),

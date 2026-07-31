@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_theme.dart';
 import 'startup_gate.dart';
@@ -16,6 +17,13 @@ class AyutamApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       home: const StartupGate(),
       navigatorKey: ayutamNavigatorKey,
+      builder: (context, child) {
+        final brightness = Theme.of(context).brightness;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: ayutamSystemUiOverlayStyle(brightness),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
