@@ -1,5 +1,7 @@
 # Ayutam
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ABRSO/Ayutam)
+
 **Ayutam (अयुतम्)** is a minimal, local-first skill tracker for logging deliberate practice toward long-horizon goals (default **10,000 hours**).
 
 - **Platforms (v1):** Android, Windows, Linux — one Flutter codebase  
