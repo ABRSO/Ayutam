@@ -27,5 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Android edge-to-edge: transparent system bars (no white nav-bar strip / contrast scrim); predictive-back callback enabled in the manifest.
-- Completion screen uses a scroll-safe adaptive layout so Save / Resume / Discard stay reachable in short landscape viewports.
+- Completion screen keeps Save / Resume / Discard on-screen without scrolling on normal viewports (padding no longer forces a 48px scroll); still scroll-safe on very short landscape heights.
 - Skill editor sheet owns its text controllers for the sheet lifetime so Android IME/focus teardown cannot use a disposed controller (red-screen crash on New Skill).

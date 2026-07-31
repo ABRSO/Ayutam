@@ -125,50 +125,56 @@ class CompletionBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Padding lives inside the ConstrainedBox so the scrollable extent
+        // equals the viewport when content fits; scrolling only kicks in
+        // when the content genuinely cannot fit (e.g. short landscape).
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: IntrinsicHeight(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Spacer(),
-                  Text(
-                    'Active practice',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    formatActiveDuration(activeSeconds),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      fontFamily: 'monospace',
-                      fontFeatures: const [FontFeature.tabularFigures()],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(),
+                    Text(
+                      'Active practice',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Notes and tags arrive in a later phase.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 8),
+                    Text(
+                      formatActiveDuration(activeSeconds),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.displayMedium
+                          ?.copyWith(
+                            fontFamily: 'monospace',
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
                     ),
-                  ),
-                  const Spacer(),
-                  FilledButton(onPressed: onSave, child: const Text('Save')),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: onResume,
-                    child: const Text('Resume'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: onDiscard,
-                    child: const Text('Discard'),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      'Notes and tags arrive in a later phase.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const Spacer(),
+                    FilledButton(onPressed: onSave, child: const Text('Save')),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: onResume,
+                      child: const Text('Resume'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: onDiscard,
+                      child: const Text('Discard'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
