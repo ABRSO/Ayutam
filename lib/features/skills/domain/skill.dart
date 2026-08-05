@@ -43,24 +43,39 @@ final class Skill {
   /// Sum of completed sessions' active seconds (list UI helper).
   final int completedActiveSeconds;
 
+  /// May exceed 1.0 when practice is past the target ([product-spec] Progress).
   double get progressFraction {
     if (targetSeconds <= 0) {
       return 0;
     }
     final fraction = completedActiveSeconds / targetSeconds;
-    if (fraction < 0) {
-      return 0;
-    }
+    return fraction < 0 ? 0 : fraction;
+  }
+
+  /// Clamped 0..1 for [LinearProgressIndicator] (Material requires ≤ 1).
+  double get progressBarValue {
+    final fraction = progressFraction;
     if (fraction > 1) {
       return 1;
     }
     return fraction;
   }
 
+  /// Rounded percent; may exceed 100 when past target.
+  int get progressPercent => (progressFraction * 100).round();
+
+  /// Remaining seconds to target, clamped ≥ 0 when past target.
+  int get remainingSeconds {
+    final remaining = targetSeconds - completedActiveSeconds;
+    return remaining < 0 ? 0 : remaining;
+  }
+
   Skill copyWith({
     String? name,
     String? descriptionMarkdown,
+    bool clearDescription = false,
     int? targetSeconds,
+    String? createdLocalDate,
     int? accentArgb,
     SkillStatus? status,
     int? sortOrder,
@@ -70,9 +85,11 @@ final class Skill {
     return Skill(
       id: id,
       name: name ?? this.name,
-      descriptionMarkdown: descriptionMarkdown ?? this.descriptionMarkdown,
+      descriptionMarkdown: clearDescription
+          ? null
+          : (descriptionMarkdown ?? this.descriptionMarkdown),
       targetSeconds: targetSeconds ?? this.targetSeconds,
-      createdLocalDate: createdLocalDate,
+      createdLocalDate: createdLocalDate ?? this.createdLocalDate,
       accentArgb: accentArgb ?? this.accentArgb,
       status: status ?? this.status,
       sortOrder: sortOrder ?? this.sortOrder,

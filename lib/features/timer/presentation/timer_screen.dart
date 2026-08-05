@@ -15,10 +15,9 @@ import 'widgets/flip_clock.dart';
 import 'widgets/timer_icon_control.dart';
 
 class TimerScreen extends ConsumerStatefulWidget {
-  const TimerScreen({super.key, this.skillId, this.embeddedInShell = false});
+  const TimerScreen({super.key, this.skillId});
 
   final String? skillId;
-  final bool embeddedInShell;
 
   @override
   ConsumerState<TimerScreen> createState() => _TimerScreenState();
@@ -26,7 +25,6 @@ class TimerScreen extends ConsumerStatefulWidget {
 
 class _TimerScreenState extends ConsumerState<TimerScreen> {
   Timer? _tick;
-  Timer? _heartbeat;
 
   @override
   void initState() {
@@ -36,15 +34,11 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
         setState(() {});
       }
     });
-    _heartbeat = Timer.periodic(const Duration(seconds: 30), (_) {
-      ref.read(timerSessionProvider.notifier).heartbeat();
-    });
   }
 
   @override
   void dispose() {
     _tick?.cancel();
-    _heartbeat?.cancel();
     super.dispose();
   }
 
@@ -64,133 +58,166 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
       }
     }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          _remindSessionStillRunning();
+        }
+      },
+      child: Scaffold(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(skill?.name ?? 'Stopwatch'),
-        automaticallyImplyLeading: Navigator.canPop(context),
-      ),
-      body: snapAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (snap) {
-          final sessionActive = _liveActiveSeconds(snap);
-          final completed = skill?.completedActiveSeconds ?? 0;
-          final accumulated = completed + sessionActive;
-          final paused = snap.runtime.machineState == TimerMachineState.paused;
-          final accent = SkillAccentPalette.fromArgb(
-            skill?.accentArgb,
-            fallback: theme.colorScheme.primary,
-          );
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: Text(skill?.name ?? 'Stopwatch'),
+          automaticallyImplyLeading: Navigator.canPop(context),
+        ),
+        body: snapAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('$e')),
+          data: (snap) {
+            final sessionActive = _liveActiveSeconds(snap);
+            final completed = skill?.completedActiveSeconds ?? 0;
+            final accumulated = completed + sessionActive;
+            final paused =
+                snap.runtime.machineState == TimerMachineState.paused;
+            final accent = SkillAccentPalette.fromArgb(
+              skill?.accentArgb,
+              fallback: theme.colorScheme.primary,
+            );
 
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Column(
-                          children: [
-                            Expanded(
-                              flex: 7,
-                              child: Center(
-                                child: SizedBox(
-                                  width: constraints.maxWidth,
-                                  height: constraints.maxHeight * 0.72,
-                                  child: FlipClock(
-                                    totalSeconds: accumulated,
-                                    semanticLabel:
-                                        'Skill total ${formatFlipClockDuration(accumulated)}',
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Column(
+                            children: [
+                              Expanded(
+                                flex: 7,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: constraints.maxWidth,
+                                    height: constraints.maxHeight * 0.72,
+                                    child: FlipClock(
+                                      totalSeconds: accumulated,
+                                      semanticLabel:
+                                          'Skill total ${formatFlipClockDuration(accumulated)}',
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              'Skill total',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: Colors.white70,
-                                letterSpacing: 0.8,
+                              Text(
+                                'Skill total',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: Colors.white70,
+                                  letterSpacing: 0.8,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Current session  ${formatActiveDuration(sessionActive)}',
-                              style: durationMonoStyle(
-                                context,
-                                base: theme.textTheme.titleMedium,
-                              ).copyWith(color: Colors.white60),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              paused ? 'Paused' : 'Running',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: accent,
-                                fontWeight: FontWeight.w600,
+                              const SizedBox(height: 8),
+                              Text(
+                                'Current session  ${formatActiveDuration(sessionActive)}',
+                                style: durationMonoStyle(
+                                  context,
+                                  base: theme.textTheme.titleMedium,
+                                ).copyWith(color: Colors.white60),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        );
-                      },
+                              const SizedBox(height: 8),
+                              Text(
+                                paused ? 'Paused' : 'Running',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: accent,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      TimerIconControl(
-                        tooltip: paused ? 'Resume' : 'Pause',
-                        semanticLabel: paused
-                            ? 'Resume stopwatch'
-                            : 'Pause stopwatch',
-                        icon: paused ? Icons.play_arrow : Icons.pause,
-                        onPressed: () async {
-                          final error = paused
-                              ? await ref
-                                    .read(timerSessionProvider.notifier)
-                                    .resume()
-                              : await ref
-                                    .read(timerSessionProvider.notifier)
-                                    .pause();
-                          if (error != null && context.mounted) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(error)));
-                          }
-                        },
-                      ),
-                      TimerIconControl(
-                        tooltip: 'Stop',
-                        semanticLabel: 'Stop stopwatch',
-                        icon: Icons.stop,
-                        onPressed: () async {
-                          final error = await ref
-                              .read(timerSessionProvider.notifier)
-                              .stop();
-                          if (!context.mounted) {
-                            return;
-                          }
-                          if (error != null) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(error)));
-                            return;
-                          }
-                          await _goToCompletion(context);
-                        },
-                      ),
-                    ],
-                  ),
-                ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        TimerIconControl(
+                          tooltip: paused ? 'Resume' : 'Pause',
+                          semanticLabel: paused
+                              ? 'Resume stopwatch'
+                              : 'Pause stopwatch',
+                          icon: paused ? Icons.play_arrow : Icons.pause,
+                          onPressed: () async {
+                            final error = paused
+                                ? await ref
+                                      .read(timerSessionProvider.notifier)
+                                      .resume()
+                                : await ref
+                                      .read(timerSessionProvider.notifier)
+                                      .pause();
+                            if (error != null && context.mounted) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text(error)));
+                            }
+                          },
+                        ),
+                        TimerIconControl(
+                          tooltip: 'Stop',
+                          semanticLabel: 'Stop stopwatch',
+                          icon: Icons.stop,
+                          onPressed: () async {
+                            final error = await ref
+                                .read(timerSessionProvider.notifier)
+                                .stop();
+                            if (!context.mounted) {
+                              return;
+                            }
+                            if (error != null) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text(error)));
+                              return;
+                            }
+                            await _goToCompletion(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
+  }
+
+  /// Shown after the route pops, so it must not use this screen's messenger.
+  void _remindSessionStillRunning() {
+    final state = ref
+        .read(timerSessionProvider)
+        .asData
+        ?.value
+        .runtime
+        .machineState;
+    final stillRunning =
+        state == TimerMachineState.running || state == TimerMachineState.paused;
+    if (!stillRunning) {
+      return;
+    }
+    ayutamScaffoldMessengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Session still running — reopen it from the skill\'s Play button.',
+          ),
+        ),
+      );
   }
 
   int _liveActiveSeconds(TimerSnapshot snap) {
