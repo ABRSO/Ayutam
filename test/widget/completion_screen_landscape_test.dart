@@ -39,7 +39,7 @@ void main() {
       expect(position.maxScrollExtent, 0);
     }
     final viewportBottom = tester.getRect(find.byType(CompletionBody)).bottom;
-    for (final label in ['Save', 'Resume', 'Discard']) {
+    for (final label in ['Save Session', 'Resume', 'Discard']) {
       expect(
         tester.getBottomLeft(find.text(label)).dy,
         lessThanOrEqualTo(viewportBottom),
@@ -94,12 +94,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Save Session'), findsOneWidget);
     expect(find.text('Resume'), findsOneWidget);
     expect(find.text('Discard'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Save'));
-    await tester.tap(find.text('Save'));
+    await tester.ensureVisible(find.text('Save Session'));
+    await tester.tap(find.text('Save Session'));
     await tester.ensureVisible(find.text('Resume'));
     await tester.tap(find.text('Resume'));
     await tester.ensureVisible(find.text('Discard'));

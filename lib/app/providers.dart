@@ -59,6 +59,7 @@ final unitOfWorkProvider = Provider<UnitOfWork>((ref) {
 final skillServiceProvider = Provider<SkillService>((ref) {
   return SkillService(
     skills: ref.watch(skillRepositoryProvider),
+    sessions: ref.watch(sessionRepositoryProvider),
     clock: ref.watch(clockServiceProvider),
     ids: ref.watch(idGeneratorProvider),
     deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),

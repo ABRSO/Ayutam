@@ -72,17 +72,14 @@ final class StopwatchTimerService {
         );
       }
 
-      final runtime = await _runtime.get();
-      if (!runtime.isIdle || runtime.sessionId != null) {
-        final inProgress = await _sessions.listInProgress();
-        if (inProgress.isNotEmpty) {
-          return const Failure(
-            AppFailure(
-              code: 'TIMER-BUSY',
-              message: 'Another session is already in progress.',
-            ),
-          );
-        }
+      final inProgress = await _sessions.listInProgress();
+      if (inProgress.isNotEmpty) {
+        return const Failure(
+          AppFailure(
+            code: 'TIMER-BUSY',
+            message: 'Another session is already in progress.',
+          ),
+        );
       }
 
       final now = _clock.nowUtc();
@@ -504,7 +501,7 @@ final class StopwatchTimerService {
   /// Classifies persisted state after process death / relaunch.
   Future<Result<StartupRoute>> recoverOnStartup() async {
     return _uow.write(() async {
-      final runtime = await _runtime.get();
+      var runtime = await _runtime.get();
       final now = _clock.nowUtc();
 
       if (runtime.machineState == TimerMachineState.completionPending &&
@@ -541,11 +538,34 @@ final class StopwatchTimerService {
       }
 
       if (runtime.sessionId == null || runtime.isIdle) {
-        // Heal stray in-progress rows if runtime is idle.
         final stray = await _sessions.listInProgress();
         if (stray.isEmpty) {
+          if (runtime.sessionId != null) {
+            await _runtime.clearToIdle(updatedAtUtc: now);
+          }
           return const Success(
             StartupRoute(destination: StartupDestination.skillsHome),
+          );
+        }
+        // Re-bind runtime to the newest orphan so recovery can continue;
+        // force-complete any extras so the one-active invariant holds.
+        final sorted = [...stray]
+          ..sort((a, b) => b.updatedAtUtc.compareTo(a.updatedAtUtc));
+        final keep = sorted.first;
+        for (final extra in sorted.skip(1)) {
+          await _forceCompleteOrphan(extra, now);
+        }
+        await _reattachRuntimeToSession(keep, now);
+        runtime = await _runtime.get();
+        if (runtime.machineState == TimerMachineState.completionPending &&
+            runtime.sessionId != null) {
+          final session = await _sessions.findById(runtime.sessionId!);
+          return Success(
+            StartupRoute(
+              destination: StartupDestination.completion,
+              sessionId: runtime.sessionId,
+              skillId: session?.skillId,
+            ),
           );
         }
       }
@@ -878,5 +898,76 @@ final class StopwatchTimerService {
           return Success(await snapshot());
       }
     });
+  }
+
+  /// Closes open segments and marks a stray in-progress session completed so
+  /// only one session remains eligible for recovery.
+  Future<void> _forceCompleteOrphan(
+    PracticeSession session,
+    DateTime now,
+  ) async {
+    final open = await _sessions.findOpenSegment(session.id);
+    if (open != null) {
+      final duration = TimerMath.closedDurationSeconds(
+        startAtUtc: open.startAtUtc,
+        endAtUtc: now,
+      );
+      await _sessions.updateSegment(
+        open.copyWith(
+          endAtUtc: now,
+          durationSeconds: duration,
+          updatedAtUtc: now,
+        ),
+      );
+    }
+    final segments = await _sessions.listSegments(session.id);
+    final active = TimerMath.activeSecondsFromSegments(
+      segments: segments,
+      nowUtc: now,
+    );
+    final paused = TimerMath.pausedSecondsFromSegments(
+      segments: segments,
+      nowUtc: now,
+    );
+    await _sessions.updateSession(
+      session.copyWith(
+        status: SessionStatus.completed,
+        endAtUtc: now,
+        activeSeconds: active,
+        pausedSeconds: paused,
+        updatedAtUtc: now,
+      ),
+    );
+  }
+
+  Future<void> _reattachRuntimeToSession(
+    PracticeSession session,
+    DateTime now,
+  ) async {
+    final open = await _sessions.findOpenSegment(session.id);
+    final TimerMachineState machineState;
+    if (session.status == SessionStatus.completionPending) {
+      machineState = TimerMachineState.completionPending;
+    } else if (open?.segmentType == SegmentType.pause) {
+      machineState = TimerMachineState.paused;
+    } else if (session.status == SessionStatus.paused) {
+      machineState = TimerMachineState.paused;
+    } else {
+      machineState = TimerMachineState.running;
+    }
+    await _runtime.save(
+      TimerRuntimeState(
+        sessionId: session.id,
+        machineState: machineState,
+        currentSegmentId: open?.id,
+        phaseAccumulatedSeconds: 0,
+        currentCycle: 1,
+        monotonicAnchorMicros: _clock.monotonicMicros(),
+        wallClockAnchorUtc: now,
+        lastHeartbeatUtc: now,
+        lastCheckpointAtUtc: now,
+        updatedAtUtc: now,
+      ),
+    );
   }
 }

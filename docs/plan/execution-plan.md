@@ -117,7 +117,18 @@ Platform smoke (2026-07-23, see [`docs/testing/platform-smoke.md`](../testing/pl
 | **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → install + `am start` → `pidof` returned PID (`ANDROID_SMOKE_OK`) |
 | **Linux** build + launch (WSL) | ✅ `tool/wsl_build_linux.sh` → `LINUX_SMOKE_OK` |
 
-Defects found / fixes applied: none.
+Defects found / fixes applied: none at the time.
+
+**Phase 1 follow-up (2026-08-05):** Spec-conformance audit fixes on the working tree (to land via `fix/session-return-path`):
+
+- Pre-session sheet implements *Open active timer* / *Stop active and start this* / *Cancel*, plus accumulated/target and Cancel ([product-spec §2.3](../product/product-spec.md), [ux-spec §4.2](../product/ux-spec.md)).
+- App-level `SessionHeartbeat` while machine state is `running` (leaving Timer no longer stalls heartbeats).
+- Leave-timer reminder SnackBar; cold-start active session pushes Timer above Skills so Back works like Play → Start.
+- Archive blocked while that skill has an in-progress session; skill editor validates target hours &gt; 0; exposes description + creation date; home cards show progress % and remaining; progress may exceed 100%; archive uses 5s Undo snackbar; completion primary label is **Save Session**; card radius 16.
+- One-active start always checks in-progress rows; startup re-binds idle runtime to stray sessions (force-completes extras).
+- Added Phase 1 coverage: stray/idle busy, reattach, idempotent pause/resume/save/discard, resumeFromCompletion, trim/editEnd, clock anomaly, archive-busy, invalid target.
+
+**Onboarding (planning note):** Product/architecture describe a first-run onboarding flow, but no execution-plan phase owns it. Phase 0 exit criteria (“empty shell / onboarding”) are met by the empty Skills home. Treat a dedicated onboarding module as a future planning item, not a Phase 0/1 regression.
 
 ---
 

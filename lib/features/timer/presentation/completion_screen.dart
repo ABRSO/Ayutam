@@ -162,7 +162,10 @@ class CompletionBody extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    FilledButton(onPressed: onSave, child: const Text('Save')),
+                    FilledButton(
+                      onPressed: onSave,
+                      child: const Text('Save Session'),
+                    ),
                     const SizedBox(height: 8),
                     OutlinedButton(
                       onPressed: onResume,

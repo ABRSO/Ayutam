@@ -254,4 +254,8 @@ Conceptual routes (typed builders, not stringly named routes):
 
 **Startup:** corrupt DB → recovery; completion_pending → completion; active/paused → timer or recovery review; no skills → onboarding; else Skills.
 
-**Back:** Timer back does not stop session. Completion back keeps pending draft. No duplicate Timer routes for same session.
+**Back:** Timer back does not stop session. Completion back keeps pending draft. No duplicate Timer routes for same session. Cold start with an active/paused session still places Skills under the Timer route (same stack shape as Play → Start) so Back remains available.
+
+**Returning to a running session:** Leaving the Timer route shows a reminder that the session is still running. The pre-session sheet is the in-app way back: with a session in progress it offers *Open active timer* / *Stop active and start this* / *Cancel* instead of Start (see [product-spec §2.3](../product/product-spec.md)). Platform notification and tray entry points arrive in Phase 6.
+
+**Heartbeat ownership:** The heartbeat belongs to an app-level widget (`SessionHeartbeat`), not the Timer route, because leaving that route does not stop the session. A heartbeat that stalls while the session keeps accruing would make startup recovery classify legitimately active time as a gap. It ticks only while the machine state is `running`.

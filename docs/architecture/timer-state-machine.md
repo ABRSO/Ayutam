@@ -111,6 +111,9 @@ App launch
                  • Trim to last heartbeat
                  • Edit end time
                  • Discard session
+  → NOTE: heartbeats are written by an app-level owner while the machine
+    state is `running`, independent of which route is visible; leaving the
+    Timer route must never stall them
   → session with open pause / pomodoro_break segment (not accruing)?
        → active seconds are unambiguous; heartbeats are not refreshed
          while not running, so the gap threshold does NOT apply

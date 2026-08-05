@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_theme.dart';
@@ -123,7 +124,8 @@ class _SkillCard extends ConsumerWidget {
                         ),
                         IconButton(
                           tooltip: 'Archive skill',
-                          onPressed: () => _confirmArchive(context, ref, skill),
+                          onPressed: () =>
+                              _archiveWithUndo(context, ref, skill),
                           icon: const Icon(Icons.archive_outlined),
                         ),
                       ],
@@ -137,9 +139,17 @@ class _SkillCard extends ConsumerWidget {
                         base: theme.textTheme.bodyMedium,
                       ).copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${skill.progressPercent}% · '
+                      '${formatHoursMinutes(skill.remainingSeconds)} remaining',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
-                      value: skill.progressFraction,
+                      value: skill.progressBarValue,
                       color: accent,
                       backgroundColor: accent.withValues(alpha: 0.18),
                     ),
@@ -203,17 +213,30 @@ class _SkillEditorSheet extends ConsumerStatefulWidget {
 class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _hoursController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _createdDateController;
   var _saving = false;
 
   @override
   void initState() {
     super.initState();
     final skill = widget.skill;
+    final now = DateTime.now();
+    final today =
+        '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
     _nameController = TextEditingController(text: skill?.name ?? '');
     _hoursController = TextEditingController(
       text: ((skill?.targetSeconds ?? AppConstants.defaultTargetSeconds) / 3600)
           .round()
           .toString(),
+    );
+    _descriptionController = TextEditingController(
+      text: skill?.descriptionMarkdown ?? '',
+    );
+    _createdDateController = TextEditingController(
+      text: skill?.createdLocalDate ?? today,
     );
   }
 
@@ -221,23 +244,61 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
   void dispose() {
     _nameController.dispose();
     _hoursController.dispose();
+    _descriptionController.dispose();
+    _createdDateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCreatedDate() async {
+    final parsed = DateTime.tryParse(_createdDateController.text.trim());
+    final initial = parsed ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1970),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked == null) {
+      return;
+    }
+    setState(() {
+      _createdDateController.text =
+          '${picked.year.toString().padLeft(4, '0')}-'
+          '${picked.month.toString().padLeft(2, '0')}-'
+          '${picked.day.toString().padLeft(2, '0')}';
+    });
   }
 
   Future<void> _submit() async {
     if (_saving) return;
-    setState(() => _saving = true);
-    final name = _nameController.text;
     final hours = int.tryParse(_hoursController.text.trim());
-    final targetSeconds = (hours ?? AppConstants.defaultTargetHours) * 3600;
+    if (hours == null || hours <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Target hours must be a whole number greater than zero.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    final targetSeconds = hours * 3600;
     final service = ref.read(skillServiceProvider);
     final skill = widget.skill;
     final result = skill == null
-        ? await service.create(name: name, targetSeconds: targetSeconds)
+        ? await service.create(
+            name: _nameController.text,
+            targetSeconds: targetSeconds,
+            descriptionMarkdown: _descriptionController.text,
+            createdLocalDate: _createdDateController.text,
+          )
         : await service.update(
             id: skill.id,
-            name: name,
+            name: _nameController.text,
             targetSeconds: targetSeconds,
+            descriptionMarkdown: _descriptionController.text,
+            createdLocalDate: _createdDateController.text,
           );
     if (!mounted) return;
     result.when(
@@ -279,17 +340,39 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
                 labelText: 'Name',
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              minLines: 2,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _hoursController,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: const InputDecoration(
                 labelText: 'Target hours',
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _createdDateController,
+              readOnly: true,
+              onTap: _pickCreatedDate,
+              decoration: const InputDecoration(
+                labelText: 'Creation date',
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today_outlined),
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton(
@@ -303,41 +386,43 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
   }
 }
 
-Future<void> _confirmArchive(
+Future<void> _archiveWithUndo(
   BuildContext context,
   WidgetRef ref,
   Skill skill,
 ) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Archive skill?'),
-      content: Text(
-        '"${skill.name}" will be hidden from the home list. '
-        'Completed practice totals are kept.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Archive'),
-        ),
-      ],
-    ),
-  );
-  if (ok != true || !context.mounted) {
+  final messenger = ScaffoldMessenger.of(context);
+  final result = await ref.read(skillServiceProvider).archive(skill.id);
+  if (!context.mounted) {
     return;
   }
-  final result = await ref.read(skillServiceProvider).archive(skill.id);
-  result.when(
-    success: (_) => ref.invalidate(activeSkillsProvider),
-    failure: (f) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(f.message)));
+  await result.when(
+    success: (_) async {
+      ref.invalidate(activeSkillsProvider);
+      messenger.hideCurrentSnackBar();
+      final snack = messenger.showSnackBar(
+        SnackBar(
+          content: Text('Archived "${skill.name}"'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              final restore = await ref
+                  .read(skillServiceProvider)
+                  .restore(skill.id);
+              restore.when(
+                success: (_) => ref.invalidate(activeSkillsProvider),
+                failure: (f) =>
+                    messenger.showSnackBar(SnackBar(content: Text(f.message))),
+              );
+            },
+          ),
+        ),
+      );
+      await snack.closed;
+    },
+    failure: (f) async {
+      messenger.showSnackBar(SnackBar(content: Text(f.message)));
     },
   );
 }

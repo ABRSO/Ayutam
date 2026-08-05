@@ -38,6 +38,7 @@ void main() {
     final uow = DriftUnitOfWork(db);
     skills = SkillService(
       skills: skillRepo,
+      sessions: sessionRepo,
       clock: clock,
       ids: ids,
       deviceId: db.requireDeviceId,
@@ -250,6 +251,154 @@ void main() {
     expect(
       TimerMath.activeSecondsFromSegments(segments: segments, nowUtc: now),
       70,
+    );
+  });
+
+  test('idle runtime with stray session still rejects second start', () async {
+    final a = await createSkill();
+    final b = (await skills.create(name: 'Guitar')).valueOrNull!.id;
+    await timer.startStopwatch(a);
+    // Orphan the session by clearing runtime while leaving the row in-progress.
+    await DriftTimerRuntimeRepository(
+      db,
+    ).clearToIdle(updatedAtUtc: clock.nowUtc());
+    final second = await timer.startStopwatch(b);
+    expect(second.isFailure, isTrue);
+    expect(
+      second.when(success: (_) => '', failure: (f) => f.code),
+      'TIMER-BUSY',
+    );
+  });
+
+  test(
+    'startup reattaches idle runtime to stray in-progress session',
+    () async {
+      final skillId = await createSkill();
+      await timer.startStopwatch(skillId);
+      clock.advance(const Duration(minutes: 2));
+      await DriftTimerRuntimeRepository(
+        db,
+      ).clearToIdle(updatedAtUtc: clock.nowUtc());
+
+      final route = await timer.recoverOnStartup();
+      expect(route.valueOrNull!.destination, StartupDestination.timer);
+      expect(
+        (await timer.snapshot()).runtime.machineState,
+        TimerMachineState.running,
+      );
+      expect((await timer.snapshot()).session?.skillId, skillId);
+    },
+  );
+
+  test('pause resume save discard are idempotent', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    expect((await timer.pause()).isSuccess, isTrue);
+    expect((await timer.pause()).isSuccess, isTrue);
+    expect((await timer.resume()).isSuccess, isTrue);
+    expect((await timer.resume()).isSuccess, isTrue);
+    clock.advance(const Duration(seconds: 5));
+    expect((await timer.stop()).isSuccess, isTrue);
+    expect((await timer.stop()).isSuccess, isTrue);
+    expect((await timer.saveCompletion()).isSuccess, isTrue);
+    expect((await timer.saveCompletion()).isSuccess, isTrue);
+
+    await timer.startStopwatch(skillId);
+    clock.advance(const Duration(seconds: 3));
+    await timer.stop();
+    expect((await timer.discardCompletion()).isSuccess, isTrue);
+    expect((await timer.discardCompletion()).isSuccess, isTrue);
+  });
+
+  test('resumeFromCompletion returns to running', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    clock.advance(const Duration(seconds: 20));
+    await timer.stop();
+    expect((await timer.resumeFromCompletion()).isSuccess, isTrue);
+    expect(
+      (await timer.snapshot()).runtime.machineState,
+      TimerMachineState.running,
+    );
+  });
+
+  test('trimToHeartbeat closes work at last heartbeat', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    clock.advance(const Duration(minutes: 5));
+    await timer.heartbeat();
+    final cut = clock.nowUtc();
+    clock.advance(const Duration(minutes: 40));
+    await timer.recoverOnStartup();
+    expect(
+      (await timer.applyRecoveryDecision(
+        decision: RecoveryDecision.trimToHeartbeat,
+      )).isSuccess,
+      isTrue,
+    );
+    final snap = await timer.snapshot();
+    expect(snap.runtime.machineState, TimerMachineState.paused);
+    expect(snap.session!.activeSeconds, 5 * 60);
+    expect(
+      snap.segments
+          .where((s) => s.segmentType == SegmentType.work && s.endAtUtc != null)
+          .last
+          .endAtUtc,
+      cut,
+    );
+  });
+
+  test('editEnd recovery completes session at edited time', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    final start = clock.nowUtc();
+    await timer.heartbeat();
+    clock.advance(const Duration(minutes: 50));
+    await timer.recoverOnStartup();
+    final editedEnd = start.add(const Duration(minutes: 12));
+    expect(
+      (await timer.applyRecoveryDecision(
+        decision: RecoveryDecision.editEnd,
+        editedEndUtc: editedEnd,
+      )).isSuccess,
+      isTrue,
+    );
+    final snap = await timer.snapshot();
+    expect(snap.runtime.machineState, TimerMachineState.completionPending);
+    expect(snap.session!.activeSeconds, 12 * 60);
+  });
+
+  test('wall clock behind heartbeat routes to recovery review', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    await timer.heartbeat();
+    final heartbeat = clock.nowUtc();
+    clock.setUtc(heartbeat.subtract(const Duration(minutes: 10)));
+    final route = await timer.recoverOnStartup();
+    expect(route.valueOrNull!.destination, StartupDestination.recoveryReview);
+    expect(
+      (await timer.snapshot()).runtime.recoveryReason,
+      RecoveryReason.clockChange,
+    );
+  });
+
+  test('archive blocked while skill has an active session', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    final result = await skills.archive(skillId);
+    expect(result.isFailure, isTrue);
+    expect(
+      result.when(success: (_) => '', failure: (f) => f.code),
+      'SKILL-BUSY',
+    );
+  });
+
+  test('create rejects non-positive target seconds', () async {
+    final result = await skills.create(name: 'Bad', targetSeconds: 0);
+    expect(result.isFailure, isTrue);
+    expect(
+      result.when(success: (_) => '', failure: (f) => f.code),
+      'VAL-TARGET',
     );
   });
 }
