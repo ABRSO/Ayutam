@@ -4,6 +4,13 @@ import '../core/id/id_generator.dart';
 import '../core/logging/app_logger.dart';
 import '../core/time/clock_service.dart';
 import '../database/app_database.dart';
+import '../features/learning_log/application/learning_log_service.dart';
+import '../features/learning_log/application/session_note_service.dart';
+import '../features/learning_log/application/tag_service.dart';
+import '../features/learning_log/data/drift_tag_repository.dart';
+import '../features/learning_log/data/session_search_indexer.dart';
+import '../features/learning_log/domain/learning_log_models.dart';
+import '../features/learning_log/domain/tag_repository.dart';
 import '../features/skills/application/skill_service.dart';
 import '../features/skills/data/drift_skill_repository.dart';
 import '../features/skills/domain/skill.dart';
@@ -78,9 +85,96 @@ final stopwatchTimerServiceProvider = Provider<StopwatchTimerService>((ref) {
   );
 });
 
+final tagRepositoryProvider = Provider<TagRepository>((ref) {
+  return DriftTagRepository(ref.watch(appDatabaseProvider));
+});
+
+final sessionSearchIndexerProvider = Provider<SessionSearchIndexer>((ref) {
+  return SessionSearchIndexer(ref.watch(appDatabaseProvider));
+});
+
+final tagServiceProvider = Provider<TagService>((ref) {
+  return TagService(
+    tags: ref.watch(tagRepositoryProvider),
+    clock: ref.watch(clockServiceProvider),
+    ids: ref.watch(idGeneratorProvider),
+    deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
+  );
+});
+
+final sessionNoteServiceProvider = Provider<SessionNoteService>((ref) {
+  return SessionNoteService(
+    sessions: ref.watch(sessionRepositoryProvider),
+    skills: ref.watch(skillRepositoryProvider),
+    tags: ref.watch(tagServiceProvider),
+    indexer: ref.watch(sessionSearchIndexerProvider),
+    uow: ref.watch(unitOfWorkProvider),
+    clock: ref.watch(clockServiceProvider),
+    ids: ref.watch(idGeneratorProvider),
+    deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
+  );
+});
+
+final learningLogServiceProvider = Provider<LearningLogService>((ref) {
+  return LearningLogService(
+    sessions: ref.watch(sessionRepositoryProvider),
+    skills: ref.watch(skillRepositoryProvider),
+    tags: ref.watch(tagRepositoryProvider),
+    indexer: ref.watch(sessionSearchIndexerProvider),
+  );
+});
+
 final activeSkillsProvider = StreamProvider<List<Skill>>((ref) {
   return ref.watch(skillServiceProvider).watchActive();
 });
+
+final class AppShellIndexNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void setIndex(int index) => state = index;
+}
+
+final appShellIndexProvider = NotifierProvider<AppShellIndexNotifier, int>(
+  AppShellIndexNotifier.new,
+);
+
+final class LearningLogFiltersNotifier extends Notifier<LearningLogFilters> {
+  @override
+  LearningLogFilters build() => const LearningLogFilters();
+
+  void setFilters(LearningLogFilters filters) => state = filters;
+
+  void update(LearningLogFilters Function(LearningLogFilters current) fn) {
+    state = fn(state);
+  }
+
+  void clear() => state = const LearningLogFilters();
+}
+
+final learningLogFiltersProvider =
+    NotifierProvider<LearningLogFiltersNotifier, LearningLogFilters>(
+      LearningLogFiltersNotifier.new,
+    );
+
+final learningLogEntriesProvider = FutureProvider<List<LearningLogEntry>>((
+  ref,
+) async {
+  final filters = ref.watch(learningLogFiltersProvider);
+  return ref.watch(learningLogServiceProvider).query(filters);
+});
+
+final class SelectedLearningLogSessionIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void select(String? id) => state = id;
+}
+
+final selectedLearningLogSessionIdProvider =
+    NotifierProvider<SelectedLearningLogSessionIdNotifier, String?>(
+      SelectedLearningLogSessionIdNotifier.new,
+    );
 
 final class TimerSessionNotifier extends AsyncNotifier<TimerSnapshot> {
   @override

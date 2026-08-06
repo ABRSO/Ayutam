@@ -99,6 +99,13 @@ final class DriftSessionRepository implements SessionRepository {
   }
 
   @override
+  Future<void> deleteSegmentsForSession(String sessionId) async {
+    await (_db.delete(
+      _db.sessionSegments,
+    )..where((t) => t.sessionId.equals(sessionId))).go();
+  }
+
+  @override
   Future<int> sumCompletedActiveSeconds(String skillId) async {
     final query = _db.selectOnly(_db.sessions)
       ..addColumns([_db.sessions.activeSeconds.sum()])
@@ -109,6 +116,94 @@ final class DriftSessionRepository implements SessionRepository {
       ..where(_db.sessions.deletedAtUtc.isNull());
     final row = await query.getSingle();
     return row.read(_db.sessions.activeSeconds.sum()) ?? 0;
+  }
+
+  @override
+  Future<List<domain.PracticeSession>> listJournalSessions({
+    Set<String>? ids,
+    Set<String>? skillIds,
+    DateTime? startAfterUtc,
+    DateTime? endBeforeUtc,
+    int? minActiveSeconds,
+    int? maxActiveSeconds,
+    bool? hasNote,
+    String? sourceEquals,
+    bool excludeManual = false,
+    bool includeDeleted = false,
+  }) async {
+    final query = _db.select(_db.sessions)
+      ..where(
+        (t) => t.status.equals(domain.SessionStatus.completed.storageValue),
+      );
+    if (!includeDeleted) {
+      query.where((t) => t.deletedAtUtc.isNull());
+    }
+    if (ids != null) {
+      if (ids.isEmpty) return const [];
+      query.where((t) => t.id.isIn(ids.toList()));
+    }
+    if (skillIds != null && skillIds.isNotEmpty) {
+      query.where((t) => t.skillId.isIn(skillIds.toList()));
+    }
+    if (startAfterUtc != null) {
+      query.where(
+        (t) => t.startAtUtc.isBiggerOrEqualValue(
+          startAfterUtc.millisecondsSinceEpoch,
+        ),
+      );
+    }
+    if (endBeforeUtc != null) {
+      query.where(
+        (t) => t.startAtUtc.isSmallerThanValue(
+          endBeforeUtc.millisecondsSinceEpoch,
+        ),
+      );
+    }
+    if (minActiveSeconds != null) {
+      query.where(
+        (t) => t.activeSeconds.isBiggerOrEqualValue(minActiveSeconds),
+      );
+    }
+    if (maxActiveSeconds != null) {
+      query.where(
+        (t) => t.activeSeconds.isSmallerOrEqualValue(maxActiveSeconds),
+      );
+    }
+    if (sourceEquals != null) {
+      query.where((t) => t.source.equals(sourceEquals));
+    }
+    if (excludeManual) {
+      query.where((t) => t.source.equals('manual').not());
+    }
+    final rows = await query.get();
+    return rows.map(_sessionToDomain).toList();
+  }
+
+  @override
+  Future<List<domain.PracticeSession>> findOverlapping({
+    required String skillId,
+    required DateTime startAtUtc,
+    required DateTime endAtUtc,
+    String? excludeSessionId,
+  }) async {
+    final startMs = startAtUtc.millisecondsSinceEpoch;
+    final endMs = endAtUtc.millisecondsSinceEpoch;
+    final rows =
+        await (_db.select(_db.sessions)..where((t) {
+              var expr =
+                  t.skillId.equals(skillId) &
+                  t.deletedAtUtc.isNull() &
+                  t.status.equals(domain.SessionStatus.completed.storageValue) &
+                  t.endAtUtc.isNotNull() &
+                  t.startAtUtc.isSmallerThanValue(endMs) &
+                  t.endAtUtc.isBiggerThanValue(startMs);
+              if (excludeSessionId != null) {
+                expr = expr & t.id.equals(excludeSessionId).not();
+              }
+              return expr;
+            }))
+            .get();
+    return rows.map(_sessionToDomain).toList();
   }
 
   domain.PracticeSession _sessionToDomain(SessionRow row) {

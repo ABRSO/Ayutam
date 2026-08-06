@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Phase 3: completion notes/tags with Markdown Edit/Preview (`flutter_markdown_plus`) and debounced autosave; Learning Log list/search/filters/detail (desktop two-pane); manual session entry with overlap warning; edit/delete with Undo; FTS5 `session_search` (schema v2); skill “View all in Learning Log”.
 - Phase 2: custom flip clock (unbounded hours, reduced-motion path), skill accent palette auto-assign, timer icon controls with semantics/tooltips.
 - Phase 1 vertical slice: skill create/edit/archive, stopwatch start/pause/resume/stop, completion save/discard, crash recovery + Recovery Review, startup routing.
 - Phase 0 foundation: Flutter multi-platform shell (Android, Windows, Linux).

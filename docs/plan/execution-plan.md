@@ -191,9 +191,25 @@ Defects found / fixes applied: none.
 
 ### Exit criteria
 
-- [ ] Completion with note/tags works; empty note OK.
-- [ ] Learning Log usable with synthetic multi-year fixture (≥10k sessions preferred).
-- [ ] Search meets soft latency target on mid hardware or documented baseline.
+- [x] Completion with note/tags works; empty note OK.
+- [x] Learning Log usable with synthetic multi-year fixture (≥10k sessions preferred).
+- [x] Search meets soft latency target on mid hardware or documented baseline.
+
+**Phase 3 notes (2026-08-06):** Implemented on `phase/3-notes-learning-log`. Schema v2 adds FTS5 `session_search` (create + 1→2 backfill). `TagService` / `SessionNoteService` / `LearningLogService` + indexer. Completion panel: title, Markdown Edit/Preview (`flutter_markdown_plus` 1.0.12), tags, ~500 ms autosave. Learning Log: search, day/week/month grouping, AND filters, sort, calendar jump, sticky headers, mobile detail route, desktop two-pane ≥1000 dp, manual entry with overlap warn, edit/delete Undo, Skills “View all in Learning Log”.
+
+Latency baseline (in-memory 10k-session fixture, `learning_log_scale_fixture_test`): **search ~5–8 ms** (soft &lt;300 ms met); unfiltered list+tag join ~694–762 ms on the same hardware (documented; UI still loads the filtered query set).
+
+Platform smoke (2026-08-06, see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
+
+| Check | Result |
+|---|---|
+| `flutter analyze` | ✅ No issues |
+| `flutter test` | ✅ All 59 tests passed |
+| **Windows** build + launch | ☐ pending |
+| **Android** build + launch (emulator `ayutam_api34`) | ☐ pending |
+| **Linux** build + launch (WSL) | ☐ pending |
+
+Defects found / fixes applied: none yet (smoke in progress).
 
 ---
 

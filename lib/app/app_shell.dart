@@ -5,6 +5,7 @@ import '../features/learning_log/presentation/learning_log_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/skills/presentation/skills_screen.dart';
 import '../features/statistics/presentation/statistics_screen.dart';
+import 'providers.dart';
 
 /// Primary destinations: Skills, Learning Log, Statistics, Settings.
 class AppShell extends ConsumerStatefulWidget {
@@ -15,8 +16,6 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  int _index = 0;
-
   static const _destinations = <_NavDest>[
     _NavDest(
       label: 'Skills',
@@ -42,6 +41,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final index = ref.watch(appShellIndexProvider);
     final width = MediaQuery.sizeOf(context).width;
     final useRail = width >= 840;
     final pages = const <Widget>[
@@ -59,8 +59,9 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: Row(
             children: [
               NavigationRail(
-                selectedIndex: _index,
-                onDestinationSelected: (i) => setState(() => _index = i),
+                selectedIndex: index,
+                onDestinationSelected: (i) =>
+                    ref.read(appShellIndexProvider.notifier).setIndex(i),
                 labelType: NavigationRailLabelType.all,
                 destinations: [
                   for (final d in _destinations)
@@ -72,7 +73,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ],
               ),
               const VerticalDivider(width: 1),
-              Expanded(child: pages[_index]),
+              Expanded(child: pages[index]),
             ],
           ),
         ),
@@ -80,10 +81,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
 
     return Scaffold(
-      body: pages[_index],
+      body: pages[index],
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        selectedIndex: index,
+        onDestinationSelected: (i) =>
+            ref.read(appShellIndexProvider.notifier).setIndex(i),
         destinations: [
           for (final d in _destinations)
             NavigationDestination(

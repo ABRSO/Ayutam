@@ -42,22 +42,34 @@ final class PracticeSession {
   final DateTime? deletedAtUtc;
 
   PracticeSession copyWith({
+    String? skillId,
+    String? title,
+    String? noteMarkdown,
+    SessionMode? mode,
     SessionStatus? status,
+    String? source,
+    DateTime? startAtUtc,
     DateTime? endAtUtc,
     int? activeSeconds,
     int? pausedSeconds,
     DateTime? updatedAtUtc,
+    DateTime? deletedAtUtc,
+    bool clearTitle = false,
+    bool clearNoteMarkdown = false,
     bool clearEndAtUtc = false,
+    bool clearDeletedAtUtc = false,
   }) {
     return PracticeSession(
       id: id,
-      skillId: skillId,
-      title: title,
-      noteMarkdown: noteMarkdown,
-      mode: mode,
+      skillId: skillId ?? this.skillId,
+      title: clearTitle ? null : (title ?? this.title),
+      noteMarkdown: clearNoteMarkdown
+          ? null
+          : (noteMarkdown ?? this.noteMarkdown),
+      mode: mode ?? this.mode,
       status: status ?? this.status,
-      source: source,
-      startAtUtc: startAtUtc,
+      source: source ?? this.source,
+      startAtUtc: startAtUtc ?? this.startAtUtc,
       endAtUtc: clearEndAtUtc ? null : (endAtUtc ?? this.endAtUtc),
       activeSeconds: activeSeconds ?? this.activeSeconds,
       pausedSeconds: pausedSeconds ?? this.pausedSeconds,
@@ -66,7 +78,9 @@ final class PracticeSession {
       createdAtUtc: createdAtUtc,
       updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
       sourceDeviceId: sourceDeviceId,
-      deletedAtUtc: deletedAtUtc,
+      deletedAtUtc: clearDeletedAtUtc
+          ? null
+          : (deletedAtUtc ?? this.deletedAtUtc),
     );
   }
 }

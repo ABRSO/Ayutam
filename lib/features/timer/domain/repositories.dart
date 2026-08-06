@@ -23,7 +23,31 @@ abstract class SessionRepository {
 
   Future<void> updateSegment(SessionSegment segment);
 
+  Future<void> deleteSegmentsForSession(String sessionId);
+
   Future<int> sumCompletedActiveSeconds(String skillId);
+
+  /// Completed (and optionally soft-deleted) sessions for Learning Log.
+  Future<List<PracticeSession>> listJournalSessions({
+    Set<String>? ids,
+    Set<String>? skillIds,
+    DateTime? startAfterUtc,
+    DateTime? endBeforeUtc,
+    int? minActiveSeconds,
+    int? maxActiveSeconds,
+    bool? hasNote,
+    String? sourceEquals,
+    bool excludeManual = false,
+    bool includeDeleted = false,
+  });
+
+  /// Sessions for [skillId] whose [start,end] overlaps [startAt,endAt].
+  Future<List<PracticeSession>> findOverlapping({
+    required String skillId,
+    required DateTime startAtUtc,
+    required DateTime endAtUtc,
+    String? excludeSessionId,
+  });
 }
 
 abstract class TimerRuntimeRepository {

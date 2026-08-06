@@ -1,19 +1,139 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/ayutam_app.dart';
 import '../../../app/app_shell.dart';
 import '../../../app/providers.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/time/duration_format.dart';
+import '../../learning_log/presentation/learning_log_format.dart';
+import '../../learning_log/presentation/widgets/markdown_note_editor.dart';
+import '../../learning_log/presentation/widgets/tag_chip_input.dart';
+import '../../timer/domain/models.dart';
 import 'timer_screen.dart';
 
-class CompletionScreen extends ConsumerWidget {
+enum _NoteSaveStatus { idle, saving, saved, failed }
+
+class CompletionScreen extends ConsumerStatefulWidget {
   const CompletionScreen({super.key, this.skillId});
 
   final String? skillId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CompletionScreen> createState() => _CompletionScreenState();
+}
+
+class _CompletionScreenState extends ConsumerState<CompletionScreen> {
+  final _titleController = TextEditingController();
+  final _noteController = TextEditingController();
+  final _titleFocus = FocusNode();
+  final _noteFocus = FocusNode();
+  var _tags = <String>[];
+  var _initialized = false;
+  var _skillName = 'Skill';
+  var _saveStatus = _NoteSaveStatus.idle;
+  Timer? _debounce;
+  String? _sessionId;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleFocus.addListener(_onFocusChange);
+    _noteFocus.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _titleFocus.removeListener(_onFocusChange);
+    _noteFocus.removeListener(_onFocusChange);
+    // Fire-and-forget final save; cannot await in dispose.
+    final id = _sessionId;
+    if (id != null) {
+      unawaited(_flushSave(id));
+    }
+    _titleController.dispose();
+    _noteController.dispose();
+    _titleFocus.dispose();
+    _noteFocus.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_titleFocus.hasFocus && !_noteFocus.hasFocus) {
+      final id = _sessionId;
+      if (id != null) {
+        unawaited(_flushSave(id));
+      }
+    }
+  }
+
+  Future<void> _ensureInitialized(PracticeSession session) async {
+    if (_initialized && _sessionId == session.id) return;
+    _sessionId = session.id;
+    _titleController.text = session.title ?? '';
+    _noteController.text = session.noteMarkdown ?? '';
+    final skill = await ref
+        .read(skillRepositoryProvider)
+        .findById(session.skillId);
+    final tags = await ref
+        .read(sessionNoteServiceProvider)
+        .tagsForSession(session.id);
+    if (!mounted) return;
+    setState(() {
+      _skillName = skill?.name ?? 'Unknown skill';
+      _tags = tags.map((t) => t.name).toList();
+      _initialized = true;
+    });
+  }
+
+  void _scheduleSave() {
+    final id = _sessionId;
+    if (id == null) return;
+    _debounce?.cancel();
+    _debounce = Timer(AppConstants.noteAutosaveDebounce, () {
+      unawaited(_flushSave(id));
+    });
+  }
+
+  Future<void> _flushSave(String sessionId) async {
+    _debounce?.cancel();
+    if (!mounted) {
+      await ref
+          .read(sessionNoteServiceProvider)
+          .updateDraft(
+            sessionId: sessionId,
+            title: _titleController.text,
+            updateTitle: true,
+            noteMarkdown: _noteController.text,
+            updateNote: true,
+            tagNames: _tags,
+          );
+      return;
+    }
+    setState(() => _saveStatus = _NoteSaveStatus.saving);
+    final result = await ref
+        .read(sessionNoteServiceProvider)
+        .updateDraft(
+          sessionId: sessionId,
+          title: _titleController.text,
+          updateTitle: true,
+          noteMarkdown: _noteController.text,
+          updateNote: true,
+          tagNames: _tags,
+        );
+    if (!mounted) return;
+    setState(() {
+      _saveStatus = result.isSuccess
+          ? _NoteSaveStatus.saved
+          : _NoteSaveStatus.failed;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final snapAsync = ref.watch(timerSessionProvider);
 
     return Scaffold(
@@ -22,17 +142,69 @@ class CompletionScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (snap) {
-          final seconds =
-              snap.session?.activeSeconds ?? snap.displayActiveSeconds;
+          final session = snap.session;
+          final seconds = session?.activeSeconds ?? snap.displayActiveSeconds;
+          if (session != null) {
+            unawaited(_ensureInitialized(session));
+          }
           return CompletionBody(
             activeSeconds: seconds,
+            skillName: session == null ? null : _skillName,
+            dateLabel: session == null
+                ? null
+                : formatSessionDate(session.startAtUtc),
+            timeRangeLabel: session == null
+                ? null
+                : formatSessionTimeRange(session),
+            modeLabel: session == null ? null : sessionModeLabel(session.mode),
+            titleField: session == null
+                ? null
+                : TextField(
+                    controller: _titleController,
+                    focusNode: _titleFocus,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Title (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (_) => _scheduleSave(),
+                  ),
+            noteEditor: session == null
+                ? null
+                : MarkdownNoteEditor(
+                    controller: _noteController,
+                    focusNode: _noteFocus,
+                    onChanged: (_) => _scheduleSave(),
+                    onEditingComplete: () {
+                      final id = _sessionId;
+                      if (id != null) unawaited(_flushSave(id));
+                    },
+                  ),
+            tagInput: session == null
+                ? null
+                : TagChipInput(
+                    tags: _tags,
+                    onChanged: (next) {
+                      setState(() => _tags = next);
+                      _scheduleSave();
+                    },
+                  ),
+            saveStatus: session == null
+                ? null
+                : _SaveStatusRow(
+                    status: _saveStatus,
+                    onRetry: () {
+                      final id = _sessionId;
+                      if (id != null) unawaited(_flushSave(id));
+                    },
+                  ),
             onSave: () async {
+              final id = _sessionId;
+              if (id != null) await _flushSave(id);
               final error = await ref
                   .read(timerSessionProvider.notifier)
                   .saveCompletion();
-              if (!context.mounted) {
-                return;
-              }
+              if (!context.mounted) return;
               if (error != null) {
                 ScaffoldMessenger.of(
                   context,
@@ -40,15 +212,16 @@ class CompletionScreen extends ConsumerWidget {
                 return;
               }
               ref.invalidate(activeSkillsProvider);
+              ref.invalidate(learningLogEntriesProvider);
               await _goHome(context, ref);
             },
             onResume: () async {
+              final id = _sessionId;
+              if (id != null) await _flushSave(id);
               final error = await ref
                   .read(timerSessionProvider.notifier)
                   .resumeFromCompletion();
-              if (!context.mounted) {
-                return;
-              }
+              if (!context.mounted) return;
               if (error != null) {
                 ScaffoldMessenger.of(
                   context,
@@ -57,7 +230,7 @@ class CompletionScreen extends ConsumerWidget {
               }
               await Navigator.of(context).pushReplacement(
                 MaterialPageRoute<void>(
-                  builder: (_) => TimerScreen(skillId: skillId),
+                  builder: (_) => TimerScreen(skillId: widget.skillId),
                 ),
               );
             },
@@ -82,15 +255,11 @@ class CompletionScreen extends ConsumerWidget {
                   ],
                 ),
               );
-              if (ok != true || !context.mounted) {
-                return;
-              }
+              if (ok != true || !context.mounted) return;
               final error = await ref
                   .read(timerSessionProvider.notifier)
                   .discardCompletion();
-              if (!context.mounted) {
-                return;
-              }
+              if (!context.mounted) return;
               if (error != null) {
                 ScaffoldMessenger.of(
                   context,
@@ -106,6 +275,50 @@ class CompletionScreen extends ConsumerWidget {
   }
 }
 
+class _SaveStatusRow extends StatelessWidget {
+  const _SaveStatusRow({required this.status, required this.onRetry});
+
+  final _NoteSaveStatus status;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    switch (status) {
+      case _NoteSaveStatus.idle:
+        return const SizedBox.shrink();
+      case _NoteSaveStatus.saving:
+        return Text(
+          'Saving…',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        );
+      case _NoteSaveStatus.saved:
+        return Text(
+          'Saved locally',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        );
+      case _NoteSaveStatus.failed:
+        return Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Save failed',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        );
+    }
+  }
+}
+
 /// Scroll-safe completion content; extractable for viewport widget tests.
 class CompletionBody extends StatelessWidget {
   const CompletionBody({
@@ -114,12 +327,34 @@ class CompletionBody extends StatelessWidget {
     required this.onSave,
     required this.onResume,
     required this.onDiscard,
+    this.skillName,
+    this.dateLabel,
+    this.timeRangeLabel,
+    this.modeLabel,
+    this.titleField,
+    this.noteEditor,
+    this.tagInput,
+    this.saveStatus,
   });
 
   final int activeSeconds;
   final VoidCallback onSave;
   final VoidCallback onResume;
   final VoidCallback onDiscard;
+  final String? skillName;
+  final String? dateLabel;
+  final String? timeRangeLabel;
+  final String? modeLabel;
+  final Widget? titleField;
+  final Widget? noteEditor;
+  final Widget? tagInput;
+  final Widget? saveStatus;
+
+  bool get _expanded =>
+      skillName != null ||
+      titleField != null ||
+      noteEditor != null ||
+      tagInput != null;
 
   @override
   Widget build(BuildContext context) {
@@ -137,31 +372,53 @@ class CompletionBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Spacer(),
-                    Text(
-                      'Active practice',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      formatActiveDuration(activeSeconds),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.displayMedium
-                          ?.copyWith(
-                            fontFamily: 'monospace',
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Notes and tags arrive in a later phase.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    if (!_expanded) const Spacer(),
+                    if (_expanded) ...[
+                      _SummaryCard(
+                        skillName: skillName ?? 'Skill',
+                        dateLabel: dateLabel ?? '',
+                        timeRangeLabel: timeRangeLabel ?? '',
+                        modeLabel: modeLabel ?? '',
+                        activeSeconds: activeSeconds,
                       ),
-                    ),
-                    const Spacer(),
+                      const SizedBox(height: 16),
+                      if (titleField != null) ...[
+                        titleField!,
+                        const SizedBox(height: 16),
+                      ],
+                      if (noteEditor != null) ...[
+                        noteEditor!,
+                        const SizedBox(height: 16),
+                      ],
+                      if (tagInput != null) ...[
+                        tagInput!,
+                        const SizedBox(height: 12),
+                      ],
+                      if (saveStatus != null) ...[
+                        saveStatus!,
+                        const SizedBox(height: 16),
+                      ],
+                    ] else ...[
+                      Text(
+                        'Active practice',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        formatActiveDuration(activeSeconds),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.displayMedium
+                            ?.copyWith(
+                              fontFamily: 'monospace',
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (!_expanded) const Spacer(),
                     FilledButton(
                       onPressed: onSave,
                       child: const Text('Save Session'),
@@ -183,6 +440,66 @@ class CompletionBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.skillName,
+    required this.dateLabel,
+    required this.timeRangeLabel,
+    required this.modeLabel,
+    required this.activeSeconds,
+  });
+
+  final String skillName;
+  final String dateLabel;
+  final String timeRangeLabel;
+  final String modeLabel;
+  final int activeSeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(skillName, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              dateLabel,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              timeRangeLabel,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              formatActiveDuration(activeSeconds),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontFamily: 'monospace',
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              modeLabel,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

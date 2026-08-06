@@ -183,7 +183,9 @@ CREATE VIRTUAL TABLE session_search USING fts5(
 );
 ```
 
-Maintain via repository updates or triggers. Diagnostics must offer rebuild. Search joins back to non-deleted completed (and optionally pending) sessions. Required for Learning Log latency targets (ADR-017).
+Maintain via `SessionSearchIndexer` on note/tag/session writes (upsert/delete by `session_id`). Diagnostics must offer `rebuildAll()`. Search joins back to non-deleted completed (and optionally pending) sessions. Required for Learning Log latency targets (ADR-017).
+
+**Schema v2:** FTS table is created in `onCreate` and in the `1→2` migration, which also backfills from existing completed / `completion_pending` sessions (skill name + tag names concatenated into `tags_text`).
 
 ---
 

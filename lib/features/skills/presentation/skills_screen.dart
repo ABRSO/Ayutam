@@ -7,6 +7,7 @@ import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/duration_format.dart';
+import '../../learning_log/domain/learning_log_models.dart';
 import '../domain/skill.dart';
 import '../../timer/presentation/pre_session_sheet.dart';
 
@@ -156,11 +157,31 @@ class _SkillCard extends ConsumerWidget {
                     const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: FilledButton.tonalIcon(
-                        onPressed: () =>
-                            showPreSessionSheet(context, skill: skill),
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Play'),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              ref
+                                  .read(learningLogFiltersProvider.notifier)
+                                  .setFilters(
+                                    LearningLogFilters(skillIds: {skill.id}),
+                                  );
+                              ref
+                                  .read(appShellIndexProvider.notifier)
+                                  .setIndex(1);
+                            },
+                            child: const Text('View all in Learning Log'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                showPreSessionSheet(context, skill: skill),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Play'),
+                          ),
+                        ],
                       ),
                     ),
                   ],

@@ -13,8 +13,8 @@
 | Area | Status |
 |---|---|
 | Docs (product / UX / architecture) | Authoritative baseline |
-| Application code | **Phase 2 complete** — flip clock, skill accents, timer a11y controls, theme polish |
-| Next | Phase 3 — notes, tags, Learning Log ([execution plan](docs/plan/execution-plan.md)) |
+| Application code | **Phase 3 complete** — notes/tags, FTS5 Learning Log, manual entry, edit/delete |
+| Next | Phase 4 — Statistics ([execution plan](docs/plan/execution-plan.md)) |
 | Platforms verified | Android emulator, Windows, Linux (WSLg) — see [platform smoke](docs/testing/platform-smoke.md) |
 
 ## Documentation map
