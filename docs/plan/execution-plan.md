@@ -205,11 +205,11 @@ Platform smoke (2026-08-06, see [`docs/testing/platform-smoke.md`](../testing/pl
 |---|---|
 | `flutter analyze` | ✅ No issues |
 | `flutter test` | ✅ All 59 tests passed |
-| **Windows** build + launch | ☐ pending |
-| **Android** build + launch (emulator `ayutam_api34`) | ☐ pending |
-| **Linux** build + launch (WSL) | ☐ pending |
+| **Windows** build + launch | ✅ `tool\win_build.bat --debug` → `ayutam.exe`; alive after 7 s (`WIN_SMOKE_OK`) |
+| **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → uninstall (version downgrade) + install + `am start` → `pidof` returned PID (`ANDROID_SMOKE_OK`) |
+| **Linux** build + launch (WSL) | ✅ `tool/wsl_build_linux.sh` → `LINUX_SMOKE_OK` |
 
-Defects found / fixes applied: none yet (smoke in progress).
+Defects found / fixes applied: Windows first build failed on `jni` plugin CMake (MSB8066) during concurrent Linux pub get; clean rebuild succeeded. Android install needed uninstall first due to `INSTALL_FAILED_VERSION_DOWNGRADE` (emulator had higher versionCode).
 
 ---
 
