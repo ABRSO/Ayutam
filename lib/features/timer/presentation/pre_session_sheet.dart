@@ -12,6 +12,7 @@ import 'timer_screen.dart';
 Future<void> showPreSessionSheet(BuildContext context, {required Skill skill}) {
   return showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (context) => PreSessionSheet(skill: skill),
   );
@@ -25,43 +26,74 @@ class PreSessionSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final media = MediaQuery.of(context);
     final active = ref.watch(timerSessionProvider).asData?.value.session;
     final blocking = active != null && active.status.isInProgress;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(skill.name, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            '${formatHoursMinutes(skill.completedActiveSeconds)} of '
-            '${formatHoursMinutes(skill.targetSeconds)}',
-            style: durationMonoStyle(
-              context,
-              base: theme.textTheme.bodyMedium,
-            ).copyWith(color: theme.colorScheme.onSurfaceVariant),
+    // Cap height so the sheet can scroll on short landscape viewports instead
+    // of clipping Start / Cancel (or Open active timer) below the screen edge.
+    final maxHeight = media.size.height * 0.92;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(skill.name, style: theme.textTheme.titleLarge),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${formatHoursMinutes(skill.completedActiveSeconds)} of '
+                          '${formatHoursMinutes(skill.targetSeconds)}',
+                          style: durationMonoStyle(
+                            context,
+                            base: theme.textTheme.bodyMedium,
+                          ).copyWith(color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 16),
+                        if (blocking)
+                          _ActiveSessionConflictBody(
+                            requested: skill,
+                            active: active,
+                          )
+                        else
+                          const _StartSessionBody(),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (blocking)
+                  _ActiveSessionConflictActions(
+                    requested: skill,
+                    active: active,
+                  )
+                else
+                  _StartSessionActions(skill: skill),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          if (blocking)
-            _ActiveSessionConflict(requested: skill, active: active)
-          else
-            _StartSession(skill: skill),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _StartSession extends ConsumerWidget {
-  const _StartSession({required this.skill});
-
-  final Skill skill;
+class _StartSessionBody extends StatelessWidget {
+  const _StartSessionBody();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -78,7 +110,21 @@ class _StartSession extends ConsumerWidget {
           'active practice time only.',
           style: theme.textTheme.bodySmall,
         ),
-        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+class _StartSessionActions extends ConsumerWidget {
+  const _StartSessionActions({required this.skill});
+
+  final Skill skill;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         FilledButton.icon(
           onPressed: () async {
             final messenger = ScaffoldMessenger.of(context);
@@ -108,8 +154,11 @@ class _StartSession extends ConsumerWidget {
 
 /// Only one session may be active, paused, or completion-pending, so starting
 /// another skill has to resolve the current one first.
-class _ActiveSessionConflict extends ConsumerWidget {
-  const _ActiveSessionConflict({required this.requested, required this.active});
+class _ActiveSessionConflictBody extends ConsumerWidget {
+  const _ActiveSessionConflictBody({
+    required this.requested,
+    required this.active,
+  });
 
   final Skill requested;
   final PracticeSession active;
@@ -120,17 +169,33 @@ class _ActiveSessionConflict extends ConsumerWidget {
     final sameSkill = active.skillId == requested.id;
     final activeName = _skillName(ref, active.skillId);
 
+    return Text(
+      sameSkill
+          ? 'This skill already has a session in progress.'
+          : 'A session for ${activeName ?? 'another skill'} is already in '
+                'progress.',
+      style: theme.textTheme.bodyMedium,
+    );
+  }
+}
+
+class _ActiveSessionConflictActions extends ConsumerWidget {
+  const _ActiveSessionConflictActions({
+    required this.requested,
+    required this.active,
+  });
+
+  final Skill requested;
+  final PracticeSession active;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sameSkill = active.skillId == requested.id;
+    final activeName = _skillName(ref, active.skillId);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          sameSkill
-              ? 'This skill already has a session in progress.'
-              : 'A session for ${activeName ?? 'another skill'} is already in '
-                    'progress.',
-          style: theme.textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 24),
         FilledButton.icon(
           onPressed: () async {
             Navigator.of(context).pop();
@@ -164,9 +229,11 @@ class _ActiveSessionConflict extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Stop active session?'),
-        content: Text(
-          'The session for ${activeName ?? 'the active skill'} will be stopped '
-          'and saved, then a new session starts for ${requested.name}.',
+        content: SingleChildScrollView(
+          child: Text(
+            'The session for ${activeName ?? 'the active skill'} will be stopped '
+            'and saved, then a new session starts for ${requested.name}.',
+          ),
         ),
         actions: [
           TextButton(

@@ -93,6 +93,8 @@ Optional session title
 
 Remember last mode per skill. Never auto-start. If another session is active: Open active timer / Stop active and start this / Cancel.
 
+**Short viewports (e.g. phone landscape):** sheets must not clip primary actions. Cap sheet height to the viewport, keep action buttons pinned below a scrollable body (or make the whole sheet scrollable), and respect safe areas. Do not rely on fixed absolute panel heights that ignore available height.
+
 ### 4.3 Immersive timer
 
 Hide primary nav chrome.
@@ -202,6 +204,8 @@ Immersive timer: navigation hidden.
 **Statistics:** Stacked on compact; fuller hover/tooltips on desktop.
 
 **Input:** Touch 48×48; mouse hover/tooltips/context menus; keyboard tab order, Enter/Space, Escape closes modals; desktop drag-drop import with file picker fallback.
+
+**Sheets / dialogs:** Material type sizes and 48×48 targets are the baseline (not per-device custom fonts). Layout must adapt to available height and aspect ratio: scroll or pin actions so Cancel / primary CTAs remain reachable in landscape and with large text / IME insets.
 
 ---
 
