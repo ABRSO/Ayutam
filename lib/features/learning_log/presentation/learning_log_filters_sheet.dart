@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -29,8 +31,11 @@ class _LearningLogFiltersSheetState
   late LearningLogFilters _draft;
   final _minMinutes = TextEditingController();
   final _maxMinutes = TextEditingController();
+
+  /// Mirrors autocomplete field text so Apply can commit typed tags.
+  var _typedTag = '';
   List<Skill> _skills = const [];
-  final _selectedTagNames = <String, String>{};
+  List<Tag> _allTags = const [];
 
   @override
   void initState() {
@@ -43,6 +48,7 @@ class _LearningLogFiltersSheetState
       _maxMinutes.text = (_draft.maxActiveSeconds! / 60).round().toString();
     }
     _loadSkills();
+    _loadTags();
   }
 
   @override
@@ -56,6 +62,12 @@ class _LearningLogFiltersSheetState
     final skills = await ref.read(skillServiceProvider).listActive();
     if (!mounted) return;
     setState(() => _skills = skills);
+  }
+
+  Future<void> _loadTags() async {
+    final tags = await ref.read(tagServiceProvider).listAll();
+    if (!mounted) return;
+    setState(() => _allTags = tags);
   }
 
   Future<void> _pickStart() async {
@@ -95,9 +107,28 @@ class _LearningLogFiltersSheetState
     });
   }
 
-  void _apply() {
+  Future<void> _commitTypedTag(String raw) async {
+    final name = raw.trim();
+    if (name.isEmpty) return;
+    final tag = await ref.read(tagServiceProvider).findByName(name);
+    if (!mounted) return;
+    _typedTag = '';
+    if (tag == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No tag named "$name" exists yet.')),
+      );
+      return;
+    }
+    final next = Set<String>.from(_draft.tagIds)..add(tag.id);
+    setState(() => _draft = _draft.copyWith(tagIds: next));
+  }
+
+  Future<void> _apply() async {
     final min = int.tryParse(_minMinutes.text.trim());
     final max = int.tryParse(_maxMinutes.text.trim());
+    await _commitTypedTag(_typedTag);
+    if (!mounted) return;
+
     final next = _draft.copyWith(
       minActiveSeconds: min == null ? null : min * 60,
       maxActiveSeconds: max == null ? null : max * 60,
@@ -120,7 +151,7 @@ class _LearningLogFiltersSheetState
             left: 24,
             right: 24,
             top: 8,
-            bottom: media.viewInsets.bottom + 24,
+            bottom: media.viewInsets.bottom + 16,
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -178,21 +209,6 @@ class _LearningLogFiltersSheetState
                     ),
                   ],
                 ),
-                if (_draft.startAfterUtc != null || _draft.endBeforeUtc != null)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _draft = _draft.copyWith(
-                            clearStartAfter: true,
-                            clearEndBefore: true,
-                          );
-                        });
-                      },
-                      child: const Text('Clear dates'),
-                    ),
-                  ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -272,43 +288,29 @@ class _LearningLogFiltersSheetState
                 const SizedBox(height: 16),
                 Text('Tags', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
-                Autocomplete<Tag>(
-                  displayStringForOption: (t) => t.name,
-                  optionsBuilder: (value) async {
-                    final prefix = value.text.trim();
-                    if (prefix.isEmpty) return const Iterable<Tag>.empty();
-                    return ref.read(tagServiceProvider).autocomplete(prefix);
-                  },
-                  onSelected: (tag) {
-                    final next = Set<String>.from(_draft.tagIds)..add(tag.id);
-                    _selectedTagNames[tag.id] = tag.name;
-                    setState(() => _draft = _draft.copyWith(tagIds: next));
-                  },
-                  fieldViewBuilder:
-                      (context, controller, focusNode, onFieldSubmitted) {
-                        return TextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: const InputDecoration(
-                            hintText: 'Filter by tag',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.label_outline),
-                          ),
-                        );
-                      },
-                ),
-                if (_draft.tagIds.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                if (_allTags.isEmpty)
+                  Text(
+                    'No tags yet. Add tags when saving a session, then filter here.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else
                   Wrap(
                     spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      for (final id in _draft.tagIds)
-                        InputChip(
-                          label: Text(_selectedTagNames[id] ?? id),
-                          onDeleted: () {
-                            final next = Set<String>.from(_draft.tagIds)
-                              ..remove(id);
-                            _selectedTagNames.remove(id);
+                      for (final tag in _allTags)
+                        FilterChip(
+                          label: Text(tag.name),
+                          selected: _draft.tagIds.contains(tag.id),
+                          onSelected: (selected) {
+                            final next = Set<String>.from(_draft.tagIds);
+                            if (selected) {
+                              next.add(tag.id);
+                            } else {
+                              next.remove(tag.id);
+                            }
                             setState(
                               () => _draft = _draft.copyWith(tagIds: next),
                             );
@@ -316,7 +318,43 @@ class _LearningLogFiltersSheetState
                         ),
                     ],
                   ),
-                ],
+                const SizedBox(height: 12),
+                Autocomplete<Tag>(
+                  displayStringForOption: (t) => t.name,
+                  optionsBuilder: (value) async {
+                    return ref
+                        .read(tagServiceProvider)
+                        .autocomplete(value.text.trim());
+                  },
+                  onSelected: (tag) {
+                    final next = Set<String>.from(_draft.tagIds)..add(tag.id);
+                    setState(() {
+                      _draft = _draft.copyWith(tagIds: next);
+                      _typedTag = '';
+                    });
+                  },
+                  fieldViewBuilder:
+                      (context, controller, focusNode, onFieldSubmitted) {
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            hintText: 'Type a tag name',
+                            helperText:
+                                'Pick a chip, choose a suggestion, or Apply typed text',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.label_outline),
+                          ),
+                          onChanged: (text) => _typedTag = text,
+                          onSubmitted: (value) async {
+                            await _commitTypedTag(value);
+                            controller.clear();
+                            onFieldSubmitted();
+                          },
+                        );
+                      },
+                ),
                 const SizedBox(height: 24),
                 Row(
                   children: [
@@ -328,7 +366,10 @@ class _LearningLogFiltersSheetState
                       child: const Text('Clear all'),
                     ),
                     const Spacer(),
-                    FilledButton(onPressed: _apply, child: const Text('Apply')),
+                    FilledButton(
+                      onPressed: () => unawaited(_apply()),
+                      child: const Text('Apply'),
+                    ),
                   ],
                 ),
               ],

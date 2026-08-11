@@ -45,6 +45,16 @@ final class TagService {
     return Success(tag);
   }
 
+  Future<Tag?> findByName(String raw) {
+    final normalized = Tag.normalize(raw);
+    if (normalized.isEmpty) return Future.value(null);
+    return _tags.findByNormalizedName(normalized);
+  }
+
+  Future<List<Tag>> listAll({int limit = 100}) {
+    return _tags.autocomplete('', limit: limit);
+  }
+
   Future<List<Tag>> autocomplete(String prefix, {int limit = 20}) {
     return _tags.autocomplete(prefix, limit: limit);
   }

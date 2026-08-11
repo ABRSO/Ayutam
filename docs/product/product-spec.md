@@ -120,7 +120,7 @@ On Stop:
 
 **Edit later:** Title, note, tags, skill, start/end (warns that totals/stats change). Manual entry supported (no timer). Delete: Undo snackbar ~5 s, then soft-delete cleanup — no full trash UI in v1.
 
-**Tags:** Global, case-insensitive unique with preserved casing, autocomplete, filterable. Deleting a tag removes associations, not sessions.
+**Tags:** Global, case-insensitive unique with preserved casing, autocomplete, filterable. Deleting a tag removes associations, not sessions. Typed tag text must become a chip on Done/Enter, suggestion pick, focus loss, or Save/Apply — never discarded because the user skipped Enter. Learning Log filters show existing tags as selectable chips (same pattern as skill chips).
 
 ### 2.5 Learning Log
 

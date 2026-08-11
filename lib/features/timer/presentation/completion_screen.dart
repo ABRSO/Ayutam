@@ -28,6 +28,7 @@ class CompletionScreen extends ConsumerStatefulWidget {
 class _CompletionScreenState extends ConsumerState<CompletionScreen> {
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
+  final _tagInputController = TagChipInputController();
   final _titleFocus = FocusNode();
   final _noteFocus = FocusNode();
   var _tags = <String>[];
@@ -49,11 +50,23 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
     _debounce?.cancel();
     _titleFocus.removeListener(_onFocusChange);
     _noteFocus.removeListener(_onFocusChange);
-    // Fire-and-forget final save; cannot await in dispose.
+    final tags = _tagInputController.commitPending(notify: false);
     final id = _sessionId;
     if (id != null) {
-      unawaited(_flushSave(id));
+      unawaited(
+        ref
+            .read(sessionNoteServiceProvider)
+            .updateDraft(
+              sessionId: id,
+              title: _titleController.text,
+              updateTitle: true,
+              noteMarkdown: _noteController.text,
+              updateNote: true,
+              tagNames: tags,
+            ),
+      );
     }
+    _tagInputController.dispose();
     _titleController.dispose();
     _noteController.dispose();
     _titleFocus.dispose();
@@ -100,6 +113,9 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
 
   Future<void> _flushSave(String sessionId) async {
     _debounce?.cancel();
+    // Typed text in the tag field is not a chip until committed.
+    final tags = _tagInputController.commitPending();
+    _tags = tags;
     if (!mounted) {
       await ref
           .read(sessionNoteServiceProvider)
@@ -109,7 +125,7 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
             updateTitle: true,
             noteMarkdown: _noteController.text,
             updateNote: true,
-            tagNames: _tags,
+            tagNames: tags,
           );
       return;
     }
@@ -122,7 +138,7 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
           updateTitle: true,
           noteMarkdown: _noteController.text,
           updateNote: true,
-          tagNames: _tags,
+          tagNames: tags,
         );
     if (!mounted) return;
     setState(() {
@@ -183,6 +199,7 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
             tagInput: session == null
                 ? null
                 : TagChipInput(
+                    controller: _tagInputController,
                     tags: _tags,
                     onChanged: (next) {
                       setState(() => _tags = next);

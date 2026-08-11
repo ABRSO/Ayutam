@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Tags: typed names now commit on Save/Apply/focus-loss (not only Enter); Learning Log filters show existing tags as selectable chips plus autocomplete — fixes sessions saving without tags and filters that ignored typed text.
 - Pre-session (and skill editor) sheets stay usable in short Android landscape: height-capped, safe-area aware, with actions pinned below a scrollable body so Start / Cancel / Open active timer are not clipped off-screen.
 - Pre-session sheet now resolves an in-progress session with **Open active timer** / **Stop active and start this** / **Cancel** instead of a dead-end "another session is already in progress" message, so a running session can be reopened without restarting the app. It also shows accumulated/target time and an explicit Cancel action.
 - Session heartbeat runs app-level while a session is running instead of only while the timer screen is visible, so leaving the timer no longer stalls it and startup recovery cannot mistake active practice for a gap.

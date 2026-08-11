@@ -31,6 +31,7 @@ class SessionEditSheet extends ConsumerStatefulWidget {
 class _SessionEditSheetState extends ConsumerState<SessionEditSheet> {
   late final TextEditingController _titleController;
   late final TextEditingController _noteController;
+  final _tagInputController = TagChipInputController();
   late List<String> _tags;
   var _saving = false;
 
@@ -45,6 +46,7 @@ class _SessionEditSheetState extends ConsumerState<SessionEditSheet> {
 
   @override
   void dispose() {
+    _tagInputController.dispose();
     _titleController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -53,6 +55,8 @@ class _SessionEditSheetState extends ConsumerState<SessionEditSheet> {
   Future<void> _save() async {
     if (_saving) return;
     setState(() => _saving = true);
+    final tags = _tagInputController.commitPending();
+    _tags = tags;
     final result = await ref
         .read(sessionNoteServiceProvider)
         .updateCompletedSession(
@@ -61,7 +65,7 @@ class _SessionEditSheetState extends ConsumerState<SessionEditSheet> {
           updateTitle: true,
           noteMarkdown: _noteController.text,
           updateNote: true,
-          tagNames: _tags,
+          tagNames: tags,
         );
     if (!mounted) return;
     result.when(
@@ -112,6 +116,7 @@ class _SessionEditSheetState extends ConsumerState<SessionEditSheet> {
                 MarkdownNoteEditor(controller: _noteController),
                 const SizedBox(height: 16),
                 TagChipInput(
+                  controller: _tagInputController,
                   tags: _tags,
                   onChanged: (next) => setState(() => _tags = next),
                 ),

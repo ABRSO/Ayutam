@@ -27,6 +27,7 @@ class ManualSessionSheet extends ConsumerStatefulWidget {
 class _ManualSessionSheetState extends ConsumerState<ManualSessionSheet> {
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
+  final _tagInputController = TagChipInputController();
   var _tags = <String>[];
   List<Skill> _skills = const [];
   String? _skillId;
@@ -45,6 +46,7 @@ class _ManualSessionSheetState extends ConsumerState<ManualSessionSheet> {
 
   @override
   void dispose() {
+    _tagInputController.dispose();
     _titleController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -94,6 +96,8 @@ class _ManualSessionSheetState extends ConsumerState<ManualSessionSheet> {
     }
 
     setState(() => _saving = true);
+    final tags = _tagInputController.commitPending();
+    _tags = tags;
     final offset = _startLocal.timeZoneOffset.inMinutes;
     final result = await ref
         .read(sessionNoteServiceProvider)
@@ -103,7 +107,7 @@ class _ManualSessionSheetState extends ConsumerState<ManualSessionSheet> {
           endAtUtc: _endLocal.toUtc(),
           title: _titleController.text,
           noteMarkdown: _noteController.text,
-          tagNames: _tags,
+          tagNames: tags,
           allowOverlap: allowOverlap,
           timezoneId: _startLocal.timeZoneName,
           offsetMinutes: offset,
@@ -227,6 +231,7 @@ class _ManualSessionSheetState extends ConsumerState<ManualSessionSheet> {
                 MarkdownNoteEditor(controller: _noteController),
                 const SizedBox(height: 16),
                 TagChipInput(
+                  controller: _tagInputController,
                   tags: _tags,
                   onChanged: (next) => setState(() => _tags = next),
                 ),
