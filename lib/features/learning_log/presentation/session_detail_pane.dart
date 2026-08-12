@@ -65,7 +65,7 @@ class SessionDetailPane extends ConsumerWidget {
     if (!context.mounted) return;
     await result.when(
       success: (_) async {
-        ref.invalidate(learningLogEntriesProvider);
+        ref.invalidate(learningLogListProvider);
         ref.invalidate(activeSkillsProvider);
         onDeleted?.call();
         messenger.hideCurrentSnackBar();
@@ -81,7 +81,7 @@ class SessionDetailPane extends ConsumerWidget {
                     .restore(sessionId);
                 restore.when(
                   success: (_) {
-                    ref.invalidate(learningLogEntriesProvider);
+                    ref.invalidate(learningLogListProvider);
                     ref.invalidate(activeSkillsProvider);
                     onChanged?.call();
                   },

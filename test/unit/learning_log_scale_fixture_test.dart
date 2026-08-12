@@ -69,10 +69,15 @@ void main() {
         total: total,
       );
 
+      final month = CalendarMonth.fromLocal(
+        DateTime.utc(2018, 1, 1, 12).toLocal(),
+      );
       final listSw = Stopwatch()..start();
-      final all = await log.query(const LearningLogFilters());
+      final page = await log.queryMonth(const LearningLogFilters(), month);
       listSw.stop();
-      expect(all, hasLength(total));
+      expect(page.entries, isNotEmpty);
+      expect(page.entries.length, lessThan(total));
+      expect(page.hasMoreNewer, isTrue);
 
       final searchSw = Stopwatch()..start();
       final found = await log.query(
@@ -85,8 +90,9 @@ void main() {
       // Soft target <300ms on mid hardware; always record for phase notes.
       // ignore: avoid_print
       print(
-        'LEARNING_LOG_LATENCY list_ms=${listSw.elapsedMilliseconds} '
-        'search_ms=${searchSw.elapsedMilliseconds} sessions=$total',
+        'LEARNING_LOG_LATENCY month_list_ms=${listSw.elapsedMilliseconds} '
+        'search_ms=${searchSw.elapsedMilliseconds} sessions=$total '
+        'month_rows=${page.entries.length}',
       );
 
       await db.close();

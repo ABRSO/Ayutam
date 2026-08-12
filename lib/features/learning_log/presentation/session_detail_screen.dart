@@ -48,7 +48,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         onDeleted: () {
           if (context.mounted) Navigator.of(context).pop();
         },
-        onChanged: () => ref.invalidate(learningLogEntriesProvider),
+        onChanged: () => ref.invalidate(learningLogListProvider),
         onNavigateTo: (id) => setState(() => _sessionId = id),
       );
     }
@@ -76,7 +76,7 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
           onDeleted: () {
             if (context.mounted) Navigator.of(context).pop();
           },
-          onChanged: () => ref.invalidate(learningLogEntriesProvider),
+          onChanged: () => ref.invalidate(learningLogListProvider),
           onNavigateTo: (id) => setState(() => _sessionId = id),
         );
       },

@@ -59,7 +59,7 @@ class _LearningLogFiltersSheetState
   }
 
   Future<void> _loadSkills() async {
-    final skills = await ref.read(skillServiceProvider).listActive();
+    final skills = await ref.read(skillServiceProvider).listForJournal();
     if (!mounted) return;
     setState(() => _skills = skills);
   }
@@ -167,7 +167,11 @@ class _LearningLogFiltersSheetState
                   children: [
                     for (final skill in _skills)
                       FilterChip(
-                        label: Text(skill.name),
+                        label: Text(
+                          skill.status == SkillStatus.archived
+                              ? '${skill.name} (archived)'
+                              : skill.name,
+                        ),
                         selected: _draft.skillIds.contains(skill.id),
                         onSelected: (selected) {
                           final next = Set<String>.from(_draft.skillIds);

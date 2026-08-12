@@ -229,7 +229,7 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
                 return;
               }
               ref.invalidate(activeSkillsProvider);
-              ref.invalidate(learningLogEntriesProvider);
+              ref.invalidate(learningLogListProvider);
               await _goHome(context, ref);
             },
             onResume: () async {

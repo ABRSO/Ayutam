@@ -143,7 +143,7 @@ class _ManualSessionSheetState extends ConsumerState<ManualSessionSheet> {
           }
           return;
         }
-        ref.invalidate(learningLogEntriesProvider);
+        ref.invalidate(learningLogListProvider);
         ref.invalidate(activeSkillsProvider);
         Navigator.pop(context, true);
       },

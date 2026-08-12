@@ -30,6 +30,9 @@ final class SkillService {
 
   Future<List<Skill>> listActive() => _skills.listActiveSkillsWithProgress();
 
+  /// Active + archived, not soft-deleted. For Learning Log filters and session edit.
+  Future<List<Skill>> listForJournal() => _skills.listNonDeleted();
+
   Future<Result<Skill>> create({
     required String name,
     int? targetSeconds,

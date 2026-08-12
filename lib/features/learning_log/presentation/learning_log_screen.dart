@@ -28,13 +28,23 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
   void initState() {
     super.initState();
     _searchController.text = ref.read(learningLogFiltersProvider).query;
+    _listScrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _listScrollController.removeListener(_onScroll);
     _searchController.dispose();
     _listScrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_listScrollController.hasClients) return;
+    final pos = _listScrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 480) {
+      ref.read(learningLogListProvider.notifier).loadMore();
+    }
   }
 
   Future<void> _calendarJump() async {
@@ -97,7 +107,7 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
         if (selected == sessionId) {
           ref.read(selectedLearningLogSessionIdProvider.notifier).select(null);
         }
-        ref.invalidate(learningLogEntriesProvider);
+        ref.invalidate(learningLogListProvider);
         ref.invalidate(activeSkillsProvider);
         messenger.hideCurrentSnackBar();
         final snack = messenger.showSnackBar(
@@ -112,7 +122,7 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
                     .restore(sessionId);
                 restore.when(
                   success: (_) {
-                    ref.invalidate(learningLogEntriesProvider);
+                    ref.invalidate(learningLogListProvider);
                     ref.invalidate(activeSkillsProvider);
                   },
                   failure: (f) => messenger.showSnackBar(
@@ -149,7 +159,7 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
   @override
   Widget build(BuildContext context) {
     final filters = ref.watch(learningLogFiltersProvider);
-    final entriesAsync = ref.watch(learningLogEntriesProvider);
+    final listAsync = ref.watch(learningLogListProvider);
     final selectedId = ref.watch(selectedLearningLogSessionIdProvider);
     final width = MediaQuery.sizeOf(context).width;
     final twoPane = width >= AppConstants.learningLogTwoPaneBreakpoint;
@@ -197,7 +207,7 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final saved = await showManualSessionSheet(context);
-          if (saved) ref.invalidate(learningLogEntriesProvider);
+          if (saved) ref.invalidate(learningLogListProvider);
         },
         icon: const Icon(Icons.edit_calendar_outlined),
         label: const Text('Manual entry'),
@@ -277,10 +287,11 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
             ),
           ),
           Expanded(
-            child: entriesAsync.when(
+            child: listAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Failed to load: $e')),
-              data: (entries) {
+              data: (listState) {
+                final entries = listState.entries;
                 // Keep selection valid for two-pane.
                 if (twoPane && selectedId == null && entries.isNotEmpty) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -296,6 +307,12 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
                   selectedId: selectedId,
                   scrollController: _listScrollController,
                   hasFilters: filters.hasActiveFilters,
+                  loadingMore: listState.loadingMore,
+                  hasMore: filters.sort == LearningLogSort.oldest
+                      ? listState.hasMoreNewer
+                      : listState.hasMoreOlder,
+                  onLoadMore: () =>
+                      ref.read(learningLogListProvider.notifier).loadMore(),
                   onClearFilters: () {
                     _searchController.clear();
                     ref.read(learningLogFiltersProvider.notifier).clear();
@@ -309,7 +326,7 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
                       entry: entry,
                     );
                     if (changed) {
-                      ref.invalidate(learningLogEntriesProvider);
+                      ref.invalidate(learningLogListProvider);
                     }
                   },
                   onDelete: _softDelete,
@@ -348,7 +365,7 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
                                     .select(null);
                               },
                               onChanged: () =>
-                                  ref.invalidate(learningLogEntriesProvider),
+                                  ref.invalidate(learningLogListProvider),
                             ),
                     ),
                   ],
@@ -369,6 +386,9 @@ class _LearningLogList extends StatelessWidget {
     required this.selectedId,
     required this.scrollController,
     required this.hasFilters,
+    required this.loadingMore,
+    required this.hasMore,
+    required this.onLoadMore,
     required this.onClearFilters,
     required this.onStartSession,
     required this.onOpen,
@@ -381,6 +401,9 @@ class _LearningLogList extends StatelessWidget {
   final String? selectedId;
   final ScrollController scrollController;
   final bool hasFilters;
+  final bool loadingMore;
+  final bool hasMore;
+  final VoidCallback onLoadMore;
   final VoidCallback onClearFilters;
   final VoidCallback onStartSession;
   final ValueChanged<LearningLogEntry> onOpen;
@@ -425,6 +448,24 @@ class _LearningLogList extends StatelessWidget {
             ),
           ),
         ],
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        if (loadingMore)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          )
+        else if (hasMore)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: TextButton(
+                onPressed: onLoadMore,
+                child: const Text('Load earlier months'),
+              ),
+            ),
+          ),
         const SliverToBoxAdapter(child: SizedBox(height: 88)),
       ],
     );

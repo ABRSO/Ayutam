@@ -230,4 +230,4 @@ Every schema bump requires:
 
 ## 7. Scale notes
 
-At ~100k sessions / ~300k segments / ~2 KB notes, expect well under hundreds of MB. Composite indexes above keep Learning Log and stats queries fast. Soft-deleted rows are purged after a short retention (days), not a 30-day trash UI.
+At ~100k sessions / ~300k segments / ~2 KB notes, expect well under hundreds of MB. Composite indexes above keep Learning Log and stats queries fast. The Learning Log UI fetches **one local calendar month at a time** (load earlier/later months on scroll); tag filters use a grouped `session_tags` AND query plus a batched tag join, not per-row `listForSession`. Soft-deleted rows are purged after a short retention (days), not a 30-day trash UI.

@@ -136,6 +136,92 @@ final class LearningLogEntry {
   }
 }
 
+/// Local calendar month used as the Learning Log fetch window.
+final class CalendarMonth {
+  const CalendarMonth(this.year, this.month)
+    : assert(month >= 1 && month <= 12);
+
+  factory CalendarMonth.fromLocal(DateTime local) =>
+      CalendarMonth(local.year, local.month);
+
+  final int year;
+  final int month;
+
+  DateTime get startLocal => DateTime(year, month, 1);
+
+  DateTime get endExclusiveLocal => DateTime(year, month + 1, 1);
+
+  DateTime get startUtc => startLocal.toUtc();
+
+  DateTime get endExclusiveUtc => endExclusiveLocal.toUtc();
+
+  CalendarMonth get previous =>
+      month == 1 ? CalendarMonth(year - 1, 12) : CalendarMonth(year, month - 1);
+
+  CalendarMonth get next =>
+      month == 12 ? CalendarMonth(year + 1, 1) : CalendarMonth(year, month + 1);
+
+  @override
+  bool operator ==(Object other) =>
+      other is CalendarMonth && other.year == year && other.month == month;
+
+  @override
+  int get hashCode => Object.hash(year, month);
+
+  @override
+  String toString() => '$year-${month.toString().padLeft(2, '0')}';
+}
+
+/// One month (or date-bounded window) of Learning Log rows.
+final class LearningLogPage {
+  const LearningLogPage({
+    required this.entries,
+    required this.hasMoreOlder,
+    required this.hasMoreNewer,
+  });
+
+  final List<LearningLogEntry> entries;
+  final bool hasMoreOlder;
+  final bool hasMoreNewer;
+}
+
+/// Accumulated month windows currently shown in the Learning Log list.
+final class LearningLogListState {
+  const LearningLogListState({
+    required this.entries,
+    required this.oldestLoaded,
+    required this.newestLoaded,
+    required this.hasMoreOlder,
+    required this.hasMoreNewer,
+    this.loadingMore = false,
+  });
+
+  final List<LearningLogEntry> entries;
+  final CalendarMonth oldestLoaded;
+  final CalendarMonth newestLoaded;
+  final bool hasMoreOlder;
+  final bool hasMoreNewer;
+  final bool loadingMore;
+
+  LearningLogListState copyWith({
+    List<LearningLogEntry>? entries,
+    CalendarMonth? oldestLoaded,
+    CalendarMonth? newestLoaded,
+    bool? hasMoreOlder,
+    bool? hasMoreNewer,
+    bool? loadingMore,
+  }) {
+    return LearningLogListState(
+      entries: entries ?? this.entries,
+      oldestLoaded: oldestLoaded ?? this.oldestLoaded,
+      newestLoaded: newestLoaded ?? this.newestLoaded,
+      hasMoreOlder: hasMoreOlder ?? this.hasMoreOlder,
+      hasMoreNewer: hasMoreNewer ?? this.hasMoreNewer,
+      loadingMore: loadingMore ?? this.loadingMore,
+    );
+  }
+}
+
 /// Overlap of a proposed manual/edit window with an existing session.
 final class SessionOverlap {
   const SessionOverlap({

@@ -9,6 +9,7 @@ import 'package:ayutam/features/learning_log/data/session_search_indexer.dart';
 import 'package:ayutam/features/learning_log/domain/learning_log_models.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
+import 'package:ayutam/features/skills/domain/skill.dart';
 import 'package:ayutam/features/timer/application/stopwatch_timer_service.dart';
 import 'package:ayutam/features/timer/data/drift_session_repository.dart';
 import 'package:ayutam/features/timer/data/drift_timer_runtime_repository.dart';
@@ -289,5 +290,86 @@ void main() {
     final b = await tags.ensureTag('focus');
     expect(a.valueOrNull!.id, b.valueOrNull!.id);
     expect(a.valueOrNull!.name, 'Focus');
+  });
+
+  test(
+    'queryMonth returns only that local month and reports hasMore',
+    () async {
+      final skillId = await createSkill();
+      await notes.createManualSession(
+        skillId: skillId,
+        startAtUtc: DateTime.utc(2026, 7, 15, 12),
+        endAtUtc: DateTime.utc(2026, 7, 15, 13),
+        title: 'July',
+      );
+      await notes.createManualSession(
+        skillId: skillId,
+        startAtUtc: DateTime.utc(2026, 8, 15, 12),
+        endAtUtc: DateTime.utc(2026, 8, 15, 13),
+        title: 'August',
+      );
+
+      final august = CalendarMonth.fromLocal(
+        DateTime.utc(2026, 8, 15, 12).toLocal(),
+      );
+      final page = await log.queryMonth(const LearningLogFilters(), august);
+      expect(page.entries.map((e) => e.session.title), ['August']);
+      expect(page.hasMoreOlder, isTrue);
+
+      final loaded = await log.loadOlder(
+        const LearningLogFilters(),
+        LearningLogListState(
+          entries: page.entries,
+          oldestLoaded: august,
+          newestLoaded: august,
+          hasMoreOlder: page.hasMoreOlder,
+          hasMoreNewer: page.hasMoreNewer,
+        ),
+      );
+      expect(loaded.entries.map((e) => e.session.title).toSet(), {
+        'August',
+        'July',
+      });
+    },
+  );
+
+  test('archived skills remain in journal skill list', () async {
+    final piano = await createSkill('Piano');
+    await createSkill('Guitar');
+    expect((await skills.archive(piano)).isSuccess, isTrue);
+    final journal = await skills.listForJournal();
+    expect(
+      journal.map((s) => s.name).toSet(),
+      containsAll(['Piano', 'Guitar']),
+    );
+    expect(
+      journal.firstWhere((s) => s.id == piano).status,
+      SkillStatus.archived,
+    );
+    final active = await skills.listActive();
+    expect(active.map((s) => s.id), isNot(contains(piano)));
+  });
+
+  test('edit completed session skill and times', () async {
+    final piano = await createSkill('Piano');
+    final guitar = await createSkill('Guitar');
+    final created = await notes.createManualSession(
+      skillId: piano,
+      startAtUtc: DateTime.utc(2026, 8, 1, 10),
+      endAtUtc: DateTime.utc(2026, 8, 1, 11),
+      title: 'Move me',
+    );
+    final sessionId = created.valueOrNull!.session!.id;
+    final updated = await notes.updateCompletedSession(
+      sessionId: sessionId,
+      skillId: guitar,
+      startAtUtc: DateTime.utc(2026, 8, 1, 12),
+      endAtUtc: DateTime.utc(2026, 8, 1, 14),
+    );
+    expect(updated.isSuccess, isTrue);
+    final entry = await log.getEntry(sessionId);
+    expect(entry!.session.skillId, guitar);
+    expect(entry.session.activeSeconds, 2 * 3600);
+    expect(entry.skillName, 'Guitar');
   });
 }

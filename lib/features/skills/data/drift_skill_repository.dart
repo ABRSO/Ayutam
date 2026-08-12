@@ -49,6 +49,36 @@ final class DriftSkillRepository implements SkillRepository {
   }
 
   @override
+  Future<List<domain.Skill>> listNonDeleted() async {
+    final rows =
+        await (_db.select(_db.skills)
+              ..where((t) => t.deletedAtUtc.isNull())
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.status),
+                (t) => OrderingTerm.asc(t.sortOrder),
+                (t) => OrderingTerm.asc(t.name),
+              ]))
+            .get();
+    return rows.map((row) => _toDomain(row, 0)).toList();
+  }
+
+  @override
+  Future<List<domain.Skill>> listByIds(Iterable<String> ids) async {
+    final idList = ids.toSet().toList();
+    if (idList.isEmpty) return const [];
+    final skills = <domain.Skill>[];
+    for (var i = 0; i < idList.length; i += 400) {
+      final end = i + 400 > idList.length ? idList.length : i + 400;
+      final chunk = idList.sublist(i, end);
+      final rows = await (_db.select(
+        _db.skills,
+      )..where((t) => t.id.isIn(chunk))).get();
+      skills.addAll(rows.map((row) => _toDomain(row, 0)));
+    }
+    return skills;
+  }
+
+  @override
   Future<domain.Skill?> findById(String id) async {
     final row = await (_db.select(
       _db.skills,

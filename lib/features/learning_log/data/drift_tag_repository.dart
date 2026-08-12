@@ -56,13 +56,53 @@ final class DriftTagRepository implements TagRepository {
 
   @override
   Future<List<Tag>> listForSession(String sessionId) async {
-    final query = _db.select(_db.tags).join([
-      innerJoin(_db.sessionTags, _db.sessionTags.tagId.equalsExp(_db.tags.id)),
-    ])..where(_db.sessionTags.sessionId.equals(sessionId));
-    final rows = await query.get();
-    final tags = rows.map((r) => _toDomain(r.readTable(_db.tags))).toList();
-    tags.sort((a, b) => a.normalizedName.compareTo(b.normalizedName));
-    return tags;
+    final map = await listForSessions([sessionId]);
+    return map[sessionId] ?? const [];
+  }
+
+  @override
+  Future<Map<String, List<Tag>>> listForSessions(
+    Iterable<String> sessionIds,
+  ) async {
+    final ids = sessionIds.toSet().toList();
+    if (ids.isEmpty) return {};
+    final result = <String, List<Tag>>{for (final id in ids) id: <Tag>[]};
+    for (final chunk in _chunks(ids, 400)) {
+      final query = _db.select(_db.tags).join([
+        innerJoin(
+          _db.sessionTags,
+          _db.sessionTags.tagId.equalsExp(_db.tags.id),
+        ),
+      ])..where(_db.sessionTags.sessionId.isIn(chunk));
+      final rows = await query.get();
+      for (final row in rows) {
+        final sessionId = row.readTable(_db.sessionTags).sessionId;
+        result[sessionId]?.add(_toDomain(row.readTable(_db.tags)));
+      }
+    }
+    for (final list in result.values) {
+      list.sort((a, b) => a.normalizedName.compareTo(b.normalizedName));
+    }
+    return result;
+  }
+
+  @override
+  Future<Set<String>> sessionIdsHavingAllTags(Set<String> tagIds) async {
+    if (tagIds.isEmpty) return {};
+    final ids = tagIds.toList();
+    final rows = await _db
+        .customSelect(
+          'SELECT session_id FROM session_tags '
+          'WHERE tag_id IN (${List.filled(ids.length, '?').join(', ')}) '
+          'GROUP BY session_id HAVING COUNT(DISTINCT tag_id) = ?',
+          variables: [
+            for (final id in ids) Variable<String>(id),
+            Variable<int>(ids.length),
+          ],
+          readsFrom: {_db.sessionTags},
+        )
+        .get();
+    return {for (final row in rows) row.read<String>('session_id')};
   }
 
   @override
@@ -113,4 +153,14 @@ final class DriftTagRepository implements TagRepository {
       sourceDeviceId: tag.sourceDeviceId,
     );
   }
+}
+
+List<List<T>> _chunks<T>(List<T> items, int size) {
+  if (items.isEmpty) return const [];
+  final out = <List<T>>[];
+  for (var i = 0; i < items.length; i += size) {
+    final end = i + size > items.length ? items.length : i + size;
+    out.add(items.sublist(i, end));
+  }
+  return out;
 }

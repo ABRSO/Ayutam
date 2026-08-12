@@ -41,6 +41,20 @@ abstract class SessionRepository {
     bool includeDeleted = false,
   });
 
+  /// Earliest or latest `start_at_utc` among journal rows matching [filters].
+  Future<DateTime?> firstJournalStartUtc({
+    Set<String>? ids,
+    Set<String>? skillIds,
+    DateTime? startAfterUtc,
+    DateTime? endBeforeUtc,
+    int? minActiveSeconds,
+    int? maxActiveSeconds,
+    bool? hasNote,
+    String? sourceEquals,
+    bool excludeManual = false,
+    bool descending = true,
+  });
+
   /// Sessions for [skillId] whose [start,end] overlaps [startAt,endAt].
   Future<List<PracticeSession>> findOverlapping({
     required String skillId,

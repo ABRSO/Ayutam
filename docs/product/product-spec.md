@@ -130,8 +130,9 @@ Dedicated journal of sessions (including those without notes — show “No note
 - Search: title, note, skill names, tags, dates (FTS5).
 - Filters (AND): skill, date range, min/max duration, with/without notes, tags, manual/timed.
 - Sort: newest (default), oldest, longest, shortest.
-- Month-based lazy loading.
+- Month-based lazy loading (fetch one local calendar month at a time; load earlier/later months on scroll).
 - Compact calendar jump.
+- Filters include archived skills (history remains after archive; Home/timer picker still hide them).
 - Mobile: timeline + full-screen detail. Desktop: two-pane list + detail.
 - Detail: rendered Markdown, metadata, prev/next, Edit / Delete / Copy note.
 

@@ -157,12 +157,35 @@ final learningLogFiltersProvider =
       LearningLogFiltersNotifier.new,
     );
 
-final learningLogEntriesProvider = FutureProvider<List<LearningLogEntry>>((
-  ref,
-) async {
-  final filters = ref.watch(learningLogFiltersProvider);
-  return ref.watch(learningLogServiceProvider).query(filters);
-});
+final class LearningLogListNotifier
+    extends AsyncNotifier<LearningLogListState> {
+  @override
+  Future<LearningLogListState> build() {
+    final filters = ref.watch(learningLogFiltersProvider);
+    return ref.watch(learningLogServiceProvider).loadInitial(filters);
+  }
+
+  Future<void> loadMore() async {
+    final current = state.asData?.value;
+    if (current == null || current.loadingMore) return;
+    final filters = ref.read(learningLogFiltersProvider);
+    final older = filters.sort != LearningLogSort.oldest;
+    if (older && !current.hasMoreOlder) return;
+    if (!older && !current.hasMoreNewer) return;
+    state = AsyncData(current.copyWith(loadingMore: true));
+    final service = ref.read(learningLogServiceProvider);
+    final next = older
+        ? await service.loadOlder(filters, current)
+        : await service.loadNewer(filters, current);
+    if (!ref.mounted) return;
+    state = AsyncData(next.copyWith(loadingMore: false));
+  }
+}
+
+final learningLogListProvider =
+    AsyncNotifierProvider<LearningLogListNotifier, LearningLogListState>(
+      LearningLogListNotifier.new,
+    );
 
 final class SelectedLearningLogSessionIdNotifier extends Notifier<String?> {
   @override

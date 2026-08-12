@@ -15,6 +15,12 @@ abstract class TagRepository {
 
   Future<List<Tag>> listForSession(String sessionId);
 
+  /// Tags for many sessions in one (chunked) query. Missing ids map to empty lists.
+  Future<Map<String, List<Tag>>> listForSessions(Iterable<String> sessionIds);
+
+  /// Session ids that have **all** of [tagIds] (AND). Empty [tagIds] yields empty.
+  Future<Set<String>> sessionIdsHavingAllTags(Set<String> tagIds);
+
   Future<void> setSessionTags(String sessionId, List<String> tagIds);
 
   Future<void> clearSessionTags(String sessionId);
