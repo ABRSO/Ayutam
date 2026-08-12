@@ -5,7 +5,7 @@ abstract final class AppConstants {
   static const int streakMinimumSecondsDefault = 120;
   static const int recoveryGapThresholdMinutes = 30;
   static const int longSessionWarningHours = 8;
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
 
   /// Soft character hint for session notes (no hard limit).
   static const int noteSoftCharHint = 2000;

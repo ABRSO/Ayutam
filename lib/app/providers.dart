@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/id/id_generator.dart';
 import '../core/logging/app_logger.dart';
 import '../core/time/clock_service.dart';
+import '../core/time/timezone_service.dart';
 import '../database/app_database.dart';
 import '../features/learning_log/application/learning_log_service.dart';
 import '../features/learning_log/application/session_note_service.dart';
@@ -24,6 +25,13 @@ import '../features/timer/domain/repositories.dart';
 
 final clockServiceProvider = Provider<ClockService>((ref) {
   return SystemClockService();
+});
+
+final timezoneServiceProvider = Provider<TimezoneService>((ref) {
+  throw StateError(
+    'timezoneServiceProvider was read before bootstrap completed. '
+    'Override this provider after resolving the device IANA timezone.',
+  );
 });
 
 final idGeneratorProvider = Provider<IdGenerator>((ref) {
@@ -80,6 +88,7 @@ final stopwatchTimerServiceProvider = Provider<StopwatchTimerService>((ref) {
     skills: ref.watch(skillRepositoryProvider),
     uow: ref.watch(unitOfWorkProvider),
     clock: ref.watch(clockServiceProvider),
+    timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),
     deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
   );
@@ -110,6 +119,7 @@ final sessionNoteServiceProvider = Provider<SessionNoteService>((ref) {
     indexer: ref.watch(sessionSearchIndexerProvider),
     uow: ref.watch(unitOfWorkProvider),
     clock: ref.watch(clockServiceProvider),
+    timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),
     deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
   );

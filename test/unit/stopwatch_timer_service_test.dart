@@ -1,5 +1,6 @@
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
@@ -49,6 +50,7 @@ void main() {
       skills: skillRepo,
       uow: uow,
       clock: clock,
+      timezones: const FakeTimezoneService(),
       ids: ids,
       deviceId: db.requireDeviceId,
     );
@@ -400,5 +402,23 @@ void main() {
       result.when(success: (_) => '', failure: (f) => f.code),
       'VAL-TARGET',
     );
+  });
+
+  test('start stores IANA timezone id not abbreviation', () async {
+    final skillId = await createSkill();
+    final ianaTimer = StopwatchTimerService(
+      sessions: DriftSessionRepository(db),
+      runtime: DriftTimerRuntimeRepository(db),
+      skills: DriftSkillRepository(db),
+      uow: DriftUnitOfWork(db),
+      clock: clock,
+      timezones: IanaTimezoneService(ianaId: 'Asia/Kolkata'),
+      ids: ids,
+      deviceId: db.requireDeviceId,
+    );
+    expect((await ianaTimer.startStopwatch(skillId)).isSuccess, isTrue);
+    final session = (await ianaTimer.snapshot()).session!;
+    expect(session.timezoneIdAtCreation, 'Asia/Kolkata');
+    expect(session.offsetMinutesAtStart, 330);
   });
 }

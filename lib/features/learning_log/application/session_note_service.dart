@@ -1,6 +1,7 @@
 import '../../../core/id/id_generator.dart';
 import '../../../core/result/result.dart';
 import '../../../core/time/clock_service.dart';
+import '../../../core/time/timezone_service.dart';
 import '../../skills/domain/skill_repository.dart';
 import '../../timer/domain/models.dart';
 import '../../timer/domain/repositories.dart';
@@ -18,6 +19,7 @@ final class SessionNoteService {
     required SessionSearchIndexer indexer,
     required UnitOfWork uow,
     required ClockService clock,
+    required TimezoneService timezones,
     required IdGenerator ids,
     required Future<String> Function() deviceId,
   }) : _sessions = sessions,
@@ -26,6 +28,7 @@ final class SessionNoteService {
        _indexer = indexer,
        _uow = uow,
        _clock = clock,
+       _timezones = timezones,
        _ids = ids,
        _deviceId = deviceId;
 
@@ -35,8 +38,14 @@ final class SessionNoteService {
   final SessionSearchIndexer _indexer;
   final UnitOfWork _uow;
   final ClockService _clock;
+  final TimezoneService _timezones;
   final IdGenerator _ids;
   final Future<String> Function() _deviceId;
+
+  static const _futureFailure = AppFailure(
+    code: 'VAL-FUTURE',
+    message: 'Session times cannot be in the future.',
+  );
 
   Future<Result<PracticeSession>> updateDraft({
     required String sessionId,
@@ -104,16 +113,20 @@ final class SessionNoteService {
     String? noteMarkdown,
     List<String>? tagNames,
     bool allowOverlap = false,
-    String timezoneId = 'UTC',
-    int offsetMinutes = 0,
   }) async {
-    if (!endAtUtc.isAfter(startAtUtc)) {
+    final start = startAtUtc.toUtc();
+    final end = endAtUtc.toUtc();
+    if (!end.isAfter(start)) {
       return const Failure(
         AppFailure(
           code: 'VAL-RANGE',
           message: 'End time must be after start time.',
         ),
       );
+    }
+    final now = _clock.nowUtc();
+    if (start.isAfter(now) || end.isAfter(now)) {
+      return const Failure(_futureFailure);
     }
     final skill = await _skills.findById(skillId);
     if (skill == null) {
@@ -124,8 +137,8 @@ final class SessionNoteService {
 
     final overlaps = await _sessions.findOverlapping(
       skillId: skillId,
-      startAtUtc: startAtUtc,
-      endAtUtc: endAtUtc,
+      startAtUtc: start,
+      endAtUtc: end,
     );
     if (overlaps.isNotEmpty && !allowOverlap) {
       return Success(
@@ -145,8 +158,8 @@ final class SessionNoteService {
     }
 
     final activeSeconds = TimerMath.closedDurationSeconds(
-      startAtUtc: startAtUtc,
-      endAtUtc: endAtUtc,
+      startAtUtc: start,
+      endAtUtc: end,
     );
 
     return _uow.write(() async {
@@ -166,12 +179,12 @@ final class SessionNoteService {
         mode: SessionMode.manual,
         status: SessionStatus.completed,
         source: 'manual',
-        startAtUtc: startAtUtc.toUtc(),
-        endAtUtc: endAtUtc.toUtc(),
+        startAtUtc: start,
+        endAtUtc: end,
         activeSeconds: activeSeconds,
         pausedSeconds: 0,
-        timezoneIdAtCreation: timezoneId,
-        offsetMinutesAtStart: offsetMinutes,
+        timezoneIdAtCreation: _timezones.ianaId,
+        offsetMinutesAtStart: _timezones.offsetMinutesAt(start),
         createdAtUtc: now,
         updatedAtUtc: now,
         sourceDeviceId: await _deviceId(),
@@ -263,9 +276,14 @@ final class SessionNoteService {
         ),
       );
     }
+    final now = _clock.nowUtc();
+    if (nextStart.isAfter(now) || nextEnd.isAfter(now)) {
+      return const Failure(_futureFailure);
+    }
 
     final rewriteTimes = startAtUtc != null || endAtUtc != null;
-    if (rewriteTimes) {
+    final skillChanged = skillId != null && skillId != session.skillId;
+    if (rewriteTimes || skillChanged) {
       final overlaps = await _sessions.findOverlapping(
         skillId: nextSkillId,
         startAtUtc: nextStart,
@@ -298,23 +316,36 @@ final class SessionNoteService {
       }
 
       var activeSeconds = session.activeSeconds;
+      var pausedSeconds = session.pausedSeconds;
+      var offsetMinutes = session.offsetMinutesAtStart;
       if (rewriteTimes) {
-        activeSeconds = TimerMath.closedDurationSeconds(
-          startAtUtc: nextStart,
-          endAtUtc: nextEnd,
+        final oldEnd = session.endAtUtc ?? session.startAtUtc;
+        final existing = await _sessions.listSegments(sessionId);
+        final remapped = TimerMath.remapClosedSegments(
+          sessionId: sessionId,
+          segments: existing,
+          oldStartUtc: session.startAtUtc,
+          oldEndUtc: oldEnd,
+          newStartUtc: nextStart,
+          newEndUtc: nextEnd,
+          nowUtc: now,
+          nextId: _ids.v4,
         );
         await _sessions.deleteSegmentsForSession(sessionId);
-        await _sessions.insertSegment(
-          SessionSegment(
-            id: _ids.v4(),
-            sessionId: sessionId,
-            segmentType: SegmentType.work,
-            startAtUtc: nextStart,
-            endAtUtc: nextEnd,
-            durationSeconds: activeSeconds,
-            createdAtUtc: now,
-            updatedAtUtc: now,
-          ),
+        for (final segment in remapped) {
+          await _sessions.insertSegment(segment);
+        }
+        activeSeconds = TimerMath.activeSecondsFromSegments(
+          segments: remapped,
+          nowUtc: now,
+        );
+        pausedSeconds = TimerMath.pausedSecondsFromSegments(
+          segments: remapped,
+          nowUtc: now,
+        );
+        offsetMinutes = _timezones.offsetMinutesAt(
+          nextStart,
+          ianaId: session.timezoneIdAtCreation,
         );
       }
 
@@ -327,6 +358,8 @@ final class SessionNoteService {
         startAtUtc: nextStart,
         endAtUtc: nextEnd,
         activeSeconds: activeSeconds,
+        pausedSeconds: pausedSeconds,
+        offsetMinutesAtStart: offsetMinutes,
         updatedAtUtc: now,
       );
       await _sessions.updateSession(updated);

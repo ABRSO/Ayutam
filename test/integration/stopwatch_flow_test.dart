@@ -1,6 +1,7 @@
 import 'package:ayutam/bootstrap.dart';
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/app/providers.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,7 +11,12 @@ void main() {
     final clock = FakeClockService(initialUtc: DateTime.utc(2026, 7, 23, 10));
     const ids = UuidIdGenerator();
     final db = AppDatabase.memory(clock: clock, ids: ids);
-    final container = await bootstrap(clock: clock, ids: ids, database: db);
+    final container = await bootstrap(
+      clock: clock,
+      ids: ids,
+      database: db,
+      timezones: const FakeTimezoneService(),
+    );
 
     final skillService = container.read(skillServiceProvider);
     final timer = container.read(stopwatchTimerServiceProvider);

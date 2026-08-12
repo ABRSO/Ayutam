@@ -77,6 +77,8 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 2) {
         await SessionSearchIndexer(this).ensureCreated();
+      }
+      if (from < 3) {
         await SessionSearchIndexer(this).rebuildAll();
       }
     },

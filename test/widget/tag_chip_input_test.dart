@@ -2,6 +2,7 @@ import 'package:ayutam/app/providers.dart';
 import 'package:ayutam/bootstrap.dart';
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/features/learning_log/presentation/widgets/tag_chip_input.dart';
 import 'package:flutter/material.dart';
@@ -17,7 +18,12 @@ void main() {
     clock = FakeClockService(initialUtc: DateTime.utc(2026, 7, 22, 12));
     const ids = UuidIdGenerator();
     db = AppDatabase.memory(clock: clock, ids: ids);
-    container = await bootstrap(clock: clock, ids: ids, database: db);
+    container = await bootstrap(
+      clock: clock,
+      ids: ids,
+      database: db,
+      timezones: const FakeTimezoneService(),
+    );
   });
 
   tearDown(() async {

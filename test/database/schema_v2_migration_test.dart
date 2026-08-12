@@ -11,7 +11,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
 
 /// Builds a v1-on-disk schema (no FTS), inserts a completed session, then
-/// opens with schema v2 and asserts migration backfills `session_search`.
+/// opens with the current schema and asserts migration backfills `session_search`.
 void main() {
   late Directory tempDir;
   late FakeClockService clock;
@@ -29,14 +29,14 @@ void main() {
     }
   });
 
-  test('schema 1→2 creates FTS and backfills searchable rows', () async {
+  test('schema 1→3 creates FTS and backfills searchable rows including dates', () async {
     final dbPath = p.join(tempDir.path, 'v1.sqlite');
     final skillId = ids.v4();
     final sessionId = ids.v4();
     final deviceId = ids.v4();
     final now = clock.nowUtc().millisecondsSinceEpoch;
 
-    // Create v1 database without going through AppDatabase schemaVersion 2.
+    // Create v1 database without going through AppDatabase schemaVersion.
     final raw = sqlite3.open(dbPath);
     raw.execute('PRAGMA foreign_keys = ON');
     raw.execute('''
@@ -203,10 +203,10 @@ CREATE TABLE schema_metadata (
     );
     raw.close();
 
-    expect(AppConstants.schemaVersion, 2);
+    expect(AppConstants.schemaVersion, 3);
 
     final db = AppDatabase(NativeDatabase(File(dbPath)));
-    // Opening triggers migration 1→2.
+    // Opening triggers migration 1→3.
     await db.customSelect('SELECT 1').get();
 
     final indexer = SessionSearchIndexer(db);
@@ -219,10 +219,13 @@ CREATE TABLE schema_metadata (
     final bySkill = await indexer.searchSessionIds('Piano');
     expect(bySkill, contains(sessionId));
 
+    final byDate = await indexer.searchSessionIds('2026-08-01');
+    expect(byDate, contains(sessionId));
+
     await db.close();
   });
 
-  test('fresh schema v2 creates session_search on create', () async {
+  test('fresh schema creates session_search on create', () async {
     final db = AppDatabase.memory(clock: clock, ids: ids);
     await db.ensureSeeded(clock: clock, ids: ids);
 

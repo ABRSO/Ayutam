@@ -1,5 +1,6 @@
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/features/learning_log/application/learning_log_service.dart';
 import 'package:ayutam/features/learning_log/application/session_note_service.dart';
@@ -14,6 +15,7 @@ import 'package:ayutam/features/timer/application/stopwatch_timer_service.dart';
 import 'package:ayutam/features/timer/data/drift_session_repository.dart';
 import 'package:ayutam/features/timer/data/drift_timer_runtime_repository.dart';
 import 'package:ayutam/features/timer/data/drift_unit_of_work.dart';
+import 'package:ayutam/features/timer/domain/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _SeqIds implements IdGenerator {
@@ -61,6 +63,7 @@ void main() {
       skills: skillRepo,
       uow: uow,
       clock: clock,
+      timezones: const FakeTimezoneService(),
       ids: ids,
       deviceId: db.requireDeviceId,
     );
@@ -77,6 +80,7 @@ void main() {
       indexer: indexer,
       uow: uow,
       clock: clock,
+      timezones: const FakeTimezoneService(),
       ids: ids,
       deviceId: db.requireDeviceId,
     );
@@ -304,8 +308,8 @@ void main() {
       );
       await notes.createManualSession(
         skillId: skillId,
-        startAtUtc: DateTime.utc(2026, 8, 15, 12),
-        endAtUtc: DateTime.utc(2026, 8, 15, 13),
+        startAtUtc: DateTime.utc(2026, 8, 5, 12),
+        endAtUtc: DateTime.utc(2026, 8, 5, 13),
         title: 'August',
       );
 
@@ -371,5 +375,213 @@ void main() {
     expect(entry!.session.skillId, guitar);
     expect(entry.session.activeSeconds, 2 * 3600);
     expect(entry.skillName, 'Guitar');
+  });
+
+  test('editing timed session start/end remaps work/pause segments', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    clock.advance(const Duration(minutes: 5));
+    await timer.pause();
+    clock.advance(const Duration(minutes: 2));
+    await timer.resume();
+    clock.advance(const Duration(minutes: 5));
+    await timer.stop();
+    final sessionId = (await timer.snapshot()).session!.id;
+    await timer.saveCompletion();
+
+    final sessions = DriftSessionRepository(db);
+    final before = await sessions.findById(sessionId);
+    final beforeSegs = await sessions.listSegments(sessionId);
+    expect(beforeSegs.map((s) => s.segmentType), [
+      SegmentType.work,
+      SegmentType.pause,
+      SegmentType.work,
+    ]);
+    expect(before!.activeSeconds, 10 * 60);
+    expect(before.pausedSeconds, 2 * 60);
+
+    final shifted = await notes.updateCompletedSession(
+      sessionId: sessionId,
+      startAtUtc: before.startAtUtc.subtract(const Duration(hours: 1)),
+      endAtUtc: before.endAtUtc!.subtract(const Duration(hours: 1)),
+    );
+    expect(shifted.isSuccess, isTrue);
+
+    var after = (await sessions.findById(sessionId))!;
+    var afterSegs = await sessions.listSegments(sessionId);
+    expect(afterSegs.map((s) => s.segmentType), [
+      SegmentType.work,
+      SegmentType.pause,
+      SegmentType.work,
+    ]);
+    expect(after.activeSeconds, 10 * 60);
+    expect(after.pausedSeconds, 2 * 60);
+    expect(
+      TimerMath.activeSecondsFromSegments(
+        segments: afterSegs,
+        nowUtc: clock.nowUtc(),
+      ),
+      after.activeSeconds,
+    );
+    expect(
+      TimerMath.pausedSecondsFromSegments(
+        segments: afterSegs,
+        nowUtc: clock.nowUtc(),
+      ),
+      after.pausedSeconds,
+    );
+
+    final scaled = await notes.updateCompletedSession(
+      sessionId: sessionId,
+      startAtUtc: after.startAtUtc,
+      endAtUtc: after.startAtUtc.add(const Duration(minutes: 24)),
+    );
+    expect(scaled.isSuccess, isTrue);
+    after = (await sessions.findById(sessionId))!;
+    afterSegs = await sessions.listSegments(sessionId);
+    expect(afterSegs.map((s) => s.segmentType), [
+      SegmentType.work,
+      SegmentType.pause,
+      SegmentType.work,
+    ]);
+    expect(after.activeSeconds, 20 * 60);
+    expect(after.pausedSeconds, 4 * 60);
+    expect(
+      TimerMath.activeSecondsFromSegments(
+        segments: afterSegs,
+        nowUtc: clock.nowUtc(),
+      ),
+      after.activeSeconds,
+    );
+    expect(
+      TimerMath.pausedSecondsFromSegments(
+        segments: afterSegs,
+        nowUtc: clock.nowUtc(),
+      ),
+      after.pausedSeconds,
+    );
+  });
+
+  test('skill-only reassignment warns on overlap', () async {
+    final piano = await createSkill('Piano');
+    final guitar = await createSkill('Guitar');
+    final first = await notes.createManualSession(
+      skillId: piano,
+      startAtUtc: DateTime.utc(2026, 8, 1, 10),
+      endAtUtc: DateTime.utc(2026, 8, 1, 11),
+    );
+    await notes.createManualSession(
+      skillId: guitar,
+      startAtUtc: DateTime.utc(2026, 8, 1, 10),
+      endAtUtc: DateTime.utc(2026, 8, 1, 11),
+    );
+    final sessionId = first.valueOrNull!.session!.id;
+    final blocked = await notes.updateCompletedSession(
+      sessionId: sessionId,
+      skillId: guitar,
+    );
+    expect(blocked.isFailure, isTrue);
+    expect(
+      blocked.when(success: (_) => '', failure: (f) => f.code),
+      'SESS-OVERLAP',
+    );
+    final forced = await notes.updateCompletedSession(
+      sessionId: sessionId,
+      skillId: guitar,
+      allowOverlap: true,
+    );
+    expect(forced.isSuccess, isTrue);
+    expect(forced.valueOrNull!.skillId, guitar);
+  });
+
+  test('rejects future timestamps for create and edit', () async {
+    final skillId = await createSkill();
+    final tomorrow = await notes.createManualSession(
+      skillId: skillId,
+      startAtUtc: DateTime.utc(2026, 8, 7, 10),
+      endAtUtc: DateTime.utc(2026, 8, 7, 11),
+    );
+    expect(
+      tomorrow.when(success: (_) => '', failure: (f) => f.code),
+      'VAL-FUTURE',
+    );
+
+    final laterToday = await notes.createManualSession(
+      skillId: skillId,
+      startAtUtc: DateTime.utc(2026, 8, 6, 13),
+      endAtUtc: DateTime.utc(2026, 8, 6, 14),
+    );
+    expect(
+      laterToday.when(success: (_) => '', failure: (f) => f.code),
+      'VAL-FUTURE',
+    );
+
+    final past = await notes.createManualSession(
+      skillId: skillId,
+      startAtUtc: DateTime.utc(2026, 8, 6, 10),
+      endAtUtc: DateTime.utc(2026, 8, 6, 11),
+    );
+    expect(past.isSuccess, isTrue);
+    expect(past.valueOrNull!.session, isNotNull);
+
+    final edited = await notes.updateCompletedSession(
+      sessionId: past.valueOrNull!.session!.id,
+      startAtUtc: DateTime.utc(2026, 8, 6, 13),
+      endAtUtc: DateTime.utc(2026, 8, 6, 14),
+    );
+    expect(
+      edited.when(success: (_) => '', failure: (f) => f.code),
+      'VAL-FUTURE',
+    );
+  });
+
+  test('FTS search matches dates and non-Latin text', () async {
+    final skillId = await createSkill('Piano');
+    final dated = await notes.createManualSession(
+      skillId: skillId,
+      startAtUtc: DateTime.utc(2026, 8, 1, 10),
+      endAtUtc: DateTime.utc(2026, 8, 1, 11),
+      title: 'DateNeedle',
+    );
+    final datedId = dated.valueOrNull!.session!.id;
+    expect(await indexer.searchSessionIds('2026-08-01'), contains(datedId));
+    expect(await indexer.searchSessionIds('Aug 1 2026'), contains(datedId));
+    expect(await indexer.searchSessionIds('august'), contains(datedId));
+
+    final unicode = await notes.createManualSession(
+      skillId: skillId,
+      startAtUtc: DateTime.utc(2026, 8, 2, 10),
+      endAtUtc: DateTime.utc(2026, 8, 2, 11),
+      title: 'संगीत अभ्यास',
+      noteMarkdown: 'Café scales',
+      allowOverlap: true,
+    );
+    final unicodeId = unicode.valueOrNull!.session!.id;
+    expect(await indexer.searchSessionIds('संगीत'), contains(unicodeId));
+    expect(await indexer.searchSessionIds('cafe'), contains(unicodeId));
+    expect(await indexer.searchSessionIds('café'), contains(unicodeId));
+  });
+
+  test('manual session stores IANA timezone id', () async {
+    final skillId = await createSkill();
+    final ianaNotes = SessionNoteService(
+      sessions: DriftSessionRepository(db),
+      skills: DriftSkillRepository(db),
+      tags: tags,
+      indexer: indexer,
+      uow: DriftUnitOfWork(db),
+      clock: clock,
+      timezones: IanaTimezoneService(ianaId: 'Asia/Kolkata'),
+      ids: ids,
+      deviceId: db.requireDeviceId,
+    );
+    final created = await ianaNotes.createManualSession(
+      skillId: skillId,
+      startAtUtc: DateTime.utc(2026, 8, 1, 10),
+      endAtUtc: DateTime.utc(2026, 8, 1, 11),
+    );
+    final session = created.valueOrNull!.session!;
+    expect(session.timezoneIdAtCreation, 'Asia/Kolkata');
+    expect(session.offsetMinutesAtStart, 330);
   });
 }

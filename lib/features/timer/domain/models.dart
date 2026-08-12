@@ -52,6 +52,7 @@ final class PracticeSession {
     DateTime? endAtUtc,
     int? activeSeconds,
     int? pausedSeconds,
+    int? offsetMinutesAtStart,
     DateTime? updatedAtUtc,
     DateTime? deletedAtUtc,
     bool clearTitle = false,
@@ -74,7 +75,7 @@ final class PracticeSession {
       activeSeconds: activeSeconds ?? this.activeSeconds,
       pausedSeconds: pausedSeconds ?? this.pausedSeconds,
       timezoneIdAtCreation: timezoneIdAtCreation,
-      offsetMinutesAtStart: offsetMinutesAtStart,
+      offsetMinutesAtStart: offsetMinutesAtStart ?? this.offsetMinutesAtStart,
       createdAtUtc: createdAtUtc,
       updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
       sourceDeviceId: sourceDeviceId,
@@ -257,6 +258,85 @@ abstract final class TimerMath {
   }) {
     final seconds = endAtUtc.difference(startAtUtc).inSeconds;
     return seconds < 0 ? 0 : seconds;
+  }
+
+  /// Maps closed work/pause/break segments into a new start–end window.
+  ///
+  /// Relative positions and segment types are preserved so pauses stay pauses.
+  /// When the original span is empty, a single work segment covers [newStartUtc, newEndUtc].
+  static List<SessionSegment> remapClosedSegments({
+    required String sessionId,
+    required List<SessionSegment> segments,
+    required DateTime oldStartUtc,
+    required DateTime oldEndUtc,
+    required DateTime newStartUtc,
+    required DateTime newEndUtc,
+    required DateTime nowUtc,
+    required String Function() nextId,
+  }) {
+    final oldStart = oldStartUtc.toUtc();
+    final oldEnd = oldEndUtc.toUtc();
+    final newStart = newStartUtc.toUtc();
+    final newEnd = newEndUtc.toUtc();
+    final oldUs = oldEnd.difference(oldStart).inMicroseconds;
+    final newUs = newEnd.difference(newStart).inMicroseconds;
+
+    SessionSegment workCoveringWindow() {
+      return SessionSegment(
+        id: nextId(),
+        sessionId: sessionId,
+        segmentType: SegmentType.work,
+        startAtUtc: newStart,
+        endAtUtc: newEnd,
+        durationSeconds: closedDurationSeconds(
+          startAtUtc: newStart,
+          endAtUtc: newEnd,
+        ),
+        createdAtUtc: nowUtc,
+        updatedAtUtc: nowUtc,
+      );
+    }
+
+    if (oldUs <= 0 || newUs < 0 || segments.isEmpty) {
+      return [workCoveringWindow()];
+    }
+
+    DateTime mapTime(DateTime instant) {
+      final rel = instant.toUtc().difference(oldStart).inMicroseconds / oldUs;
+      final clamped = rel.clamp(0.0, 1.0);
+      return newStart.add(Duration(microseconds: (clamped * newUs).round()));
+    }
+
+    final mappedInstants = <DateTime, DateTime>{
+      oldStart: newStart,
+      oldEnd: newEnd,
+    };
+    final sorted = [...segments]
+      ..sort((a, b) => a.startAtUtc.compareTo(b.startAtUtc));
+    for (final segment in sorted) {
+      mappedInstants[segment.startAtUtc.toUtc()] = mapTime(segment.startAtUtc);
+      final end = (segment.endAtUtc ?? oldEnd).toUtc();
+      mappedInstants[end] = mapTime(end);
+    }
+
+    return [
+      for (final segment in sorted)
+        SessionSegment(
+          id: nextId(),
+          sessionId: sessionId,
+          segmentType: segment.segmentType,
+          pomodoroPhase: segment.pomodoroPhase,
+          cycleNumber: segment.cycleNumber,
+          startAtUtc: mappedInstants[segment.startAtUtc.toUtc()]!,
+          endAtUtc: mappedInstants[(segment.endAtUtc ?? oldEnd).toUtc()]!,
+          durationSeconds: closedDurationSeconds(
+            startAtUtc: mappedInstants[segment.startAtUtc.toUtc()]!,
+            endAtUtc: mappedInstants[(segment.endAtUtc ?? oldEnd).toUtc()]!,
+          ),
+          createdAtUtc: nowUtc,
+          updatedAtUtc: nowUtc,
+        ),
+    ];
   }
 }
 

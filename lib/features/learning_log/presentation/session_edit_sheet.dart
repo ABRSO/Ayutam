@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../app/providers.dart';
 import '../../skills/domain/skill.dart';
 import '../domain/learning_log_models.dart';
+import 'session_time_picker.dart';
 import 'widgets/markdown_note_editor.dart';
 import 'widgets/tag_chip_input.dart';
 
@@ -76,20 +77,8 @@ class _SessionEditSheetState extends ConsumerState<SessionEditSheet> {
         _endLocal != originalEnd;
   }
 
-  Future<DateTime?> _pickDateTime(DateTime initial) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(1970),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (date == null || !mounted) return null;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-    );
-    if (time == null) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  Future<DateTime?> _pickDateTime(DateTime initial) {
+    return pickCompletedSessionDateTime(context, initial);
   }
 
   Future<void> _save({bool allowOverlap = false}) async {
@@ -97,6 +86,12 @@ class _SessionEditSheetState extends ConsumerState<SessionEditSheet> {
     if (!_endLocal.isAfter(_startLocal)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('End time must be after start time.')),
+      );
+      return;
+    }
+    if (sessionLocalTimesAreInTheFuture(_startLocal, _endLocal)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session times cannot be in the future.')),
       );
       return;
     }
