@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app/app_theme.dart';
 import 'app/ayutam_app.dart';
 import 'bootstrap.dart';
+import 'core/time/iana_timezone_service.dart';
+import 'platform/device_timezone.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,7 +14,9 @@ Future<void> main() async {
   SystemChrome.setSystemUIOverlayStyle(
     ayutamSystemUiOverlayStyle(Brightness.light),
   );
-  final container = await bootstrap();
+  final container = await bootstrap(
+    timezones: IanaTimezoneService(ianaId: await resolveDeviceIanaId()),
+  );
   runApp(
     UncontrolledProviderScope(container: container, child: const AyutamApp()),
   );

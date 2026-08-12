@@ -159,12 +159,24 @@ ORDER BY t.normalized_name
         .where((t) => t.isNotEmpty)
         .toList();
     if (tokens.isEmpty) return null;
-    return tokens
-        .map((t) {
-          final escaped = t.replaceAll('"', '""');
-          return '"$escaped"*';
-        })
-        .join(' ');
+    return tokens.map(_ftsTerm).join(' ');
+  }
+
+  static const _ftsKeywords = {'and', 'or', 'not', 'near'};
+
+  /// Letters, combining marks (e.g. Devanagari matras), digits, underscore.
+  static final _bareToken = RegExp(r'^[\p{L}\p{M}\p{N}_]+$', unicode: true);
+
+  static String _ftsTerm(String token) {
+    if (_ftsKeywords.contains(token)) {
+      final escaped = token.replaceAll('"', '""');
+      return '"$escaped"';
+    }
+    if (_bareToken.hasMatch(token)) {
+      return '$token*';
+    }
+    final escaped = token.replaceAll('"', '""');
+    return '"$escaped"*';
   }
 
   static String _normalizeFtsToken(String raw) {
@@ -179,8 +191,14 @@ ORDER BY t.normalized_name
     }
     token = token.replaceAll('"', '').replaceAll('*', '');
     token = token.replaceAll(RegExp(r'^[-^+:]+'), '');
-    token = token.replaceAll(RegExp(r'^[^\p{L}\p{N}_]+', unicode: true), '');
-    token = token.replaceAll(RegExp(r'[^\p{L}\p{N}_]+$', unicode: true), '');
+    token = token.replaceAll(
+      RegExp(r'^[^\p{L}\p{M}\p{N}_]+', unicode: true),
+      '',
+    );
+    token = token.replaceAll(
+      RegExp(r'[^\p{L}\p{M}\p{N}_]+$', unicode: true),
+      '',
+    );
     return token;
   }
 }

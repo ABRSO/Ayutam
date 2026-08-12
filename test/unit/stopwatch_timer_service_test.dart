@@ -412,7 +412,10 @@ void main() {
       skills: DriftSkillRepository(db),
       uow: DriftUnitOfWork(db),
       clock: clock,
-      timezones: IanaTimezoneService(ianaId: 'Asia/Kolkata'),
+      timezones: const FakeTimezoneService(
+        ianaId: 'Asia/Kolkata',
+        offsetMinutes: 330,
+      ),
       ids: ids,
       deviceId: db.requireDeviceId,
     );

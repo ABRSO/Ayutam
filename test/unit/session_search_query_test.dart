@@ -4,10 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('ftsQuery preserves Unicode and quotes terms', () {
-    expect(SessionSearchIndexer.ftsQuery('संगीत'), '"संगीत"*');
-    expect(SessionSearchIndexer.ftsQuery('café scales'), '"café"* "scales"*');
+    expect(SessionSearchIndexer.ftsQuery('संगीत'), 'संगीत*');
+    expect(SessionSearchIndexer.ftsQuery('café scales'), 'café* scales*');
     expect(SessionSearchIndexer.ftsQuery('!!!'), isNull);
-    expect(SessionSearchIndexer.ftsQuery('2026-08-01'), '"20260801"*');
+    expect(SessionSearchIndexer.ftsQuery('2026-08-01'), '20260801*');
+    expect(SessionSearchIndexer.ftsQuery('AND'), '"and"');
+    expect(SessionSearchIndexer.ftsQuery('foo-bar'), '"foo-bar"*');
   });
 
   test('sessionDateSearchText includes ISO and English month tokens', () {
