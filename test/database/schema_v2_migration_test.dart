@@ -29,17 +29,19 @@ void main() {
     }
   });
 
-  test('schema 1→3 creates FTS and backfills searchable rows including dates', () async {
-    final dbPath = p.join(tempDir.path, 'v1.sqlite');
-    final skillId = ids.v4();
-    final sessionId = ids.v4();
-    final deviceId = ids.v4();
-    final now = clock.nowUtc().millisecondsSinceEpoch;
+  test(
+    'schema 1→3 creates FTS and backfills searchable rows including dates',
+    () async {
+      final dbPath = p.join(tempDir.path, 'v1.sqlite');
+      final skillId = ids.v4();
+      final sessionId = ids.v4();
+      final deviceId = ids.v4();
+      final now = clock.nowUtc().millisecondsSinceEpoch;
 
-    // Create v1 database without going through AppDatabase schemaVersion.
-    final raw = sqlite3.open(dbPath);
-    raw.execute('PRAGMA foreign_keys = ON');
-    raw.execute('''
+      // Create v1 database without going through AppDatabase schemaVersion.
+      final raw = sqlite3.open(dbPath);
+      raw.execute('PRAGMA foreign_keys = ON');
+      raw.execute('''
 CREATE TABLE skills (
   id TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -55,7 +57,7 @@ CREATE TABLE skills (
   deleted_at_utc INTEGER NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE sessions (
   id TEXT NOT NULL PRIMARY KEY,
   skill_id TEXT NOT NULL REFERENCES skills (id),
@@ -76,7 +78,7 @@ CREATE TABLE sessions (
   deleted_at_utc INTEGER NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE session_segments (
   id TEXT NOT NULL PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
@@ -90,7 +92,7 @@ CREATE TABLE session_segments (
   updated_at_utc INTEGER NOT NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE timer_runtime (
   singleton_id INTEGER NOT NULL PRIMARY KEY,
   session_id TEXT NULL REFERENCES sessions (id),
@@ -108,7 +110,7 @@ CREATE TABLE timer_runtime (
   updated_at_utc INTEGER NOT NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE tags (
   id TEXT NOT NULL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -118,14 +120,14 @@ CREATE TABLE tags (
   source_device_id TEXT NOT NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE session_tags (
   session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
   tag_id TEXT NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
   PRIMARY KEY (session_id, tag_id)
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE app_settings (
   key TEXT NOT NULL PRIMARY KEY,
   value_json TEXT NOT NULL,
@@ -133,7 +135,7 @@ CREATE TABLE app_settings (
   source_device_id TEXT NOT NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE backup_history (
   id TEXT NOT NULL PRIMARY KEY,
   backup_type TEXT NOT NULL,
@@ -149,7 +151,7 @@ CREATE TABLE backup_history (
   error_code TEXT NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE local_snapshots (
   id TEXT NOT NULL PRIMARY KEY,
   file_path TEXT NOT NULL,
@@ -161,69 +163,70 @@ CREATE TABLE local_snapshots (
   is_valid INTEGER NOT NULL DEFAULT 1
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE device_identity (
   device_id TEXT NOT NULL PRIMARY KEY,
   created_at_utc INTEGER NOT NULL,
   display_name TEXT NULL
 );
 ''');
-    raw.execute('''
+      raw.execute('''
 CREATE TABLE schema_metadata (
   key TEXT NOT NULL PRIMARY KEY,
   value TEXT NOT NULL
 );
 ''');
-    // Drift user_version = 1
-    raw.execute('PRAGMA user_version = 1');
+      // Drift user_version = 1
+      raw.execute('PRAGMA user_version = 1');
 
-    raw.execute(
-      'INSERT INTO device_identity (device_id, created_at_utc) VALUES (?, ?)',
-      [deviceId, now],
-    );
-    raw.execute(
-      'INSERT INTO timer_runtime (singleton_id, machine_state, updated_at_utc) '
-      "VALUES (1, 'idle', ?)",
-      [now],
-    );
-    raw.execute(
-      'INSERT INTO skills (id, name, target_seconds, created_local_date, '
-      'status, sort_order, created_at_utc, updated_at_utc, source_device_id) '
-      "VALUES (?, 'Piano', 36000000, '2026-08-01', 'active', 0, ?, ?, ?)",
-      [skillId, now, now, deviceId],
-    );
-    raw.execute(
-      'INSERT INTO sessions (id, skill_id, title, note_markdown, mode, status, '
-      'source, start_at_utc, end_at_utc, active_seconds, paused_seconds, '
-      'timezone_id_at_creation, offset_minutes_at_start, created_at_utc, '
-      'updated_at_utc, source_device_id) VALUES '
-      "(?, ?, 'Scales', 'Practiced **chromatic** scales', 'stopwatch', "
-      "'completed', 'timer', ?, ?, 600, 0, 'UTC', 0, ?, ?, ?)",
-      [sessionId, skillId, now - 600000, now, now, now, deviceId],
-    );
-    raw.close();
+      raw.execute(
+        'INSERT INTO device_identity (device_id, created_at_utc) VALUES (?, ?)',
+        [deviceId, now],
+      );
+      raw.execute(
+        'INSERT INTO timer_runtime (singleton_id, machine_state, updated_at_utc) '
+        "VALUES (1, 'idle', ?)",
+        [now],
+      );
+      raw.execute(
+        'INSERT INTO skills (id, name, target_seconds, created_local_date, '
+        'status, sort_order, created_at_utc, updated_at_utc, source_device_id) '
+        "VALUES (?, 'Piano', 36000000, '2026-08-01', 'active', 0, ?, ?, ?)",
+        [skillId, now, now, deviceId],
+      );
+      raw.execute(
+        'INSERT INTO sessions (id, skill_id, title, note_markdown, mode, status, '
+        'source, start_at_utc, end_at_utc, active_seconds, paused_seconds, '
+        'timezone_id_at_creation, offset_minutes_at_start, created_at_utc, '
+        'updated_at_utc, source_device_id) VALUES '
+        "(?, ?, 'Scales', 'Practiced **chromatic** scales', 'stopwatch', "
+        "'completed', 'timer', ?, ?, 600, 0, 'UTC', 0, ?, ?, ?)",
+        [sessionId, skillId, now - 600000, now, now, now, deviceId],
+      );
+      raw.close();
 
-    expect(AppConstants.schemaVersion, 3);
+      expect(AppConstants.schemaVersion, 3);
 
-    final db = AppDatabase(NativeDatabase(File(dbPath)));
-    // Opening triggers migration 1→3.
-    await db.customSelect('SELECT 1').get();
+      final db = AppDatabase(NativeDatabase(File(dbPath)));
+      // Opening triggers migration 1→3.
+      await db.customSelect('SELECT 1').get();
 
-    final indexer = SessionSearchIndexer(db);
-    final idsFound = await indexer.searchSessionIds('chromatic');
-    expect(idsFound, contains(sessionId));
+      final indexer = SessionSearchIndexer(db);
+      final idsFound = await indexer.searchSessionIds('chromatic');
+      expect(idsFound, contains(sessionId));
 
-    final byTitle = await indexer.searchSessionIds('Scales');
-    expect(byTitle, contains(sessionId));
+      final byTitle = await indexer.searchSessionIds('Scales');
+      expect(byTitle, contains(sessionId));
 
-    final bySkill = await indexer.searchSessionIds('Piano');
-    expect(bySkill, contains(sessionId));
+      final bySkill = await indexer.searchSessionIds('Piano');
+      expect(bySkill, contains(sessionId));
 
-    final byDate = await indexer.searchSessionIds('2026-08-01');
-    expect(byDate, contains(sessionId));
+      final byDate = await indexer.searchSessionIds('2026-08-01');
+      expect(byDate, contains(sessionId));
 
-    await db.close();
-  });
+      await db.close();
+    },
+  );
 
   test('fresh schema creates session_search on create', () async {
     final db = AppDatabase.memory(clock: clock, ids: ids);
