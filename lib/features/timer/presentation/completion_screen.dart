@@ -8,6 +8,7 @@ import '../../../app/app_shell.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/time/duration_format.dart';
+import '../../learning_log/application/session_note_service.dart';
 import '../../learning_log/presentation/learning_log_format.dart';
 import '../../learning_log/presentation/session_time_picker.dart';
 import '../../learning_log/presentation/widgets/markdown_note_editor.dart';
@@ -39,12 +40,14 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
   var _saveStatus = _NoteSaveStatus.idle;
   Timer? _debounce;
   String? _sessionId;
+  late final SessionNoteService _notes;
 
   @override
   void initState() {
     super.initState();
     _titleFocus.addListener(_onFocusChange);
     _noteFocus.addListener(_onFocusChange);
+    _notes = ref.read(sessionNoteServiceProvider);
   }
 
   @override
@@ -56,16 +59,14 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
     final id = _sessionId;
     if (id != null) {
       unawaited(
-        ref
-            .read(sessionNoteServiceProvider)
-            .updateDraft(
-              sessionId: id,
-              title: _titleController.text,
-              updateTitle: true,
-              noteMarkdown: _noteController.text,
-              updateNote: true,
-              tagNames: tags,
-            ),
+        _notes.updateDraft(
+          sessionId: id,
+          title: _titleController.text,
+          updateTitle: true,
+          noteMarkdown: _noteController.text,
+          updateNote: true,
+          tagNames: tags,
+        ),
       );
     }
     _tagInputController.dispose();

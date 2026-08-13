@@ -3,6 +3,7 @@ import '../../../core/id/id_generator.dart';
 import '../../../core/result/result.dart';
 import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/clock_service.dart';
+import '../../../core/time/timezone_service.dart';
 import '../../timer/domain/repositories.dart';
 import '../domain/skill.dart';
 import '../domain/skill_repository.dart';
@@ -11,22 +12,30 @@ final class SkillService {
   SkillService({
     required SkillRepository skills,
     required SessionRepository sessions,
+    required SkillSearchReindexing searchReindexing,
     required ClockService clock,
+    required TimezoneService timezones,
     required IdGenerator ids,
     required Future<String> Function() deviceId,
   }) : _skills = skills,
        _sessions = sessions,
+       _searchReindexing = searchReindexing,
        _clock = clock,
+       _timezones = timezones,
        _ids = ids,
        _deviceId = deviceId;
 
   final SkillRepository _skills;
   final SessionRepository _sessions;
+  final SkillSearchReindexing _searchReindexing;
   final ClockService _clock;
+  final TimezoneService _timezones;
   final IdGenerator _ids;
   final Future<String> Function() _deviceId;
 
   Stream<List<Skill>> watchActive() => _skills.watchActiveSkillsWithProgress();
+
+  Stream<List<Skill>> watchAll() => _skills.watchNonDeletedSkillsWithProgress();
 
   Future<List<Skill>> listActive() => _skills.listActiveSkillsWithProgress();
 
@@ -38,6 +47,8 @@ final class SkillService {
     int? targetSeconds,
     String? descriptionMarkdown,
     String? createdLocalDate,
+    int? accentArgb,
+    bool allowDuplicateName = false,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -54,16 +65,22 @@ final class SkillService {
         ),
       );
     }
+    if (!allowDuplicateName && await _nameTaken(trimmed)) {
+      return Failure(
+        AppFailure(
+          code: 'SKILL-DUP-NAME',
+          message: 'A skill named "$trimmed" already exists. Create it anyway?',
+        ),
+      );
+    }
     final now = _clock.nowUtc();
-    final local = now.toLocal();
-    final defaultLocalDate =
-        '${local.year.toString().padLeft(4, '0')}-'
-        '${local.month.toString().padLeft(2, '0')}-'
-        '${local.day.toString().padLeft(2, '0')}';
+    final currentLocalDay = configuredLocalDayAt(now, _timezones);
+    final defaultLocalDate = formatLocalDay(currentLocalDay);
     final localDate = (createdLocalDate?.trim().isNotEmpty == true)
         ? createdLocalDate!.trim()
         : defaultLocalDate;
-    if (!_isValidLocalDate(localDate)) {
+    final parsedLocalDate = _parseLocalDate(localDate);
+    if (parsedLocalDate == null) {
       return const Failure(
         AppFailure(
           code: 'VAL-DATE',
@@ -71,10 +88,20 @@ final class SkillService {
         ),
       );
     }
-    final existing = await _skills.listActiveSkillsWithProgress();
-    final accent = SkillAccentPalette.nextAccent(
-      existing.map((s) => s.accentArgb),
-    );
+    if (parsedLocalDate.isAfter(currentLocalDay)) {
+      return const Failure(
+        AppFailure(
+          code: 'VAL-FUTURE',
+          message: 'Creation date cannot be in the future.',
+        ),
+      );
+    }
+    final existing = await _skills.listNonDeleted();
+    final accentArgbResolved =
+        accentArgb ??
+        SkillAccentPalette.toArgb(
+          SkillAccentPalette.nextAccent(existing.map((s) => s.accentArgb)),
+        );
     final skill = Skill(
       id: _ids.v4(),
       name: trimmed,
@@ -83,7 +110,7 @@ final class SkillService {
           : descriptionMarkdown?.trim(),
       targetSeconds: target,
       createdLocalDate: localDate,
-      accentArgb: SkillAccentPalette.toArgb(accent),
+      accentArgb: accentArgbResolved,
       status: SkillStatus.active,
       sortOrder: 0,
       createdAtUtc: now,
@@ -100,6 +127,8 @@ final class SkillService {
     int? targetSeconds,
     String? descriptionMarkdown,
     String? createdLocalDate,
+    int? accentArgb,
+    bool allowDuplicateName = false,
   }) async {
     final existing = await _skills.findById(id);
     if (existing == null) {
@@ -113,6 +142,16 @@ final class SkillService {
         AppFailure(code: 'VAL-NAME', message: 'Skill name is required.'),
       );
     }
+    if (trimmed != null &&
+        !allowDuplicateName &&
+        await _nameTaken(trimmed, exceptId: id)) {
+      return Failure(
+        AppFailure(
+          code: 'SKILL-DUP-NAME',
+          message: 'Another skill is already named "$trimmed". Save anyway?',
+        ),
+      );
+    }
     if (targetSeconds != null && targetSeconds <= 0) {
       return const Failure(
         AppFailure(
@@ -121,16 +160,26 @@ final class SkillService {
         ),
       );
     }
+    final now = _clock.nowUtc();
     final localDate = createdLocalDate?.trim();
-    if (localDate != null &&
-        localDate.isNotEmpty &&
-        !_isValidLocalDate(localDate)) {
-      return const Failure(
-        AppFailure(
-          code: 'VAL-DATE',
-          message: 'Creation date must be a valid YYYY-MM-DD date.',
-        ),
-      );
+    if (localDate != null && localDate.isNotEmpty) {
+      final parsedLocalDate = _parseLocalDate(localDate);
+      if (parsedLocalDate == null) {
+        return const Failure(
+          AppFailure(
+            code: 'VAL-DATE',
+            message: 'Creation date must be a valid YYYY-MM-DD date.',
+          ),
+        );
+      }
+      if (parsedLocalDate.isAfter(configuredLocalDayAt(now, _timezones))) {
+        return const Failure(
+          AppFailure(
+            code: 'VAL-FUTURE',
+            message: 'Creation date cannot be in the future.',
+          ),
+        );
+      }
     }
     final desc = descriptionMarkdown?.trim();
     final updated = existing.copyWith(
@@ -141,9 +190,15 @@ final class SkillService {
       createdLocalDate: (localDate == null || localDate.isEmpty)
           ? null
           : localDate,
-      updatedAtUtc: _clock.nowUtc(),
+      accentArgb: accentArgb,
+      updatedAtUtc: now,
     );
     await _skills.update(updated);
+    if (trimmed != null && trimmed != existing.name) {
+      // FTS documents denormalize the skill name; refresh them on rename so
+      // historical sessions keep matching Learning Log searches.
+      await _searchReindexing.reindexSkillName(id);
+    }
     return Success(updated);
   }
 
@@ -193,15 +248,27 @@ final class SkillService {
     return Success(updated);
   }
 
-  static bool _isValidLocalDate(String value) {
+  Future<bool> _nameTaken(String name, {String? exceptId}) async {
+    final needle = name.trim().toLowerCase();
+    final existing = await _skills.listNonDeleted();
+    return existing.any(
+      (skill) =>
+          skill.id != exceptId && skill.name.trim().toLowerCase() == needle,
+    );
+  }
+
+  static DateTime? _parseLocalDate(String value) {
     final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
     if (match == null) {
-      return false;
+      return null;
     }
     final year = int.parse(match.group(1)!);
     final month = int.parse(match.group(2)!);
     final day = int.parse(match.group(3)!);
     final parsed = DateTime(year, month, day);
-    return parsed.year == year && parsed.month == month && parsed.day == day;
+    if (parsed.year != year || parsed.month != month || parsed.day != day) {
+      return null;
+    }
+    return parsed;
   }
 }

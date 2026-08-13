@@ -16,6 +16,7 @@ final class StopwatchTimerService {
     required SkillRepository skills,
     required UnitOfWork uow,
     required PermanentSessionDeletion sessionDeletion,
+    required CompletedSessionIndexing sessionIndexing,
     required ClockService clock,
     required TimezoneService timezones,
     required IdGenerator ids,
@@ -25,6 +26,7 @@ final class StopwatchTimerService {
        _skills = skills,
        _uow = uow,
        _sessionDeletion = sessionDeletion,
+       _sessionIndexing = sessionIndexing,
        _clock = clock,
        _timezones = timezones,
        _ids = ids,
@@ -35,6 +37,7 @@ final class StopwatchTimerService {
   final SkillRepository _skills;
   final UnitOfWork _uow;
   final PermanentSessionDeletion _sessionDeletion;
+  final CompletedSessionIndexing _sessionIndexing;
   final ClockService _clock;
   final TimezoneService _timezones;
   final IdGenerator _ids;
@@ -398,6 +401,9 @@ final class StopwatchTimerService {
       await _sessions.updateSession(
         session.copyWith(status: SessionStatus.completed, updatedAtUtc: now),
       );
+      // Sessions saved without the completion panel (e.g. stop-and-start)
+      // would otherwise never reach the FTS index.
+      await _sessionIndexing.indexSession(session.id);
       await _runtime.clearToIdle(updatedAtUtc: now);
       return Success(await snapshot());
     });
@@ -613,6 +619,8 @@ final class StopwatchTimerService {
         if (anomaly || gap > threshold) {
           final reason = anomaly
               ? RecoveryReason.clockChange
+              : heartbeat == null
+              ? RecoveryReason.restart
               : RecoveryReason.longGap;
           await _runtime.save(
             runtime.copyWith(
@@ -944,6 +952,7 @@ final class StopwatchTimerService {
         updatedAtUtc: now,
       ),
     );
+    await _sessionIndexing.indexSession(session.id);
   }
 
   Future<void> _reattachRuntimeToSession(
@@ -970,7 +979,9 @@ final class StopwatchTimerService {
         currentCycle: 1,
         monotonicAnchorMicros: _clock.monotonicMicros(),
         wallClockAnchorUtc: now,
-        lastHeartbeatUtc: now,
+        // Never invent a heartbeat: idle/missing runtime has no trustworthy
+        // last_heartbeat_utc, so running orphans classify as low-confidence.
+        lastHeartbeatUtc: null,
         lastCheckpointAtUtc: now,
         updatedAtUtc: now,
       ),

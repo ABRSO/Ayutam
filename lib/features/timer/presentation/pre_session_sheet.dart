@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_theme.dart';
-import '../../../app/ayutam_app.dart';
 import '../../../app/providers.dart';
 import '../../../core/time/duration_format.dart';
 import '../../skills/domain/skill.dart';
 import '../domain/models.dart';
+import 'open_in_progress_session.dart';
 import 'timer_screen.dart';
 
 Future<void> showPreSessionSheet(BuildContext context, {required Skill skill}) {
@@ -27,7 +27,8 @@ class PreSessionSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final media = MediaQuery.of(context);
-    final active = ref.watch(timerSessionProvider).asData?.value.session;
+    final snap = ref.watch(timerSessionProvider).asData?.value;
+    final active = snap?.session;
     final blocking = active != null && active.status.isInProgress;
 
     // Cap height so the sheet can scroll on short landscape viewports instead
@@ -77,6 +78,7 @@ class PreSessionSheet extends ConsumerWidget {
                   _ActiveSessionConflictActions(
                     requested: skill,
                     active: active,
+                    snapshot: snap!,
                   )
                 else
                   _StartSessionActions(skill: skill),
@@ -137,7 +139,11 @@ class _StartSessionActions extends ConsumerWidget {
               return;
             }
             nav.pop();
-            await _openTimer(skill.id);
+            await nav.push(
+              MaterialPageRoute<void>(
+                builder: (_) => TimerScreen(skillId: skill.id),
+              ),
+            );
           },
           icon: const Icon(Icons.play_arrow),
           label: const Text('Start'),
@@ -183,26 +189,34 @@ class _ActiveSessionConflictActions extends ConsumerWidget {
   const _ActiveSessionConflictActions({
     required this.requested,
     required this.active,
+    required this.snapshot,
   });
 
   final Skill requested;
   final PracticeSession active;
+  final TimerSnapshot snapshot;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sameSkill = active.skillId == requested.id;
     final activeName = _skillName(ref, active.skillId);
+    final openLabel = openInProgressLabel(snapshot);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         FilledButton.icon(
           onPressed: () async {
-            Navigator.of(context).pop();
-            await _openTimer(active.skillId);
+            final nav = Navigator.of(context);
+            nav.pop();
+            await openInProgressSession(
+              navigator: nav,
+              skillId: active.skillId,
+              snapshot: snapshot,
+            );
           },
           icon: const Icon(Icons.timer_outlined),
-          label: const Text('Open active timer'),
+          label: Text(openLabel),
         ),
         if (!sameSkill) ...[
           const SizedBox(height: 8),
@@ -266,24 +280,27 @@ class _ActiveSessionConflictActions extends ConsumerWidget {
       return;
     }
     ref.invalidate(activeSkillsProvider);
+    // The Learning Log list caches month pages; a session saved outside the
+    // completion panel must refresh it just like the panel's Save does.
+    ref.invalidate(learningLogListProvider);
     final startError = await notifier.startStopwatch(requested.id);
     if (startError != null) {
       messenger.showSnackBar(SnackBar(content: Text(startError)));
       return;
     }
     nav.pop();
-    await _openTimer(requested.id);
+    await nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => TimerScreen(skillId: requested.id),
+      ),
+    );
   }
 }
 
-Future<void> _openTimer(String skillId) async {
-  await ayutamNavigatorKey.currentState?.push(
-    MaterialPageRoute<void>(builder: (_) => TimerScreen(skillId: skillId)),
-  );
-}
-
 String? _skillName(WidgetRef ref, String skillId) {
-  final skills = ref.watch(activeSkillsProvider).asData?.value;
+  final skills =
+      ref.watch(allSkillsProvider).asData?.value ??
+      ref.watch(activeSkillsProvider).asData?.value;
   if (skills == null) {
     return null;
   }

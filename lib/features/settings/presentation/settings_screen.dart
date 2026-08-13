@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +12,8 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final deviceIdAsync = ref.watch(deviceIdProvider);
+    final reducedMotion =
+        ref.watch(reducedMotionProvider).asData?.value ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -18,6 +22,19 @@ class SettingsScreen extends ConsumerWidget {
           const ListTile(
             title: Text('Appearance'),
             subtitle: Text('Follows system theme (Phase 0)'),
+          ),
+          SwitchListTile(
+            title: const Text('Reduced motion'),
+            subtitle: const Text(
+              'Disables the flip-clock 3D animation. Also follows the '
+              'system Reduce motion / disable animations setting.',
+            ),
+            value: reducedMotion,
+            onChanged: (value) {
+              unawaited(
+                ref.read(settingsServiceProvider).setReducedMotion(value),
+              );
+            },
           ),
           const Divider(),
           const ListTile(

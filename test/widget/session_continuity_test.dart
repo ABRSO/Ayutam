@@ -7,6 +7,8 @@ import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/features/skills/domain/skill.dart';
 import 'package:ayutam/features/timer/domain/timer_enums.dart';
+import 'package:ayutam/features/skills/presentation/skills_screen.dart';
+import 'package:ayutam/features/timer/presentation/completion_screen.dart';
 import 'package:ayutam/features/timer/presentation/pre_session_sheet.dart';
 import 'package:ayutam/features/timer/presentation/session_heartbeat.dart';
 import 'package:ayutam/features/timer/presentation/timer_screen.dart';
@@ -41,6 +43,7 @@ void main() {
         .read(skillServiceProvider)
         .create(name: name);
     container.invalidate(activeSkillsProvider);
+    container.invalidate(allSkillsProvider);
     return result.valueOrNull!;
   }
 
@@ -217,5 +220,59 @@ void main() {
       );
       expect(find.textContaining('Session still running'), findsOneWidget);
     });
+  });
+
+  testWidgets('Stop → Completion → Back → Play → Open → Completion screen', (
+    tester,
+  ) async {
+    final piano = await createSkill('Piano');
+    final notifier = container.read(timerSessionProvider.notifier);
+    await notifier.startStopwatch(piano.id);
+    clock.advance(const Duration(minutes: 3));
+    await notifier.stop();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SkillsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Play'));
+    await tester.tap(find.text('Play'));
+    await tester.pumpAndSettle();
+    expect(find.text('Open completion'), findsOneWidget);
+
+    await tester.tap(find.text('Open completion'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CompletionScreen), findsOneWidget);
+    expect(find.text('Session complete'), findsOneWidget);
+    expect(find.byType(TimerScreen), findsNothing);
+  });
+
+  testWidgets('long session warns and does not auto-stop', (tester) async {
+    final piano = await createSkill('Piano');
+    await container
+        .read(timerSessionProvider.notifier)
+        .startStopwatch(piano.id);
+    clock.advance(const Duration(hours: 8));
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: TimerScreen(skillId: piano.id)),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Long session'), findsOneWidget);
+    expect(find.textContaining('will not auto-stop'), findsWidgets);
+    expect(
+      container.read(timerSessionProvider).value!.runtime.machineState,
+      TimerMachineState.running,
+    );
   });
 }

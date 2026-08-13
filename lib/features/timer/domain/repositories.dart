@@ -7,6 +7,12 @@ abstract class SessionRepository {
 
   Future<List<PracticeSession>> listInProgress();
 
+  /// Newest completed sessions for a skill (Home card expand).
+  Future<List<PracticeSession>> listRecentCompletedForSkill(
+    String skillId, {
+    int limit = 5,
+  });
+
   Future<void> insertSession(PracticeSession session);
 
   Future<void> updateSession(PracticeSession session);
@@ -83,4 +89,13 @@ abstract class UnitOfWork {
 /// stay in one transaction. Timer code must not talk to FTS directly.
 abstract class PermanentSessionDeletion {
   Future<void> delete(String sessionId);
+}
+
+/// Upserts the FTS document for a session that just became `completed`.
+///
+/// Covers completions that bypass the completion panel (stop-and-start save,
+/// startup force-complete of extra orphans). Call only from inside an
+/// existing [UnitOfWork] write; timer code must not talk to FTS directly.
+abstract class CompletedSessionIndexing {
+  Future<void> indexSession(String sessionId);
 }

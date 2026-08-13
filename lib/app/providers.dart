@@ -5,7 +5,9 @@ import '../core/logging/app_logger.dart';
 import '../core/time/clock_service.dart';
 import '../core/time/timezone_service.dart';
 import '../database/app_database.dart';
+import '../features/learning_log/application/indexed_session_completion.dart';
 import '../features/learning_log/application/indexed_session_deletion.dart';
+import '../features/learning_log/application/indexed_skill_rename.dart';
 import '../features/learning_log/application/learning_log_service.dart';
 import '../features/learning_log/application/session_note_service.dart';
 import '../features/learning_log/application/tag_service.dart';
@@ -13,6 +15,9 @@ import '../features/learning_log/data/drift_tag_repository.dart';
 import '../features/learning_log/data/session_search_indexer.dart';
 import '../features/learning_log/domain/learning_log_models.dart';
 import '../features/learning_log/domain/tag_repository.dart';
+import '../features/settings/application/settings_service.dart';
+import '../features/settings/data/drift_settings_repository.dart';
+import '../features/settings/domain/settings_repository.dart';
 import '../features/skills/application/skill_service.dart';
 import '../features/skills/data/drift_skill_repository.dart';
 import '../features/skills/domain/skill.dart';
@@ -72,11 +77,31 @@ final unitOfWorkProvider = Provider<UnitOfWork>((ref) {
   return DriftUnitOfWork(ref.watch(appDatabaseProvider));
 });
 
+final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
+  return DriftSettingsRepository(ref.watch(appDatabaseProvider));
+});
+
+final settingsServiceProvider = Provider<SettingsService>((ref) {
+  return SettingsService(
+    settings: ref.watch(settingsRepositoryProvider),
+    clock: ref.watch(clockServiceProvider),
+    deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
+  );
+});
+
+final reducedMotionProvider = StreamProvider<bool>((ref) {
+  return ref.watch(settingsServiceProvider).watchReducedMotion();
+});
+
 final skillServiceProvider = Provider<SkillService>((ref) {
   return SkillService(
     skills: ref.watch(skillRepositoryProvider),
     sessions: ref.watch(sessionRepositoryProvider),
+    searchReindexing: IndexedSkillRename(
+      ref.watch(sessionSearchIndexerProvider),
+    ),
     clock: ref.watch(clockServiceProvider),
+    timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),
     deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
   );
@@ -89,6 +114,10 @@ final stopwatchTimerServiceProvider = Provider<StopwatchTimerService>((ref) {
     skills: ref.watch(skillRepositoryProvider),
     uow: ref.watch(unitOfWorkProvider),
     sessionDeletion: ref.watch(permanentSessionDeletionProvider),
+    sessionIndexing: IndexedSessionCompletion(
+      sessions: ref.watch(sessionRepositoryProvider),
+      indexer: ref.watch(sessionSearchIndexerProvider),
+    ),
     clock: ref.watch(clockServiceProvider),
     timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),
@@ -147,6 +176,10 @@ final learningLogServiceProvider = Provider<LearningLogService>((ref) {
 
 final activeSkillsProvider = StreamProvider<List<Skill>>((ref) {
   return ref.watch(skillServiceProvider).watchActive();
+});
+
+final allSkillsProvider = StreamProvider<List<Skill>>((ref) {
+  return ref.watch(skillServiceProvider).watchAll();
 });
 
 final class AppShellIndexNotifier extends Notifier<int> {

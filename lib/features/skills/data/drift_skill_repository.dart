@@ -49,6 +49,24 @@ final class DriftSkillRepository implements SkillRepository {
   }
 
   @override
+  Stream<List<domain.Skill>> watchNonDeletedSkillsWithProgress() {
+    final query = _db.select(_db.skills)
+      ..where((t) => t.deletedAtUtc.isNull())
+      ..orderBy([
+        (t) => OrderingTerm.asc(t.sortOrder),
+        (t) => OrderingTerm.asc(t.name),
+      ]);
+
+    return query.watch().asyncMap((rows) async {
+      final skills = <domain.Skill>[];
+      for (final row in rows) {
+        skills.add(_toDomain(row, await _sumCompleted(row.id)));
+      }
+      return skills;
+    });
+  }
+
+  @override
   Future<List<domain.Skill>> listNonDeleted() async {
     final rows =
         await (_db.select(_db.skills)
