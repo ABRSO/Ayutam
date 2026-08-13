@@ -111,6 +111,11 @@ App launch
                  • Trim to last heartbeat
                  • Edit end time
                  • Discard session
+  → If `timer_runtime` is idle/missing but an in-progress session remains,
+    reattach runtime **without** writing `last_heartbeat_utc = now`. A
+    missing heartbeat is low-confidence (`restart`) and must open Recovery
+    Review for a running (open work) session. Paused/break orphans still
+    restore silently because active time is unambiguous.
   → NOTE: heartbeats are written by an app-level owner while the machine
     state is `running`, independent of which route is visible; leaving the
     Timer route must never stall them

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Home Active / Completed / Archived filters, skill search, Restore from Archived, expandable last-five sessions, and accent-colour picker on create/edit.
+- In-app **Reduced motion** setting (OR’d with the platform disable-animations flag) stored in `app_settings`.
+- 8-hour long-session warning on the timer (never auto-stops).
 - Phase 3: completion notes/tags with Markdown Edit/Preview (`flutter_markdown_plus`) and debounced autosave; Learning Log list/search/filters/detail (desktop two-pane); **month-based lazy loading**; manual session entry with overlap warning; edit/delete with Undo (edit includes skill and start/end with a totals warning); FTS5 `session_search` (schema v2); skill “View all in Learning Log”.
 - Phase 2: custom flip clock (unbounded hours, reduced-motion path), skill accent palette auto-assign, timer icon controls with semantics/tooltips.
 - Phase 1 vertical slice: skill create/edit/archive, stopwatch start/pause/resume/stop, completion save/discard, crash recovery + Recovery Review, startup routing.
@@ -31,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Play → Open routes by persisted timer state: `completion_pending` opens Completion (not a fake Running timer); recovery opens Recovery Review.
+- Orphan running sessions no longer get `last_heartbeat_utc = now` before gap classification, so a missing heartbeat goes to Recovery Review instead of silently resuming.
+- Duplicate skill names now warn before create/save (still allowed after confirm).
 - Tags: typed names now commit on Save/Apply/focus-loss (not only Enter); Learning Log filters show existing tags as selectable chips plus autocomplete — fixes sessions saving without tags and filters that ignored typed text.
 - Learning Log session edit now includes skill, start, and end (with a warning that totals/statistics will change).
 - Learning Log loads one calendar month at a time and fetches earlier months on scroll instead of the full journal.

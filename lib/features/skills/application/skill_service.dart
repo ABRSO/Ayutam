@@ -28,6 +28,8 @@ final class SkillService {
 
   Stream<List<Skill>> watchActive() => _skills.watchActiveSkillsWithProgress();
 
+  Stream<List<Skill>> watchAll() => _skills.watchNonDeletedSkillsWithProgress();
+
   Future<List<Skill>> listActive() => _skills.listActiveSkillsWithProgress();
 
   /// Active + archived, not soft-deleted. For Learning Log filters and session edit.
@@ -38,6 +40,8 @@ final class SkillService {
     int? targetSeconds,
     String? descriptionMarkdown,
     String? createdLocalDate,
+    int? accentArgb,
+    bool allowDuplicateName = false,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -51,6 +55,14 @@ final class SkillService {
         AppFailure(
           code: 'VAL-TARGET',
           message: 'Target hours must be greater than zero.',
+        ),
+      );
+    }
+    if (!allowDuplicateName && await _nameTaken(trimmed)) {
+      return Failure(
+        AppFailure(
+          code: 'SKILL-DUP-NAME',
+          message: 'A skill named "$trimmed" already exists. Create it anyway?',
         ),
       );
     }
@@ -71,10 +83,12 @@ final class SkillService {
         ),
       );
     }
-    final existing = await _skills.listActiveSkillsWithProgress();
-    final accent = SkillAccentPalette.nextAccent(
-      existing.map((s) => s.accentArgb),
-    );
+    final existing = await _skills.listNonDeleted();
+    final accentArgbResolved =
+        accentArgb ??
+        SkillAccentPalette.toArgb(
+          SkillAccentPalette.nextAccent(existing.map((s) => s.accentArgb)),
+        );
     final skill = Skill(
       id: _ids.v4(),
       name: trimmed,
@@ -83,7 +97,7 @@ final class SkillService {
           : descriptionMarkdown?.trim(),
       targetSeconds: target,
       createdLocalDate: localDate,
-      accentArgb: SkillAccentPalette.toArgb(accent),
+      accentArgb: accentArgbResolved,
       status: SkillStatus.active,
       sortOrder: 0,
       createdAtUtc: now,
@@ -100,6 +114,8 @@ final class SkillService {
     int? targetSeconds,
     String? descriptionMarkdown,
     String? createdLocalDate,
+    int? accentArgb,
+    bool allowDuplicateName = false,
   }) async {
     final existing = await _skills.findById(id);
     if (existing == null) {
@@ -111,6 +127,16 @@ final class SkillService {
     if (trimmed != null && trimmed.isEmpty) {
       return const Failure(
         AppFailure(code: 'VAL-NAME', message: 'Skill name is required.'),
+      );
+    }
+    if (trimmed != null &&
+        !allowDuplicateName &&
+        await _nameTaken(trimmed, exceptId: id)) {
+      return Failure(
+        AppFailure(
+          code: 'SKILL-DUP-NAME',
+          message: 'Another skill is already named "$trimmed". Save anyway?',
+        ),
       );
     }
     if (targetSeconds != null && targetSeconds <= 0) {
@@ -141,6 +167,7 @@ final class SkillService {
       createdLocalDate: (localDate == null || localDate.isEmpty)
           ? null
           : localDate,
+      accentArgb: accentArgb,
       updatedAtUtc: _clock.nowUtc(),
     );
     await _skills.update(updated);
@@ -191,6 +218,15 @@ final class SkillService {
     );
     await _skills.update(updated);
     return Success(updated);
+  }
+
+  Future<bool> _nameTaken(String name, {String? exceptId}) async {
+    final needle = name.trim().toLowerCase();
+    final existing = await _skills.listNonDeleted();
+    return existing.any(
+      (skill) =>
+          skill.id != exceptId && skill.name.trim().toLowerCase() == needle,
+    );
   }
 
   static bool _isValidLocalDate(String value) {

@@ -128,6 +128,8 @@ Defects found / fixes applied: none at the time.
 - One-active start always checks in-progress rows; startup re-binds idle runtime to stray sessions (force-completes extras).
 - Added Phase 1 coverage: stray/idle busy, reattach, idempotent pause/resume/save/discard, resumeFromCompletion, trim/editEnd, clock anomaly, archive-busy, invalid target.
 
+**Phase 1 follow-up (2026-08-13):** Home gained Active / Completed / Archived filters, Restore from Archived, duplicate-name warning, last-five-sessions expand, and editable accent colour. Play → Open routes by persisted state (`completion_pending` → Completion, recovery → Recovery Review). Orphan running sessions with no trustworthy heartbeat go to Recovery Review instead of inventing `last_heartbeat_utc = now`. The 8-hour long-session warning is wired (never auto-stop). **Permanent skill delete** is deferred to Phase 5 (safety snapshots); Home Delete explains that and Archive remains the hide path.
+
 **Onboarding (planning note):** Product/architecture describe a first-run onboarding flow, but no execution-plan phase owns it. Phase 0 exit criteria (“empty shell / onboarding”) are met by the empty Skills home. Treat a dedicated onboarding module as a future planning item, not a Phase 0/1 regression.
 
 ---
@@ -155,6 +157,8 @@ Defects found / fixes applied: none at the time.
 - [x] Hours unbounded (e.g. > 99).
 
 **Phase 2 notes (2026-07-23):** Implemented on `cursor/phase-2-flip-clock`. Custom `FlipDigit`/`FlipClock` with rotateX (~450 ms, fast-out-slow-in); reduced motion / `MediaQuery.disableAnimations` → instant digit swap. Timer shows skill-total flip clock + mono current-session line; `TimerIconControl` for Pause/Stop (≥48×48, semantics + tooltips). Ten-colour accent palette auto-assigned on skill create; Home cards show accent strip. Theme: bordered flat cards, mono duration helper.
+
+**Phase 2 follow-up (2026-08-13):** Settings includes an in-app **Reduced motion** toggle (persisted in `app_settings`, OR’d with the platform flag). Skill accent colour is editable in the skill editor.
 
 Platform smoke (2026-07-23, see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
 
@@ -248,9 +252,10 @@ Defects found / fixes applied: none on this re-run. Gradle warned that `flutter_
 3. Import validation stages + preview UI.
 4. Replace path + Merge LWW + equal-timestamp conflicts.
 5. Safety snapshots (retain 3); restore UI.
-6. CSV + per-skill Markdown + consistent SQLite snapshot exports.
-7. Weekly reminder + last-backup indicator.
-8. Migration test harness for schema v1 (ready for future bumps).
+6. Permanent skill delete: type the skill name, show affected session count/duration, recommend backup, create a safety snapshot, then cascade sessions.
+7. CSV + per-skill Markdown + consistent SQLite snapshot exports.
+8. Weekly reminder + last-backup indicator.
+9. Migration test harness for schema v1 (ready for future bumps).
 
 ### Tests
 

@@ -706,10 +706,9 @@ Checklist:
 1. Home: create a skill → accent strip on the card.
 2. Play → Start → flip cards tick; session line updates.
 3. Pause / Resume / Stop work; desktop tooltips on hover.
-4. **Reduced motion** is **OS-level** for now (no in-app Settings toggle yet):
-   - Windows 11: Settings → Accessibility → Visual effects → **Animation effects** Off.
-   - Android: Settings → Accessibility → Remove animations (wording varies).
-   - Linux: reduce/disable animations in your desktop’s Accessibility settings when available.
+4. **Reduced motion** (disables the flip-clock 3D animation):
+   - In-app: Settings → **Reduced motion**.
+   - Also follows the OS flag when it is on: Windows 11 Settings → Accessibility → Visual effects → **Animation effects** Off; Android Settings → Accessibility → Remove animations (wording varies); Linux desktop Accessibility when available.
 5. Save session → Home total increases.
 6. Second skill gets a different accent when possible.
 

@@ -613,6 +613,8 @@ final class StopwatchTimerService {
         if (anomaly || gap > threshold) {
           final reason = anomaly
               ? RecoveryReason.clockChange
+              : heartbeat == null
+              ? RecoveryReason.restart
               : RecoveryReason.longGap;
           await _runtime.save(
             runtime.copyWith(
@@ -970,7 +972,9 @@ final class StopwatchTimerService {
         currentCycle: 1,
         monotonicAnchorMicros: _clock.monotonicMicros(),
         wallClockAnchorUtc: now,
-        lastHeartbeatUtc: now,
+        // Never invent a heartbeat: idle/missing runtime has no trustworthy
+        // last_heartbeat_utc, so running orphans classify as low-confidence.
+        lastHeartbeatUtc: null,
         lastCheckpointAtUtc: now,
         updatedAtUtc: now,
       ),

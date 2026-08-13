@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/timer/presentation/session_heartbeat.dart';
 import 'app_theme.dart';
+import 'providers.dart';
 import 'startup_gate.dart';
 
 class AyutamApp extends StatelessWidget {
@@ -21,11 +23,32 @@ class AyutamApp extends StatelessWidget {
       scaffoldMessengerKey: ayutamScaffoldMessengerKey,
       builder: (context, child) {
         final brightness = Theme.of(context).brightness;
-        return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: ayutamSystemUiOverlayStyle(brightness),
-          child: child ?? const SizedBox.shrink(),
+        return ReducedMotionScope(
+          child: AnnotatedRegion<SystemUiOverlayStyle>(
+            value: ayutamSystemUiOverlayStyle(brightness),
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
+    );
+  }
+}
+
+/// ORs the in-app Reduced Motion setting with the platform disable-animations flag.
+class ReducedMotionScope extends ConsumerWidget {
+  const ReducedMotionScope({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reduced = ref.watch(reducedMotionProvider).asData?.value ?? false;
+    final media = MediaQuery.of(context);
+    return MediaQuery(
+      data: media.copyWith(
+        disableAnimations: media.disableAnimations || reduced,
+      ),
+      child: child,
     );
   }
 }

@@ -6,11 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/app_theme.dart';
 import '../../../app/ayutam_app.dart';
 import '../../../app/providers.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/duration_format.dart';
 import '../../skills/domain/skill.dart';
+import '../application/long_session_warning.dart';
 import '../domain/models.dart';
 import 'completion_screen.dart';
+import 'open_in_progress_session.dart';
 import 'widgets/flip_clock.dart';
 import 'widgets/timer_icon_control.dart';
 
@@ -25,6 +28,8 @@ class TimerScreen extends ConsumerStatefulWidget {
 
 class _TimerScreenState extends ConsumerState<TimerScreen> {
   Timer? _tick;
+  var _redirected = false;
+  var _longSessionWarned = false;
 
   @override
   void initState() {
@@ -47,7 +52,9 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     final snapAsync = ref.watch(timerSessionProvider);
     final theme = Theme.of(context);
     final skillId = widget.skillId;
-    final skills = ref.watch(activeSkillsProvider).asData?.value;
+    final skills =
+        ref.watch(allSkillsProvider).asData?.value ??
+        ref.watch(activeSkillsProvider).asData?.value;
     Skill? skill;
     if (skillId != null && skills != null) {
       for (final s in skills) {
@@ -77,11 +84,14 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('$e')),
           data: (snap) {
+            _redirectIfNotTimer(snap);
             final sessionActive = _liveActiveSeconds(snap);
             final completed = skill?.completedActiveSeconds ?? 0;
             final accumulated = completed + sessionActive;
             final paused =
                 snap.runtime.machineState == TimerMachineState.paused;
+            final longSession = exceedsLongSessionWarning(sessionActive);
+            _maybeWarnLongSession(longSession);
             final accent = SkillAccentPalette.fromArgb(
               skill?.accentArgb,
               fallback: theme.colorScheme.primary,
@@ -92,6 +102,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 child: Column(
                   children: [
+                    if (longSession) ...[
+                      const _LongSessionBanner(),
+                      const SizedBox(height: 8),
+                    ],
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -196,6 +210,64 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     );
   }
 
+  void _redirectIfNotTimer(TimerSnapshot snap) {
+    if (_redirected) {
+      return;
+    }
+    final runtime = snap.runtime.machineState;
+    final pending =
+        runtime == TimerMachineState.completionPending ||
+        snap.session?.status == SessionStatus.completionPending;
+    final recovery = runtime == TimerMachineState.recoveryReview;
+    if (!pending && !recovery) {
+      return;
+    }
+    _redirected = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      final page = screenForInProgressSnapshot(
+        skillId: widget.skillId ?? snap.session?.skillId ?? '',
+        snapshot: snap,
+      );
+      final route = MaterialPageRoute<void>(builder: (_) => page);
+      if (Navigator.of(context).canPop()) {
+        await Navigator.of(context).pushReplacement(route);
+      } else {
+        await ayutamNavigatorKey.currentState?.pushReplacement(route);
+      }
+    });
+  }
+
+  void _maybeWarnLongSession(bool longSession) {
+    if (!longSession || _longSessionWarned) {
+      return;
+    }
+    _longSessionWarned = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Long session'),
+          content: const Text(
+            'This session has more than ${AppConstants.longSessionWarningHours} '
+            'hours of active time. Ayutam will not auto-stop.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
   /// Shown after the route pops, so it must not use this screen's messenger.
   void _remindSessionStillRunning() {
     final state = ref
@@ -237,5 +309,24 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     } else {
       await ayutamNavigatorKey.currentState?.pushReplacement(route);
     }
+  }
+}
+
+class _LongSessionBanner extends StatelessWidget {
+  const _LongSessionBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF5C4A16),
+      borderRadius: BorderRadius.circular(8),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Text(
+          'Over 8 hours of active time — the session will not auto-stop.',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+    );
   }
 }

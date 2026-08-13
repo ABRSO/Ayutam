@@ -5,6 +5,9 @@ abstract class SkillRepository {
 
   Future<List<Skill>> listActiveSkillsWithProgress();
 
+  /// Active and archived skills with progress, not soft-deleted (Home filters).
+  Stream<List<Skill>> watchNonDeletedSkillsWithProgress();
+
   /// Active and archived skills that are not soft-deleted (no progress sums).
   Future<List<Skill>> listNonDeleted();
 

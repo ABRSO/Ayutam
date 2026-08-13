@@ -7,6 +7,12 @@ abstract class SessionRepository {
 
   Future<List<PracticeSession>> listInProgress();
 
+  /// Newest completed sessions for a skill (Home card expand).
+  Future<List<PracticeSession>> listRecentCompletedForSkill(
+    String skillId, {
+    int limit = 5,
+  });
+
   Future<void> insertSession(PracticeSession session);
 
   Future<void> updateSession(PracticeSession session);

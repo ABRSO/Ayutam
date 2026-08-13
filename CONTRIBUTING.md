@@ -47,7 +47,7 @@ Weekly version bumps target `main`. Review before merging:
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `validate.yml` | every push / PR | format, analyze, tests with coverage (summary + `coverage-lcov` artifact) |
-| `security.yml` | PRs, main pushes, weekly | OSV-Scanner dependency CVE scan (`pubspec.lock`), gitleaks secret scan |
+| `security.yml` | PRs, main pushes, weekly | Differential OSV scan on PRs (`osv-scan-pr`); full OSV scan on `main` pushes and the Monday cron (`osv-scan-full` is skipped on pull requests by design); gitleaks |
 | `release.yml` | tag `v*` | verifies tag ↔ `pubspec.yaml` ↔ `CHANGELOG.md`, runs tests, builds Android APK + Windows zip + Linux tar.gz, publishes a GitHub Release |
 
 Dependabot (`.github/dependabot.yml`) opens weekly PRs for pub packages and GitHub Actions versions.

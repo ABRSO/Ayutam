@@ -280,6 +280,26 @@ void main() {
   });
 
   test(
+    'orphan running session without heartbeat goes to recovery review',
+    () async {
+      final skillId = await createSkill();
+      await timer.startStopwatch(skillId);
+      clock.advance(const Duration(hours: 3));
+      await DriftTimerRuntimeRepository(
+        db,
+      ).clearToIdle(updatedAtUtc: clock.nowUtc());
+
+      final route = await timer.recoverOnStartup();
+      expect(route.valueOrNull!.destination, StartupDestination.recoveryReview);
+      expect(route.valueOrNull!.recoveryReason, RecoveryReason.restart);
+      expect(
+        (await timer.snapshot()).runtime.machineState,
+        TimerMachineState.recoveryReview,
+      );
+    },
+  );
+
+  test(
     'startup reattaches idle runtime to stray in-progress session',
     () async {
       final skillId = await createSkill();
@@ -290,14 +310,32 @@ void main() {
       ).clearToIdle(updatedAtUtc: clock.nowUtc());
 
       final route = await timer.recoverOnStartup();
-      expect(route.valueOrNull!.destination, StartupDestination.timer);
+      expect(route.valueOrNull!.destination, StartupDestination.recoveryReview);
+      expect(route.valueOrNull!.recoveryReason, RecoveryReason.restart);
       expect(
         (await timer.snapshot()).runtime.machineState,
-        TimerMachineState.running,
+        TimerMachineState.recoveryReview,
       );
       expect((await timer.snapshot()).session?.skillId, skillId);
     },
   );
+
+  test('orphan paused session without heartbeat restores paused', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    await timer.pause();
+    clock.advance(const Duration(hours: 2));
+    await DriftTimerRuntimeRepository(
+      db,
+    ).clearToIdle(updatedAtUtc: clock.nowUtc());
+
+    final route = await timer.recoverOnStartup();
+    expect(route.valueOrNull!.destination, StartupDestination.timer);
+    expect(
+      (await timer.snapshot()).runtime.machineState,
+      TimerMachineState.paused,
+    );
+  });
 
   test('pause resume save discard are idempotent', () async {
     final skillId = await createSkill();

@@ -24,6 +24,26 @@ final class DriftSessionRepository implements SessionRepository {
   }
 
   @override
+  Future<List<domain.PracticeSession>> listRecentCompletedForSkill(
+    String skillId, {
+    int limit = 5,
+  }) async {
+    final rows =
+        await (_db.select(_db.sessions)
+              ..where((t) => t.skillId.equals(skillId))
+              ..where(
+                (t) => t.status.equals(
+                  domain.SessionStatus.completed.storageValue,
+                ),
+              )
+              ..where((t) => t.deletedAtUtc.isNull())
+              ..orderBy([(t) => OrderingTerm.desc(t.startAtUtc)])
+              ..limit(limit))
+            .get();
+    return rows.map(_sessionToDomain).toList();
+  }
+
+  @override
   Future<List<domain.PracticeSession>> listInProgress() async {
     final rows =
         await (_db.select(_db.sessions)..where(

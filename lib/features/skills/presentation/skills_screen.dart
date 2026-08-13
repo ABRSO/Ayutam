@@ -1,50 +1,133 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_theme.dart';
 import '../../../app/providers.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/duration_format.dart';
 import '../../learning_log/domain/learning_log_models.dart';
-import '../domain/skill.dart';
+import '../../timer/domain/models.dart';
 import '../../timer/presentation/pre_session_sheet.dart';
+import '../domain/skill.dart';
+import 'skill_editor_sheet.dart';
+import 'skill_home_filter.dart';
 
-class SkillsScreen extends ConsumerWidget {
+class SkillsScreen extends ConsumerStatefulWidget {
   const SkillsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final skillsAsync = ref.watch(activeSkillsProvider);
+  ConsumerState<SkillsScreen> createState() => _SkillsScreenState();
+}
+
+class _SkillsScreenState extends ConsumerState<SkillsScreen> {
+  var _filter = SkillHomeFilter.active;
+  var _searching = false;
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skillsAsync = ref.watch(allSkillsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ayutam')),
+      appBar: AppBar(
+        title: _searching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search skills',
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) => setState(() {}),
+              )
+            : const Text('Ayutam'),
+        actions: [
+          IconButton(
+            tooltip: _searching ? 'Close search' : 'Search skills',
+            onPressed: () {
+              setState(() {
+                _searching = !_searching;
+                if (!_searching) {
+                  _searchController.clear();
+                }
+              });
+            },
+            icon: Icon(_searching ? Icons.close : Icons.search),
+          ),
+        ],
+      ),
       body: skillsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load skills: $e')),
-        data: (skills) {
-          if (skills.isEmpty) {
+        data: (all) {
+          if (all.isEmpty) {
             return const _EmptySkillsState();
           }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-            itemCount: skills.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              return _SkillCard(skill: skills[index]);
-            },
+          final filtered = skillsMatchingQuery(
+            skillsForHomeFilter(all, _filter),
+            _searchController.text,
+          );
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final filter in SkillHomeFilter.values)
+                        ChoiceChip(
+                          label: Text(_filterLabel(filter)),
+                          selected: _filter == filter,
+                          onSelected: (_) => setState(() => _filter = filter),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? _FilterEmptyState(filter: _filter)
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          return _SkillCard(skill: filtered[index]);
+                        },
+                      ),
+              ),
+            ],
           );
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openSkillEditor(context, ref),
+        onPressed: () async {
+          final saved = await showSkillEditorSheet(context);
+          if (saved && mounted) {
+            ref.invalidate(activeSkillsProvider);
+            ref.invalidate(allSkillsProvider);
+          }
+        },
         icon: const Icon(Icons.add),
         label: const Text('New Skill'),
         tooltip: 'Create skill',
       ),
     );
   }
+
+  String _filterLabel(SkillHomeFilter filter) => switch (filter) {
+    SkillHomeFilter.active => 'Active',
+    SkillHomeFilter.completed => 'Completed',
+    SkillHomeFilter.archived => 'Archived',
+  };
 }
 
 class _EmptySkillsState extends StatelessWidget {
@@ -87,15 +170,44 @@ class _EmptySkillsState extends StatelessWidget {
   }
 }
 
-class _SkillCard extends ConsumerWidget {
+class _FilterEmptyState extends StatelessWidget {
+  const _FilterEmptyState({required this.filter});
+
+  final SkillHomeFilter filter;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = switch (filter) {
+      SkillHomeFilter.active => 'No active skills.',
+      SkillHomeFilter.completed => 'No completed skills.',
+      SkillHomeFilter.archived => 'No archived skills.',
+    };
+    return Center(
+      child: Text(text, style: Theme.of(context).textTheme.bodyLarge),
+    );
+  }
+}
+
+class _SkillCard extends ConsumerStatefulWidget {
   const _SkillCard({required this.skill});
 
   final Skill skill;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SkillCard> createState() => _SkillCardState();
+}
+
+class _SkillCardState extends ConsumerState<_SkillCard> {
+  var _expanded = false;
+  Future<List<PracticeSession>>? _recent;
+
+  Skill get skill => widget.skill;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final accent = _skillAccent(skill);
+    final archived = skill.status == SkillStatus.archived;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: IntrinsicHeight(
@@ -117,17 +229,23 @@ class _SkillCard extends ConsumerWidget {
                             style: theme.textTheme.titleMedium,
                           ),
                         ),
-                        IconButton(
-                          tooltip: 'Edit skill',
-                          onPressed: () =>
-                              _openSkillEditor(context, ref, skill: skill),
-                          icon: const Icon(Icons.edit_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Archive skill',
-                          onPressed: () =>
-                              _archiveWithUndo(context, ref, skill),
-                          icon: const Icon(Icons.archive_outlined),
+                        PopupMenuButton<String>(
+                          tooltip: 'Skill actions',
+                          onSelected: _onMenu,
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Edit'),
+                            ),
+                            PopupMenuItem(
+                              value: archived ? 'restore' : 'archive',
+                              child: Text(archived ? 'Restore' : 'Archive'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -164,6 +282,19 @@ class _SkillCard extends ConsumerWidget {
                         children: [
                           TextButton(
                             onPressed: () {
+                              setState(() {
+                                _expanded = !_expanded;
+                                if (_expanded) {
+                                  _recent = ref
+                                      .read(sessionRepositoryProvider)
+                                      .listRecentCompletedForSkill(skill.id);
+                                }
+                              });
+                            },
+                            child: Text(_expanded ? 'Hide recent' : 'Recent'),
+                          ),
+                          TextButton(
+                            onPressed: () {
                               ref
                                   .read(learningLogFiltersProvider.notifier)
                                   .setFilters(
@@ -175,15 +306,57 @@ class _SkillCard extends ConsumerWidget {
                             },
                             child: const Text('View all in Learning Log'),
                           ),
-                          FilledButton.tonalIcon(
-                            onPressed: () =>
-                                showPreSessionSheet(context, skill: skill),
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Play'),
-                          ),
+                          if (archived)
+                            FilledButton.tonalIcon(
+                              onPressed: () => _restore(skill),
+                              icon: const Icon(Icons.unarchive_outlined),
+                              label: const Text('Restore'),
+                            )
+                          else
+                            FilledButton.tonalIcon(
+                              onPressed: () =>
+                                  showPreSessionSheet(context, skill: skill),
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('Play'),
+                            ),
                         ],
                       ),
                     ),
+                    if (_expanded) ...[
+                      const SizedBox(height: 8),
+                      FutureBuilder<List<PracticeSession>>(
+                        future: _recent,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState !=
+                              ConnectionState.done) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: LinearProgressIndicator(),
+                            );
+                          }
+                          final sessions = snapshot.data ?? const [];
+                          if (sessions.isEmpty) {
+                            return Text(
+                              'No sessions yet.',
+                              style: theme.textTheme.bodySmall,
+                            );
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final session in sessions)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Text(
+                                    '${session.title?.trim().isNotEmpty == true ? session.title : 'Untitled session'} · ${formatHoursMinutes(session.activeSeconds)}',
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -191,6 +364,98 @@ class _SkillCard extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _onMenu(String value) async {
+    switch (value) {
+      case 'edit':
+        final saved = await showSkillEditorSheet(context, skill: skill);
+        if (saved && mounted) {
+          ref.invalidate(activeSkillsProvider);
+          ref.invalidate(allSkillsProvider);
+        }
+        return;
+      case 'archive':
+        await _archiveWithUndo(skill);
+        return;
+      case 'restore':
+        await _restore(skill);
+        return;
+      case 'delete':
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Permanent deletion'),
+            content: const Text(
+              'Permanent skill deletion lands with backups in Phase 5, '
+              'because it must create a safety snapshot first. Archive the '
+              'skill to hide it from Home until then.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+    }
+  }
+
+  Future<void> _restore(Skill skill) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await ref.read(skillServiceProvider).restore(skill.id);
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        ref.invalidate(activeSkillsProvider);
+        ref.invalidate(allSkillsProvider);
+      },
+      failure: (f) =>
+          messenger.showSnackBar(SnackBar(content: Text(f.message))),
+    );
+  }
+
+  Future<void> _archiveWithUndo(Skill skill) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await ref.read(skillServiceProvider).archive(skill.id);
+    if (!mounted) return;
+    await result.when(
+      success: (_) async {
+        ref.invalidate(activeSkillsProvider);
+        ref.invalidate(allSkillsProvider);
+        messenger.hideCurrentSnackBar();
+        final snack = messenger.showSnackBar(
+          SnackBar(
+            content: Text('Archived "${skill.name}"'),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () async {
+                final restore = await ref
+                    .read(skillServiceProvider)
+                    .restore(skill.id);
+                restore.when(
+                  success: (_) {
+                    ref.invalidate(activeSkillsProvider);
+                    ref.invalidate(allSkillsProvider);
+                  },
+                  failure: (f) => messenger.showSnackBar(
+                    SnackBar(content: Text(f.message)),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+        await snack.closed;
+      },
+      failure: (f) async {
+        messenger.showSnackBar(SnackBar(content: Text(f.message)));
+      },
     );
   }
 }
@@ -201,257 +466,4 @@ Color _skillAccent(Skill skill) {
   }
   final index = skill.id.hashCode.abs() % SkillAccentPalette.colors.length;
   return SkillAccentPalette.colors[index];
-}
-
-Future<void> _openSkillEditor(
-  BuildContext context,
-  WidgetRef ref, {
-  Skill? skill,
-}) async {
-  final saved = await showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (sheetContext) => _SkillEditorSheet(skill: skill),
-  );
-
-  if (saved == true) {
-    ref.invalidate(activeSkillsProvider);
-  }
-}
-
-/// Owns [TextEditingController]s for the lifetime of the sheet so IME/focus
-/// teardown cannot notify disposed controllers (common on Android).
-class _SkillEditorSheet extends ConsumerStatefulWidget {
-  const _SkillEditorSheet({required this.skill});
-
-  final Skill? skill;
-
-  @override
-  ConsumerState<_SkillEditorSheet> createState() => _SkillEditorSheetState();
-}
-
-class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
-  late final TextEditingController _nameController;
-  late final TextEditingController _hoursController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _createdDateController;
-  var _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final skill = widget.skill;
-    final now = DateTime.now();
-    final today =
-        '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
-    _nameController = TextEditingController(text: skill?.name ?? '');
-    _hoursController = TextEditingController(
-      text: ((skill?.targetSeconds ?? AppConstants.defaultTargetSeconds) / 3600)
-          .round()
-          .toString(),
-    );
-    _descriptionController = TextEditingController(
-      text: skill?.descriptionMarkdown ?? '',
-    );
-    _createdDateController = TextEditingController(
-      text: skill?.createdLocalDate ?? today,
-    );
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _hoursController.dispose();
-    _descriptionController.dispose();
-    _createdDateController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickCreatedDate() async {
-    final parsed = DateTime.tryParse(_createdDateController.text.trim());
-    final initial = parsed ?? DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(1970),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (picked == null) {
-      return;
-    }
-    setState(() {
-      _createdDateController.text =
-          '${picked.year.toString().padLeft(4, '0')}-'
-          '${picked.month.toString().padLeft(2, '0')}-'
-          '${picked.day.toString().padLeft(2, '0')}';
-    });
-  }
-
-  Future<void> _submit() async {
-    if (_saving) return;
-    final hours = int.tryParse(_hoursController.text.trim());
-    if (hours == null || hours <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Target hours must be a whole number greater than zero.',
-          ),
-        ),
-      );
-      return;
-    }
-    setState(() => _saving = true);
-    final targetSeconds = hours * 3600;
-    final service = ref.read(skillServiceProvider);
-    final skill = widget.skill;
-    final result = skill == null
-        ? await service.create(
-            name: _nameController.text,
-            targetSeconds: targetSeconds,
-            descriptionMarkdown: _descriptionController.text,
-            createdLocalDate: _createdDateController.text,
-          )
-        : await service.update(
-            id: skill.id,
-            name: _nameController.text,
-            targetSeconds: targetSeconds,
-            descriptionMarkdown: _descriptionController.text,
-            createdLocalDate: _createdDateController.text,
-          );
-    if (!mounted) return;
-    result.when(
-      success: (_) => Navigator.pop(context, true),
-      failure: (f) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(f.message)));
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final bottomInset = media.viewInsets.bottom;
-    // Match pre-session / completion: short landscape must scroll, not clip.
-    final maxHeight = media.size.height * 0.92;
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 8,
-            bottom: bottomInset + 24,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  widget.skill == null ? 'New skill' : 'Edit skill',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _nameController,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _descriptionController,
-                  minLines: 2,
-                  maxLines: 4,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Description (optional)',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _hoursController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    labelText: 'Target hours',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _createdDateController,
-                  readOnly: true,
-                  onTap: _pickCreatedDate,
-                  decoration: const InputDecoration(
-                    labelText: 'Creation date',
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.calendar_today_outlined),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _saving ? null : _submit,
-                  child: Text(widget.skill == null ? 'Create' : 'Save'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-Future<void> _archiveWithUndo(
-  BuildContext context,
-  WidgetRef ref,
-  Skill skill,
-) async {
-  final messenger = ScaffoldMessenger.of(context);
-  final result = await ref.read(skillServiceProvider).archive(skill.id);
-  if (!context.mounted) {
-    return;
-  }
-  await result.when(
-    success: (_) async {
-      ref.invalidate(activeSkillsProvider);
-      messenger.hideCurrentSnackBar();
-      final snack = messenger.showSnackBar(
-        SnackBar(
-          content: Text('Archived "${skill.name}"'),
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () async {
-              final restore = await ref
-                  .read(skillServiceProvider)
-                  .restore(skill.id);
-              restore.when(
-                success: (_) => ref.invalidate(activeSkillsProvider),
-                failure: (f) =>
-                    messenger.showSnackBar(SnackBar(content: Text(f.message))),
-              );
-            },
-          ),
-        ),
-      );
-      await snack.closed;
-    },
-    failure: (f) async {
-      messenger.showSnackBar(SnackBar(content: Text(f.message)));
-    },
-  );
 }

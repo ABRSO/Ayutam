@@ -70,6 +70,10 @@ final class Skill {
     return remaining < 0 ? 0 : remaining;
   }
 
+  /// Derived "Completed" Home filter: accumulated active time ≥ target.
+  bool get hasReachedTarget =>
+      targetSeconds > 0 && completedActiveSeconds >= targetSeconds;
+
   Skill copyWith({
     String? name,
     String? descriptionMarkdown,

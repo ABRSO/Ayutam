@@ -183,7 +183,7 @@ Controller asks injectable clock for `now`, combines with persisted anchors — 
 | TrayService | Windows/Linux tray icon/menu |
 | OrientationService / ScreenAwakeService | Timer chrome |
 | FileDialogService | Pick/save/share |
-| SettingsService | Typed KV over `app_settings` |
+| SettingsService | Typed KV over `app_settings` (Reduced Motion landed; other keys Phase 4–8) |
 | UpdateCheckService | Opt-in GitHub Releases (Phase 2); never blocks startup |
 | AppLockService | Optional PIN / platform auth (Phase 8) |
 
