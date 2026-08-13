@@ -25,6 +25,7 @@ class CumulativeChartView extends ConsumerStatefulWidget {
     required this.skills,
     this.expanded = false,
     this.initialRange = ChartRange.month,
+    this.initialCustomRange,
   });
 
   final StatsBundle bundle;
@@ -35,6 +36,9 @@ class CumulativeChartView extends ConsumerStatefulWidget {
   final bool expanded;
   final ChartRange initialRange;
 
+  /// Carries a picked custom window into fullscreen.
+  final DateTimeRange? initialCustomRange;
+
   @override
   ConsumerState<CumulativeChartView> createState() =>
       _CumulativeChartViewState();
@@ -44,7 +48,7 @@ class _CumulativeChartViewState extends ConsumerState<CumulativeChartView> {
   static const _milestoneHours = [10, 100, 500, 1000, 5000];
 
   late ChartRange _range = widget.initialRange;
-  DateTimeRange? _customRange;
+  late DateTimeRange? _customRange = widget.initialCustomRange;
   final _exportKey = GlobalKey();
 
   DateTime get _today {
@@ -170,6 +174,7 @@ class _CumulativeChartViewState extends ConsumerState<CumulativeChartView> {
     final scope = widget.scope;
     final skills = widget.skills;
     final range = _range;
+    final customRange = _customRange;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
@@ -182,6 +187,7 @@ class _CumulativeChartViewState extends ConsumerState<CumulativeChartView> {
               skills: skills,
               expanded: true,
               initialRange: range,
+              initialCustomRange: customRange,
             ),
           ),
         ),

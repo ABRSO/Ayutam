@@ -144,6 +144,8 @@ final class DriftSessionRepository implements SessionRepository {
     Set<String>? skillIds,
     DateTime? startAfterUtc,
     DateTime? endBeforeUtc,
+    DateTime? overlapStartUtc,
+    DateTime? overlapEndUtc,
     int? minActiveSeconds,
     int? maxActiveSeconds,
     bool? hasNote,
@@ -163,6 +165,8 @@ final class DriftSessionRepository implements SessionRepository {
             skillIds: skillIds,
             startAfterUtc: startAfterUtc,
             endBeforeUtc: endBeforeUtc,
+            overlapStartUtc: overlapStartUtc,
+            overlapEndUtc: overlapEndUtc,
             minActiveSeconds: minActiveSeconds,
             maxActiveSeconds: maxActiveSeconds,
             hasNote: hasNote,
@@ -185,6 +189,8 @@ final class DriftSessionRepository implements SessionRepository {
       skillIds: skillIds,
       startAfterUtc: startAfterUtc,
       endBeforeUtc: endBeforeUtc,
+      overlapStartUtc: overlapStartUtc,
+      overlapEndUtc: overlapEndUtc,
       minActiveSeconds: minActiveSeconds,
       maxActiveSeconds: maxActiveSeconds,
       hasNote: hasNote,
@@ -202,6 +208,8 @@ final class DriftSessionRepository implements SessionRepository {
     Set<String>? skillIds,
     DateTime? startAfterUtc,
     DateTime? endBeforeUtc,
+    DateTime? overlapStartUtc,
+    DateTime? overlapEndUtc,
     int? minActiveSeconds,
     int? maxActiveSeconds,
     bool? hasNote,
@@ -239,6 +247,8 @@ final class DriftSessionRepository implements SessionRepository {
         skillIds: skillIds,
         startAfterUtc: startAfterUtc,
         endBeforeUtc: endBeforeUtc,
+        overlapStartUtc: overlapStartUtc,
+        overlapEndUtc: overlapEndUtc,
         minActiveSeconds: minActiveSeconds,
         maxActiveSeconds: maxActiveSeconds,
         hasNote: hasNote,
@@ -269,6 +279,8 @@ final class DriftSessionRepository implements SessionRepository {
     Set<String>? skillIds,
     DateTime? startAfterUtc,
     DateTime? endBeforeUtc,
+    DateTime? overlapStartUtc,
+    DateTime? overlapEndUtc,
     int? minActiveSeconds,
     int? maxActiveSeconds,
     bool? hasNote,
@@ -297,6 +309,23 @@ final class DriftSessionRepository implements SessionRepository {
         (t) => t.startAtUtc.isSmallerThanValue(
           endBeforeUtc.millisecondsSinceEpoch,
         ),
+      );
+    }
+    if (overlapEndUtc != null) {
+      query.where(
+        (t) => t.startAtUtc.isSmallerThanValue(
+          overlapEndUtc.millisecondsSinceEpoch,
+        ),
+      );
+    }
+    if (overlapStartUtc != null) {
+      // Session was still active after the window began; instantaneous rows
+      // (no end) fall back to their start.
+      query.where(
+        (t) => coalesce([
+          t.endAtUtc,
+          t.startAtUtc,
+        ]).isBiggerThanValue(overlapStartUtc.millisecondsSinceEpoch),
       );
     }
     if (minActiveSeconds != null) {

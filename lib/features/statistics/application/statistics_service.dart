@@ -43,17 +43,16 @@ final class StatisticsService {
     // unscoped slice list doubles as the "anything completed at all" check.
     final anyCompleted = allSlices.isNotEmpty || sessions.isNotEmpty;
 
-    final bySkill = <String, Map<DateTime, int>>{};
+    // Single pass: group slices per skill, then allocate each group once so
+    // comparison lines and the combined series share the work.
+    final slicesBySkill = <String, List<WorkSlice>>{};
     for (final slice in scopedSlices) {
-      // Allocate per skill so comparison lines reuse the same pass.
-      bySkill.putIfAbsent(slice.skillId, () => {});
+      slicesBySkill.putIfAbsent(slice.skillId, () => []).add(slice);
     }
-    for (final skillId in bySkill.keys) {
-      bySkill[skillId] = allocateDailySeconds(
-        scopedSlices.where((s) => s.skillId == skillId),
-        _timezones,
-      );
-    }
+    final bySkill = <String, Map<DateTime, int>>{
+      for (final entry in slicesBySkill.entries)
+        entry.key: allocateDailySeconds(entry.value, _timezones),
+    };
     final daily = mergeDailyTotals(bySkill.values);
     final allDaily = scopedIds == null
         ? daily
@@ -101,6 +100,7 @@ final class StatisticsService {
       sessions: sessions,
       firstActivityDay: _earliestDay(daily),
       hasAnyCompletedSession: anyCompleted,
+      generatedForDay: today,
     );
   }
 
@@ -223,6 +223,10 @@ final class StatisticsService {
   }
 
   /// Summary-table rows, newest period first ([product-spec] §2.6).
+  ///
+  /// A session counts in every period its local-day span touches (so a
+  /// cross-midnight session matches the allocated totals on both days), but
+  /// only once per period.
   List<SummaryPeriodRow> summaryRows({
     required StatsBundle bundle,
     required SummaryGranularity granularity,
@@ -231,10 +235,22 @@ final class StatisticsService {
     final first = _firstDataDay(bundle, today);
     if (first == null) return const [];
 
-    final sessionsByDay = <DateTime, List<CompletedSessionStat>>{};
-    for (final session in bundle.sessions) {
-      final day = configuredLocalDayAt(session.startAtUtc, _timezones);
-      sessionsByDay.putIfAbsent(day, () => []).add(session);
+    // Session index per covered local day; sessions rarely span > 2 days.
+    final sessionsByDay = <DateTime, List<int>>{};
+    for (var i = 0; i < bundle.sessions.length; i++) {
+      final session = bundle.sessions[i];
+      final startDay = configuredLocalDayAt(session.startAtUtc, _timezones);
+      final endDay = configuredLocalDayAt(
+        session.endAtUtc ?? session.startAtUtc,
+        _timezones,
+      );
+      for (
+        var day = startDay;
+        !day.isAfter(endDay);
+        day = day.add(const Duration(days: 1))
+      ) {
+        sessionsByDay.putIfAbsent(day, () => []).add(i);
+      }
     }
 
     final rows = <SummaryPeriodRow>[];
@@ -243,8 +259,8 @@ final class StatisticsService {
     while (!start.isAfter(today)) {
       final end = _periodEndInclusive(start, granularity);
       var total = 0;
-      var sessionCount = 0;
       var activeDays = 0;
+      final periodSessions = <int>{};
       for (
         var day = start;
         !day.isAfter(end) && !day.isAfter(today);
@@ -253,8 +269,9 @@ final class StatisticsService {
         final seconds = bundle.dailyTotals[day] ?? 0;
         total += seconds;
         if (seconds > 0) activeDays += 1;
-        sessionCount += sessionsByDay[day]?.length ?? 0;
+        periodSessions.addAll(sessionsByDay[day] ?? const []);
       }
+      final sessionCount = periodSessions.length;
       final prior = previousTotal;
       rows.add(
         SummaryPeriodRow(

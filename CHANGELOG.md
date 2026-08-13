@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Statistics review fixes: the heatmap's **Open in Learning Log** now matches sessions *active* on that local day (a cross-midnight session shows on both days, like the heatmap itself); summary-table session counts follow the same rule so allocated time never shows zero sessions; skill target/name edits refresh the summary, goal line, and projection; day-relative metrics (streak, 4-week average) reload when the local day rolls over; the fullscreen chart keeps a picked custom range.
 - Windows (and alias-reporting Android) timezones no longer silently degrade to UTC: the IANA database now includes link zones, so ICU ids like `Asia/Calcutta` resolve with the right offset. Before this, the skill editor capped "creation date" at the previous UTC day after local midnight and sessions stored `Etc/UTC` instead of the real zone.
 - Sessions completed outside the completion panel (Stop active and start this, startup force-complete of extra orphans) now get their Learning Log search (FTS) rows; renaming a skill rewrites the indexed skill name on its historical sessions; stop-and-start also refreshes an already-open Learning Log list.
 - Home skill search with no matches now says "No skills match your search." instead of the filter's empty message.

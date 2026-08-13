@@ -335,13 +335,16 @@ class _PracticeHeatmapState extends ConsumerState<PracticeHeatmap> {
       day.add(const Duration(days: 1)),
       timezones,
     );
+    // Overlap (not start-based) matching, so a cross-midnight session shows
+    // on every local day it contributed practice to — same rule the heatmap
+    // itself uses for allocation.
     ref
         .read(learningLogFiltersProvider.notifier)
         .setFilters(
           LearningLogFilters(
             skillIds: widget.scope.filterIds ?? const {},
-            startAfterUtc: dayStart,
-            endBeforeUtc: nextDayStart,
+            overlapStartUtc: dayStart,
+            overlapEndUtc: nextDayStart,
           ),
         );
     ref.read(appShellIndexProvider.notifier).setIndex(1);

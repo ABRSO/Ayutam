@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/time/duration_format.dart';
+import '../../../core/time/timezone_service.dart';
 import '../../skills/domain/skill.dart';
 import '../domain/statistics_models.dart';
 import 'cumulative_chart.dart';
@@ -19,8 +20,42 @@ class StatisticsScreen extends ConsumerStatefulWidget {
   ConsumerState<StatisticsScreen> createState() => _StatisticsScreenState();
 }
 
-class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
+class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
+    with WidgetsBindingObserver {
   var _view = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reloadIfDayRolledOver();
+    }
+  }
+
+  /// Streak, today-grace, and the 4-week window are day-relative; a bundle
+  /// computed yesterday must not survive past configured-local midnight.
+  void _reloadIfDayRolledOver() {
+    final bundle = ref.read(statsBundleProvider).asData?.value;
+    if (bundle == null) return;
+    final today = configuredLocalDayAt(
+      ref.read(clockServiceProvider).nowUtc(),
+      ref.read(timezoneServiceProvider),
+    );
+    if (bundle.generatedForDay != today) {
+      ref.invalidate(statsBundleProvider);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +63,9 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     final skills =
         ref.watch(allSkillsProvider).asData?.value ?? const <Skill>[];
     final scope = ref.watch(statsScopeProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _reloadIfDayRolledOver();
+    });
 
     return Scaffold(
       appBar: AppBar(title: const Text('Statistics')),

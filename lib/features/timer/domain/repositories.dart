@@ -34,11 +34,17 @@ abstract class SessionRepository {
   Future<int> sumCompletedActiveSeconds(String skillId);
 
   /// Completed (and optionally soft-deleted) sessions for Learning Log.
+  ///
+  /// [startAfterUtc]/[endBeforeUtc] match session start times (month paging);
+  /// [overlapStartUtc]/[overlapEndUtc] match sessions *active* during the
+  /// window (heatmap day link, cross-midnight aware).
   Future<List<PracticeSession>> listJournalSessions({
     Set<String>? ids,
     Set<String>? skillIds,
     DateTime? startAfterUtc,
     DateTime? endBeforeUtc,
+    DateTime? overlapStartUtc,
+    DateTime? overlapEndUtc,
     int? minActiveSeconds,
     int? maxActiveSeconds,
     bool? hasNote,
@@ -53,6 +59,8 @@ abstract class SessionRepository {
     Set<String>? skillIds,
     DateTime? startAfterUtc,
     DateTime? endBeforeUtc,
+    DateTime? overlapStartUtc,
+    DateTime? overlapEndUtc,
     int? minActiveSeconds,
     int? maxActiveSeconds,
     bool? hasNote,

@@ -368,6 +368,53 @@ void main() {
       expect(rows[1].isNew, isFalse);
     });
 
+    test('cross-midnight sessions count on both day rows', () async {
+      // 23:00 Aug 12 → 01:00 Aug 13 (UTC zone): one session, one slice.
+      final start = DateTime.utc(2026, 8, 12, 23);
+      final end = DateTime.utc(2026, 8, 13, 1);
+      final source = _FakeSource(
+        slices: [WorkSlice(skillId: 'a', startAtUtc: start, endAtUtc: end)],
+        sessions: [
+          CompletedSessionStat(
+            skillId: 'a',
+            startAtUtc: start,
+            endAtUtc: end,
+            activeSeconds: 7200,
+          ),
+        ],
+      );
+      final statsService = service(source);
+      final bundle = await statsService.load(const StatsScope.all());
+      final rows = statsService.summaryRows(
+        bundle: bundle,
+        granularity: SummaryGranularity.day,
+      );
+
+      final aug12 = rows.singleWhere(
+        (r) => r.periodStart == DateTime(2026, 8, 12),
+      );
+      final aug13 = rows.singleWhere(
+        (r) => r.periodStart == DateTime(2026, 8, 13),
+      );
+      // One hour allocated to each day; the session counts once per day, so
+      // neither row shows practice time with zero sessions.
+      expect(aug12.totalSeconds, 3600);
+      expect(aug12.sessionCount, 1);
+      expect(aug12.averageSessionSeconds, 3600);
+      expect(aug13.totalSeconds, 3600);
+      expect(aug13.sessionCount, 1);
+      // A week row counts the same session once, not twice.
+      final weekRows = statsService.summaryRows(
+        bundle: bundle,
+        granularity: SummaryGranularity.week,
+      );
+      final week = weekRows.singleWhere(
+        (r) => r.periodStart == DateTime(2026, 8, 10),
+      );
+      expect(week.sessionCount, 1);
+      expect(week.totalSeconds, 7200);
+    });
+
     test('a period after a zero period is marked New', () async {
       final start = today.subtract(const Duration(days: 2));
       final source = _FakeSource(

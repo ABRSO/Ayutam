@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
 import 'package:ayutam/core/time/timezone_service.dart';
@@ -5,10 +7,12 @@ import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/features/learning_log/application/indexed_session_completion.dart';
 import 'package:ayutam/features/learning_log/application/indexed_session_deletion.dart';
 import 'package:ayutam/features/learning_log/application/indexed_skill_rename.dart';
+import 'package:ayutam/features/learning_log/application/learning_log_service.dart';
 import 'package:ayutam/features/learning_log/application/session_note_service.dart';
 import 'package:ayutam/features/learning_log/application/tag_service.dart';
 import 'package:ayutam/features/learning_log/data/drift_tag_repository.dart';
 import 'package:ayutam/features/learning_log/data/session_search_indexer.dart';
+import 'package:ayutam/features/learning_log/domain/learning_log_models.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
 import 'package:ayutam/features/statistics/application/statistics_service.dart';
@@ -161,5 +165,60 @@ void main() {
       pianoBundle.dailyTotals.values.fold<int>(0, (a, b) => a + b),
       pianoRow.completedActiveSeconds,
     );
+
+    // Heatmap deep link: the Aug 2 IST overlap window must include the
+    // cross-midnight session that *started* on Aug 1 (start-based date
+    // filters would miss it) plus the Guitar session that day.
+    final log = LearningLogService(
+      sessions: DriftSessionRepository(db),
+      skills: skillRepo,
+      tags: DriftTagRepository(db),
+      indexer: SessionSearchIndexer(db),
+    );
+    final aug2Start = utcStartOfConfiguredDay(DateTime(2026, 8, 2), tz);
+    final aug3Start = utcStartOfConfiguredDay(DateTime(2026, 8, 3), tz);
+    final aug2Entries = await log.query(
+      LearningLogFilters(overlapStartUtc: aug2Start, overlapEndUtc: aug3Start),
+    );
+    expect(aug2Entries, hasLength(2));
+    expect(
+      aug2Entries.map((e) => e.skillName).toSet(),
+      unorderedEquals({'Piano', 'Guitar'}),
+    );
+
+    // The summary table counts the cross-midnight session on both days.
+    final rows = stats.summaryRows(
+      bundle: bundle,
+      granularity: SummaryGranularity.day,
+    );
+    final aug1Row = rows.singleWhere(
+      (r) => r.periodStart == DateTime(2026, 8, 1),
+    );
+    final aug2Row = rows.singleWhere(
+      (r) => r.periodStart == DateTime(2026, 8, 2),
+    );
+    expect(aug1Row.sessionCount, 2); // 40m daytime + cross-midnight start
+    expect(aug2Row.sessionCount, 2); // cross-midnight spill + Guitar
+    expect(aug2Row.totalSeconds, (60 + 30) * 60);
+  });
+
+  test('watchChanges fires when a skill row changes', () async {
+    final source = DriftStatisticsSource(db);
+    final skill = (await skills.create(name: 'Piano')).valueOrNull!;
+
+    var events = 0;
+    final second = Completer<void>();
+    final sub = source.watchChanges().listen((_) {
+      events += 1;
+      if (events >= 2 && !second.isCompleted) second.complete();
+    });
+    // Let the initial emission land before mutating.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final updated = await skills.update(id: skill.id, targetSeconds: 42 * 3600);
+    expect(updated.isSuccess, isTrue);
+
+    await second.future.timeout(const Duration(seconds: 5));
+    await sub.cancel();
   });
 }

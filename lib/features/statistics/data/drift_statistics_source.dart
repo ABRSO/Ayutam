@@ -57,7 +57,7 @@ ORDER BY g.start_at_utc
     final rows = await _db
         .customSelect(
           '''
-SELECT skill_id, start_at_utc, active_seconds
+SELECT skill_id, start_at_utc, end_at_utc, active_seconds
 FROM sessions s
 WHERE s.status = 'completed'
   AND s.deleted_at_utc IS NULL
@@ -79,6 +79,12 @@ ORDER BY start_at_utc
             row.read<int>('start_at_utc'),
             isUtc: true,
           ),
+          endAtUtc: row.readNullable<int>('end_at_utc') == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(
+                  row.read<int>('end_at_utc'),
+                  isUtc: true,
+                ),
           activeSeconds: row.read<int>('active_seconds'),
         ),
     ];
@@ -86,12 +92,14 @@ ORDER BY start_at_utc
 
   @override
   Stream<void> watchChanges() {
-    // Cheap trigger: any insert/update/soft-delete bumps one of these.
+    // Cheap trigger: session writes and skill edits (target/name feed the
+    // summary card, goal line, and projection) both bump this.
     return _db
         .customSelect(
-          'SELECT COUNT(*) AS c, IFNULL(MAX(updated_at_utc), 0) AS m '
-          'FROM sessions',
-          readsFrom: {_db.sessions},
+          'SELECT (SELECT COUNT(*) FROM sessions) AS c, '
+          '(SELECT IFNULL(MAX(updated_at_utc), 0) FROM sessions) AS m, '
+          '(SELECT IFNULL(MAX(updated_at_utc), 0) FROM skills) AS sm',
+          readsFrom: {_db.sessions, _db.skills},
         )
         .watch()
         .map((_) {});

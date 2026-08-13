@@ -20,10 +20,14 @@ final class CompletedSessionStat {
     required this.skillId,
     required this.startAtUtc,
     required this.activeSeconds,
+    this.endAtUtc,
   });
 
   final String skillId;
   final DateTime startAtUtc;
+
+  /// Needed so cross-midnight sessions count on every local day they touch.
+  final DateTime? endAtUtc;
   final int activeSeconds;
 }
 
@@ -187,6 +191,7 @@ final class StatsBundle {
     required this.sessions,
     required this.firstActivityDay,
     required this.hasAnyCompletedSession,
+    required this.generatedForDay,
   });
 
   final StatsSummary summary;
@@ -205,4 +210,8 @@ final class StatsBundle {
 
   /// Whether any completed session exists at all (empty-state routing).
   final bool hasAnyCompletedSession;
+
+  /// Configured local day the streak / 4-week average / projection were
+  /// computed for. The screen reloads when the calendar day rolls past it.
+  final DateTime generatedForDay;
 }

@@ -132,8 +132,73 @@ void main() {
 
     expect(container.read(appShellIndexProvider), 1);
     final filters = container.read(learningLogFiltersProvider);
-    expect(filters.startAfterUtc, DateTime.utc(2026, 8, 6));
-    expect(filters.endBeforeUtc, DateTime.utc(2026, 8, 7));
+    // Overlap window (not start-based) so cross-midnight sessions that
+    // contributed to this day are included.
+    expect(filters.overlapStartUtc, DateTime.utc(2026, 8, 6));
+    expect(filters.overlapEndUtc, DateTime.utc(2026, 8, 7));
+    expect(filters.startAfterUtc, isNull);
+    expect(filters.endBeforeUtc, isNull);
+  });
+
+  testWidgets('day rollover reloads day-relative stats', (tester) async {
+    await completedSession();
+    await pumpStats(tester);
+    expect(find.text('1 day'), findsOneWidget);
+
+    // Two local days later with no new practice: streak grace has expired.
+    clock.advance(const Duration(hours: 49));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(find.text('0 days'), findsOneWidget);
+  });
+
+  testWidgets('fullscreen keeps the picked custom range', (tester) async {
+    final bundle = StatsBundle(
+      summary: const StatsSummary(
+        totalActiveSeconds: 3600,
+        sessionCount: 1,
+        streakDays: 0,
+        fourWeekAverageWeeklySeconds: 0,
+      ),
+      dailyTotals: {DateTime(2026, 8, 1): 3600},
+      dailyTotalsBySkill: const {},
+      sessions: const [],
+      firstActivityDay: DateTime(2026, 8, 1),
+      hasAnyCompletedSession: true,
+      generatedForDay: DateTime(2026, 8, 6),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: CumulativeChartView(
+              bundle: bundle,
+              scope: const StatsScope.all(),
+              skills: const [],
+              initialRange: ChartRange.custom,
+              initialCustomRange: DateTimeRange(
+                start: DateTime(2026, 8, 1),
+                end: DateTime(2026, 8, 5),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 Aug'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Fullscreen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cumulative practice'), findsOneWidget);
+    // The fullscreen chart (background route is offstage) still renders the
+    // custom window's first axis label; the old bug silently fell back to
+    // the last 30 days, which has no 1 Aug label.
+    expect(find.text('1 Aug'), findsOneWidget);
   });
 
   testWidgets('single-skill scope shows progress and projection line', (
