@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  flutter_riverpod: ^3.3.2
+  flutter_riverpod: ^3.4.2
   drift: ^2.34.3
   sqlite3: ^3.5.0
   sqlite3_flutter_libs: ^0.5.40
