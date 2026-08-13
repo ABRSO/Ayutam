@@ -25,9 +25,9 @@ Skill _skill({
 }
 
 void main() {
-  final active = _skill(
+  final inProgress = _skill(
     id: 'a',
-    name: 'Active Piano',
+    name: 'In-progress Piano',
     status: SkillStatus.active,
   );
   final done = _skill(
@@ -42,10 +42,10 @@ void main() {
     status: SkillStatus.archived,
     completed: 4000,
   );
-  final all = [active, done, archived];
+  final all = [inProgress, done, archived];
 
-  test('Home filters split active, completed, and archived', () {
-    expect(skillsForHomeFilter(all, SkillHomeFilter.active), [active]);
+  test('Home filters split in-progress, completed, and archived', () {
+    expect(skillsForHomeFilter(all, SkillHomeFilter.inProgress), [inProgress]);
     expect(skillsForHomeFilter(all, SkillHomeFilter.completed), [done]);
     expect(skillsForHomeFilter(all, SkillHomeFilter.archived), [archived]);
   });

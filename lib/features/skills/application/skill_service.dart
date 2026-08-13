@@ -3,6 +3,7 @@ import '../../../core/id/id_generator.dart';
 import '../../../core/result/result.dart';
 import '../../../core/theme/skill_accent_palette.dart';
 import '../../../core/time/clock_service.dart';
+import '../../../core/time/timezone_service.dart';
 import '../../timer/domain/repositories.dart';
 import '../domain/skill.dart';
 import '../domain/skill_repository.dart';
@@ -12,17 +13,20 @@ final class SkillService {
     required SkillRepository skills,
     required SessionRepository sessions,
     required ClockService clock,
+    required TimezoneService timezones,
     required IdGenerator ids,
     required Future<String> Function() deviceId,
   }) : _skills = skills,
        _sessions = sessions,
        _clock = clock,
+       _timezones = timezones,
        _ids = ids,
        _deviceId = deviceId;
 
   final SkillRepository _skills;
   final SessionRepository _sessions;
   final ClockService _clock;
+  final TimezoneService _timezones;
   final IdGenerator _ids;
   final Future<String> Function() _deviceId;
 
@@ -67,19 +71,25 @@ final class SkillService {
       );
     }
     final now = _clock.nowUtc();
-    final local = now.toLocal();
-    final defaultLocalDate =
-        '${local.year.toString().padLeft(4, '0')}-'
-        '${local.month.toString().padLeft(2, '0')}-'
-        '${local.day.toString().padLeft(2, '0')}';
+    final currentLocalDay = configuredLocalDayAt(now, _timezones);
+    final defaultLocalDate = formatLocalDay(currentLocalDay);
     final localDate = (createdLocalDate?.trim().isNotEmpty == true)
         ? createdLocalDate!.trim()
         : defaultLocalDate;
-    if (!_isValidLocalDate(localDate)) {
+    final parsedLocalDate = _parseLocalDate(localDate);
+    if (parsedLocalDate == null) {
       return const Failure(
         AppFailure(
           code: 'VAL-DATE',
           message: 'Creation date must be a valid YYYY-MM-DD date.',
+        ),
+      );
+    }
+    if (parsedLocalDate.isAfter(currentLocalDay)) {
+      return const Failure(
+        AppFailure(
+          code: 'VAL-FUTURE',
+          message: 'Creation date cannot be in the future.',
         ),
       );
     }
@@ -147,16 +157,26 @@ final class SkillService {
         ),
       );
     }
+    final now = _clock.nowUtc();
     final localDate = createdLocalDate?.trim();
-    if (localDate != null &&
-        localDate.isNotEmpty &&
-        !_isValidLocalDate(localDate)) {
-      return const Failure(
-        AppFailure(
-          code: 'VAL-DATE',
-          message: 'Creation date must be a valid YYYY-MM-DD date.',
-        ),
-      );
+    if (localDate != null && localDate.isNotEmpty) {
+      final parsedLocalDate = _parseLocalDate(localDate);
+      if (parsedLocalDate == null) {
+        return const Failure(
+          AppFailure(
+            code: 'VAL-DATE',
+            message: 'Creation date must be a valid YYYY-MM-DD date.',
+          ),
+        );
+      }
+      if (parsedLocalDate.isAfter(configuredLocalDayAt(now, _timezones))) {
+        return const Failure(
+          AppFailure(
+            code: 'VAL-FUTURE',
+            message: 'Creation date cannot be in the future.',
+          ),
+        );
+      }
     }
     final desc = descriptionMarkdown?.trim();
     final updated = existing.copyWith(
@@ -168,7 +188,7 @@ final class SkillService {
           ? null
           : localDate,
       accentArgb: accentArgb,
-      updatedAtUtc: _clock.nowUtc(),
+      updatedAtUtc: now,
     );
     await _skills.update(updated);
     return Success(updated);
@@ -229,15 +249,18 @@ final class SkillService {
     );
   }
 
-  static bool _isValidLocalDate(String value) {
+  static DateTime? _parseLocalDate(String value) {
     final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
     if (match == null) {
-      return false;
+      return null;
     }
     final year = int.parse(match.group(1)!);
     final month = int.parse(match.group(2)!);
     final day = int.parse(match.group(3)!);
     final parsed = DateTime(year, month, day);
-    return parsed.year == year && parsed.month == month && parsed.day == day;
+    if (parsed.year != year || parsed.month != month || parsed.day != day) {
+      return null;
+    }
+    return parsed;
   }
 }

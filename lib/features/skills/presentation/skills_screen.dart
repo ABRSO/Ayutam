@@ -20,7 +20,7 @@ class SkillsScreen extends ConsumerStatefulWidget {
 }
 
 class _SkillsScreenState extends ConsumerState<SkillsScreen> {
-  var _filter = SkillHomeFilter.active;
+  var _filter = SkillHomeFilter.inProgress;
   var _searching = false;
   final _searchController = TextEditingController();
 
@@ -124,7 +124,7 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
   }
 
   String _filterLabel(SkillHomeFilter filter) => switch (filter) {
-    SkillHomeFilter.active => 'Active',
+    SkillHomeFilter.inProgress => 'In Progress',
     SkillHomeFilter.completed => 'Completed',
     SkillHomeFilter.archived => 'Archived',
   };
@@ -178,7 +178,7 @@ class _FilterEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = switch (filter) {
-      SkillHomeFilter.active => 'No active skills.',
+      SkillHomeFilter.inProgress => 'No skills in progress.',
       SkillHomeFilter.completed => 'No completed skills.',
       SkillHomeFilter.archived => 'No archived skills.',
     };

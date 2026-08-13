@@ -56,6 +56,7 @@ void main() {
       skills: skillRepo,
       sessions: sessionRepo,
       clock: clock,
+      timezones: const FakeTimezoneService(),
       ids: ids,
       deviceId: db.requireDeviceId,
     );

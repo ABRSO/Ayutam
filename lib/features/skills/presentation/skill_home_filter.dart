@@ -1,11 +1,14 @@
 import '../domain/skill.dart';
 
-/// Home list chips: Active / Completed / Archived ([product-spec] §2.2).
-enum SkillHomeFilter { active, completed, archived }
+/// Home list chips: In Progress / Completed / Archived ([product-spec] §2.2).
+///
+/// "In Progress" is a derived target-progress view. The persisted lifecycle
+/// remains [SkillStatus.active] until the user archives the skill.
+enum SkillHomeFilter { inProgress, completed, archived }
 
 List<Skill> skillsForHomeFilter(List<Skill> skills, SkillHomeFilter filter) {
   return switch (filter) {
-    SkillHomeFilter.active =>
+    SkillHomeFilter.inProgress =>
       skills
           .where(
             (skill) =>

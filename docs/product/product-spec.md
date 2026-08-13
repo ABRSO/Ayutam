@@ -58,9 +58,9 @@ Design for at least **20 years**, **100 skills**, **100,000 sessions**, notes ~2
 
 ### 2.1 Skills
 
-**Fields (user-facing):** name (required), description (optional), target hours (default 10,000, configurable, > 0), creation date (default today in configured timezone, editable), accent colour (optional; auto-assigned from palette if unset).
+**Fields (user-facing):** name (required), description (optional), target hours (default 10,000, configurable, > 0), creation date (default today in configured timezone, editable, cannot be in the future), accent colour (optional; auto-assigned from palette if unset).
 
-**Internal lifecycle:** `active` | `archived`. **Completed** is derived when accumulated active time ≥ target; tracking continues past the target. Archive hides from Home and timer picker; history remains in Learning Log and Statistics. Restore un-hides.
+**Internal lifecycle:** `active` | `archived`. Home target-progress filters do not change that lifecycle: **In Progress** means a non-archived lifecycle-active skill below its target, while **Completed** means a non-archived lifecycle-active skill at or above its target. Completion is derived, and tracking can continue past the target. Archive hides from Home and timer picker; history remains in Learning Log and Statistics. Restore un-hides.
 
 **Lifecycle actions:** rename, change target/description/colour/creation date, archive, restore, permanent delete. Permanent delete requires typing the skill name, shows affected session count/duration, recommends backup, creates a local safety snapshot first.
 
@@ -74,7 +74,7 @@ Vertically stacked skill panels for active (non-archived) skills:
 - **Play** → pre-session sheet → immersive timer.
 - Card body expand → last ~5 sessions + “View all in Learning Log” + overflow (edit / archive / delete / export Markdown).
 - **+ New Skill** (FAB mobile, toolbar desktop).
-- Filters: Active / Completed / Archived. Search when many skills.
+- Filters: In Progress / Completed / Archived. Search when many skills.
 - Subtle backup-due banner when reminder fires.
 - Empty state: guided “Create your first skill…”.
 

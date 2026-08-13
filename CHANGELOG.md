@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Home Active / Completed / Archived filters, skill search, Restore from Archived, expandable last-five sessions, and accent-colour picker on create/edit.
+- Home In Progress / Completed / Archived filters, skill search, Restore from Archived, expandable last-five sessions, and accent-colour picker on create/edit. In Progress and Completed are derived from target progress without changing the active lifecycle or stopping further tracking.
 - In-app **Reduced motion** setting (OR’d with the platform disable-animations flag) stored in `app_settings`.
 - 8-hour long-session warning on the timer (never auto-stops).
 - Phase 3: completion notes/tags with Markdown Edit/Preview (`flutter_markdown_plus`) and debounced autosave; Learning Log list/search/filters/detail (desktop two-pane); **month-based lazy loading**; manual session entry with overlap warning; edit/delete with Undo (edit includes skill and start/end with a totals warning); FTS5 `session_search` (schema v2); skill “View all in Learning Log”.
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Leaving a running timer shows a reminder that the session is still running and can be reopened from the skill's Play button.
 - Cold start with an active/paused session pushes the timer above Skills (instead of replacing home), so the back control works the same as after Play → Start.
 - Archiving a skill is blocked while that skill has an active, paused, or completion-pending session.
-- Skill editor rejects non-positive / non-numeric target hours instead of silently saving 10,000 h; description and creation date are editable.
+- Skill editor rejects non-positive / non-numeric target hours instead of silently saving 10,000 h; description and creation date are editable, and creation dates are limited to the configured local day or earlier in both the UI and application service.
 - Starting a stopwatch always rejects when any in-progress session exists, even if `timer_runtime` was left idle; startup re-binds idle runtime to stray sessions.
 - Android edge-to-edge: transparent system bars (no white nav-bar strip / contrast scrim); predictive-back callback enabled in the manifest.
 - Completion screen keeps Save / Resume / Discard on-screen without scrolling on normal viewports (padding no longer forces a 48px scroll); still scroll-safe on very short landscape heights.

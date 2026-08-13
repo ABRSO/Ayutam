@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/skill_accent_palette.dart';
+import '../../../core/time/timezone_service.dart';
 import '../domain/skill.dart';
 
 Future<bool> showSkillEditorSheet(BuildContext context, {Skill? skill}) async {
@@ -39,11 +40,7 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
   void initState() {
     super.initState();
     final skill = widget.skill;
-    final now = DateTime.now();
-    final today =
-        '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
+    final today = _currentLocalDay();
     _nameController = TextEditingController(text: skill?.name ?? '');
     _hoursController = TextEditingController(
       text: ((skill?.targetSeconds ?? AppConstants.defaultTargetSeconds) / 3600)
@@ -54,7 +51,7 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
       text: skill?.descriptionMarkdown ?? '',
     );
     _createdDateController = TextEditingController(
-      text: skill?.createdLocalDate ?? today,
+      text: skill?.createdLocalDate ?? formatLocalDay(today),
     );
     _accentArgb = skill?.accentArgb ?? 0;
   }
@@ -82,23 +79,26 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
   }
 
   Future<void> _pickCreatedDate() async {
+    final today = _currentLocalDay();
     final parsed = DateTime.tryParse(_createdDateController.text.trim());
-    final initial = parsed ?? DateTime.now();
+    final initial = parsed != null && !parsed.isAfter(today) ? parsed : today;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime(1970),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: today,
     );
     if (picked == null) {
       return;
     }
     setState(() {
-      _createdDateController.text =
-          '${picked.year.toString().padLeft(4, '0')}-'
-          '${picked.month.toString().padLeft(2, '0')}-'
-          '${picked.day.toString().padLeft(2, '0')}';
+      _createdDateController.text = formatLocalDay(picked);
     });
+  }
+
+  DateTime _currentLocalDay() {
+    final now = ref.read(clockServiceProvider).nowUtc();
+    return configuredLocalDayAt(now, ref.read(timezoneServiceProvider));
   }
 
   Future<void> _submit({bool allowDuplicateName = false}) async {

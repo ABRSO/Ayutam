@@ -58,9 +58,13 @@ Timer is nested because it only exists after choosing a skill.
 
 ### 4.1 Skills (Home)
 
-**Mobile:** App bar (name, search, overflow), optional backup-due banner, filter chips Active/Completed/Archived, single-column panels, Create Skill FAB/prominent button, bottom nav visible unless sheet open.
+**Mobile:** App bar (name, search, overflow), optional backup-due banner, filter chips In Progress/Completed/Archived, single-column panels, Create Skill FAB/prominent button, bottom nav visible unless sheet open.
 
 **Desktop:** Left rail; centered skill list max width ~900–1100; Create in toolbar; optional persistent search. Do not turn Home into a multi-column dashboard.
+
+**Filter semantics:** In Progress shows non-archived lifecycle-active skills below their target. Completed shows non-archived lifecycle-active skills at or above their target. Target completion is derived; the skill remains lifecycle-active and can keep accumulating practice.
+
+**Skill editor:** Creation date defaults to today in the configured timezone. Its date picker ends at today, and service validation rejects future dates from any caller.
 
 **Skill panel:**
 
@@ -238,6 +242,8 @@ Full state detail: [timer-state-machine.md](../architecture/timer-state-machine.
 | Search no results | No sessions match the current search and filters. | Clear Filters |
 | Stats empty | Complete a session to begin building your progress chart. | — |
 | Never backed up | Your progress currently exists only on this device. | Create Backup |
+| In Progress empty | No skills in progress. | — |
+| Completed empty | No completed skills. | — |
 | Archived empty | No archived skills. | — |
 
 No blame language; one primary next action; illustrations optional.

@@ -1,6 +1,7 @@
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/theme/skill_accent_palette.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
@@ -12,16 +13,22 @@ void main() {
   late FakeClockService clock;
   late AppDatabase db;
   late SkillService skills;
+  late DriftSkillRepository repository;
 
   setUp(() async {
-    clock = FakeClockService(initialUtc: DateTime.utc(2026, 8, 13, 12));
+    clock = FakeClockService(initialUtc: DateTime.utc(2026, 8, 13, 22, 30));
     const ids = UuidIdGenerator();
     db = AppDatabase.memory(clock: clock, ids: ids);
     await db.ensureSeeded(clock: clock, ids: ids);
+    repository = DriftSkillRepository(db);
     skills = SkillService(
-      skills: DriftSkillRepository(db),
+      skills: repository,
       sessions: DriftSessionRepository(db),
       clock: clock,
+      timezones: const FakeTimezoneService(
+        ianaId: 'Asia/Kolkata',
+        offsetMinutes: 330,
+      ),
       ids: ids,
       deviceId: () async => 'device',
     );
@@ -56,6 +63,42 @@ void main() {
     );
     expect(updated.isSuccess, isTrue);
     expect(updated.valueOrNull!.accentArgb, SkillAccentPalette.toArgb(next));
+  });
+
+  test('create rejects a date after the configured local day', () async {
+    final result = await skills.create(
+      name: 'Future skill',
+      createdLocalDate: '2026-08-15',
+    );
+
+    expect(
+      result.when(success: (_) => '', failure: (failure) => failure.code),
+      'VAL-FUTURE',
+    );
+    expect(
+      result.when(success: (_) => '', failure: (failure) => failure.message),
+      'Creation date cannot be in the future.',
+    );
+    expect(await repository.listNonDeleted(), isEmpty);
+  });
+
+  test('update rejects a future date without changing the skill', () async {
+    final created = (await skills.create(name: 'Painting')).valueOrNull!;
+    expect(created.createdLocalDate, '2026-08-14');
+
+    final result = await skills.update(
+      id: created.id,
+      createdLocalDate: '2026-08-15',
+    );
+
+    expect(
+      result.when(success: (_) => '', failure: (failure) => failure.code),
+      'VAL-FUTURE',
+    );
+    expect(
+      (await repository.findById(created.id))!.createdLocalDate,
+      '2026-08-14',
+    );
   });
 
   test('archive then restore returns the skill to active', () async {

@@ -96,6 +96,7 @@ final skillServiceProvider = Provider<SkillService>((ref) {
     skills: ref.watch(skillRepositoryProvider),
     sessions: ref.watch(sessionRepositoryProvider),
     clock: ref.watch(clockServiceProvider),
+    timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),
     deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
   );
