@@ -2,6 +2,7 @@ import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
 import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/learning_log/application/indexed_session_deletion.dart';
 import 'package:ayutam/features/learning_log/application/learning_log_service.dart';
 import 'package:ayutam/features/learning_log/application/session_note_service.dart';
 import 'package:ayutam/features/learning_log/application/tag_service.dart';
@@ -16,6 +17,7 @@ import 'package:ayutam/features/timer/data/drift_session_repository.dart';
 import 'package:ayutam/features/timer/data/drift_timer_runtime_repository.dart';
 import 'package:ayutam/features/timer/data/drift_unit_of_work.dart';
 import 'package:ayutam/features/timer/domain/models.dart';
+import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_test/flutter_test.dart';
 
 class _SeqIds implements IdGenerator {
@@ -62,6 +64,10 @@ void main() {
       runtime: runtimeRepo,
       skills: skillRepo,
       uow: uow,
+      sessionDeletion: IndexedSessionDeletion(
+        sessions: sessionRepo,
+        indexer: indexer,
+      ),
       clock: clock,
       timezones: const FakeTimezoneService(),
       ids: ids,
@@ -645,5 +651,37 @@ void main() {
     await timer.saveCompletion();
     final entry = await log.getEntry(pending.id);
     expect(entry!.session.activeSeconds, 15 * 60);
+  });
+
+  test('discard after draft index removes FTS row', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    clock.advance(const Duration(minutes: 5));
+    await timer.stop();
+    final sessionId = (await timer.snapshot()).session!.id;
+    await notes.updateDraft(
+      sessionId: sessionId,
+      title: 'DiscardMeTitle',
+      updateTitle: true,
+      noteMarkdown: 'DiscardMeNote unique token',
+      updateNote: true,
+    );
+    expect(
+      await indexer.searchSessionIds('DiscardMeNote'),
+      contains(sessionId),
+    );
+
+    expect((await timer.discardCompletion()).isSuccess, isTrue);
+    expect(await indexer.searchSessionIds('DiscardMeNote'), isEmpty);
+    expect(await indexer.searchSessionIds('DiscardMeTitle'), isEmpty);
+    expect(await DriftSessionRepository(db).findById(sessionId), isNull);
+
+    final leftover = await db
+        .customSelect(
+          'SELECT session_id FROM session_search WHERE session_id = ?',
+          variables: [Variable.withString(sessionId)],
+        )
+        .get();
+    expect(leftover, isEmpty);
   });
 }

@@ -5,6 +5,7 @@ import '../core/logging/app_logger.dart';
 import '../core/time/clock_service.dart';
 import '../core/time/timezone_service.dart';
 import '../database/app_database.dart';
+import '../features/learning_log/application/indexed_session_deletion.dart';
 import '../features/learning_log/application/learning_log_service.dart';
 import '../features/learning_log/application/session_note_service.dart';
 import '../features/learning_log/application/tag_service.dart';
@@ -87,6 +88,7 @@ final stopwatchTimerServiceProvider = Provider<StopwatchTimerService>((ref) {
     runtime: ref.watch(timerRuntimeRepositoryProvider),
     skills: ref.watch(skillRepositoryProvider),
     uow: ref.watch(unitOfWorkProvider),
+    sessionDeletion: ref.watch(permanentSessionDeletionProvider),
     clock: ref.watch(clockServiceProvider),
     timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),
@@ -100,6 +102,15 @@ final tagRepositoryProvider = Provider<TagRepository>((ref) {
 
 final sessionSearchIndexerProvider = Provider<SessionSearchIndexer>((ref) {
   return SessionSearchIndexer(ref.watch(appDatabaseProvider));
+});
+
+final permanentSessionDeletionProvider = Provider<PermanentSessionDeletion>((
+  ref,
+) {
+  return IndexedSessionDeletion(
+    sessions: ref.watch(sessionRepositoryProvider),
+    indexer: ref.watch(sessionSearchIndexerProvider),
+  );
 });
 
 final tagServiceProvider = Provider<TagService>((ref) {

@@ -76,3 +76,11 @@ abstract class TimerRuntimeRepository {
 abstract class UnitOfWork {
   Future<T> write<T>(Future<T> Function() action);
 }
+
+/// Hard-deletes a session and dependent rows (segments, FTS).
+///
+/// Call only from inside an existing [UnitOfWork] write so FTS and SQL
+/// stay in one transaction. Timer code must not talk to FTS directly.
+abstract class PermanentSessionDeletion {
+  Future<void> delete(String sessionId);
+}

@@ -12,7 +12,8 @@ import '../../learning_log/presentation/learning_log_format.dart';
 import '../../learning_log/presentation/session_time_picker.dart';
 import '../../learning_log/presentation/widgets/markdown_note_editor.dart';
 import '../../learning_log/presentation/widgets/tag_chip_input.dart';
-import '../../timer/domain/models.dart';
+import '../application/completion_draft_gate.dart';
+import '../domain/models.dart';
 import 'timer_screen.dart';
 
 enum _NoteSaveStatus { idle, saving, saved, failed }
@@ -300,65 +301,71 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
             onEditTime: session == null ? null : () => _editTimes(session),
             onSave: () async {
               final id = _sessionId;
-              if (id != null) {
-                final saved = await _flushSave(id);
-                if (!saved) {
+              final proceeded = await afterSuccessfulDraftPersist(
+                persistDraft: () async {
+                  if (id == null) return true;
+                  return _flushSave(id);
+                },
+                action: () async {
+                  final error = await ref
+                      .read(timerSessionProvider.notifier)
+                      .saveCompletion();
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Could not save the note. The session was not completed.',
-                      ),
+                  if (error != null) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(error)));
+                    return;
+                  }
+                  ref.invalidate(activeSkillsProvider);
+                  ref.invalidate(learningLogListProvider);
+                  await _goHome(context, ref);
+                },
+              );
+              if (!proceeded && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Could not save the note. The session was not completed.',
                     ),
-                  );
-                  return;
-                }
+                  ),
+                );
               }
-              final error = await ref
-                  .read(timerSessionProvider.notifier)
-                  .saveCompletion();
-              if (!context.mounted) return;
-              if (error != null) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(error)));
-                return;
-              }
-              ref.invalidate(activeSkillsProvider);
-              ref.invalidate(learningLogListProvider);
-              await _goHome(context, ref);
             },
             onResume: () async {
               final id = _sessionId;
-              if (id != null) {
-                final saved = await _flushSave(id);
-                if (!saved) {
+              final proceeded = await afterSuccessfulDraftPersist(
+                persistDraft: () async {
+                  if (id == null) return true;
+                  return _flushSave(id);
+                },
+                action: () async {
+                  final error = await ref
+                      .read(timerSessionProvider.notifier)
+                      .resumeFromCompletion();
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Could not save the note. Resume was not started.',
-                      ),
+                  if (error != null) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(error)));
+                    return;
+                  }
+                  await Navigator.of(context).pushReplacement(
+                    MaterialPageRoute<void>(
+                      builder: (_) => TimerScreen(skillId: widget.skillId),
                     ),
                   );
-                  return;
-                }
-              }
-              final error = await ref
-                  .read(timerSessionProvider.notifier)
-                  .resumeFromCompletion();
-              if (!context.mounted) return;
-              if (error != null) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(error)));
-                return;
-              }
-              await Navigator.of(context).pushReplacement(
-                MaterialPageRoute<void>(
-                  builder: (_) => TimerScreen(skillId: widget.skillId),
-                ),
+                },
               );
+              if (!proceeded && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Could not save the note. Resume was not started.',
+                    ),
+                  ),
+                );
+              }
             },
             onDiscard: () async {
               final ok = await showDialog<bool>(

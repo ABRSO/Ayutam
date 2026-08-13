@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Mobile Learning Log detail reloads the session by id after edit instead of keeping the navigation snapshot.
 - Completion panel shows paused duration and **Edit Time** (pending session start/end); Save/Resume wait for a successful draft persist.
 - Learning Log end-date filters use exclusive next-local-midnight so sessions in the last second of the day are included.
+- Discarding a completion-pending session also removes its FTS `session_search` row.
 - Schema v3 rebuilds FTS so existing Learning Log rows include searchable date tokens.
 - Pre-session (and skill editor) sheets stay usable in short Android landscape: height-capped, safe-area aware, with actions pinned below a scrollable body so Start / Cancel / Open active timer are not clipped off-screen.
 - Pre-session sheet now resolves an in-progress session with **Open active timer** / **Stop active and start this** / **Cancel** instead of a dead-end "another session is already in progress" message, so a running session can be reopened without restarting the app. It also shows accumulated/target time and an explicit Cancel action.
