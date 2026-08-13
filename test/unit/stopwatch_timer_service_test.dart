@@ -2,7 +2,9 @@ import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
 import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/learning_log/application/indexed_session_completion.dart';
 import 'package:ayutam/features/learning_log/application/indexed_session_deletion.dart';
+import 'package:ayutam/features/learning_log/application/indexed_skill_rename.dart';
 import 'package:ayutam/features/learning_log/data/session_search_indexer.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
@@ -29,6 +31,7 @@ void main() {
   late AppDatabase db;
   late SkillService skills;
   late StopwatchTimerService timer;
+  late SessionSearchIndexer indexer;
 
   setUp(() async {
     clock = FakeClockService(initialUtc: DateTime.utc(2026, 7, 22, 12));
@@ -39,13 +42,15 @@ void main() {
     final sessionRepo = DriftSessionRepository(db);
     final runtimeRepo = DriftTimerRuntimeRepository(db);
     final uow = DriftUnitOfWork(db);
+    indexer = SessionSearchIndexer(db);
     final sessionDeletion = IndexedSessionDeletion(
       sessions: sessionRepo,
-      indexer: SessionSearchIndexer(db),
+      indexer: indexer,
     );
     skills = SkillService(
       skills: skillRepo,
       sessions: sessionRepo,
+      searchReindexing: IndexedSkillRename(indexer),
       clock: clock,
       timezones: const FakeTimezoneService(),
       ids: ids,
@@ -57,6 +62,10 @@ void main() {
       skills: skillRepo,
       uow: uow,
       sessionDeletion: sessionDeletion,
+      sessionIndexing: IndexedSessionCompletion(
+        sessions: sessionRepo,
+        indexer: indexer,
+      ),
       clock: clock,
       timezones: const FakeTimezoneService(),
       ids: ids,
@@ -321,6 +330,50 @@ void main() {
     },
   );
 
+  test('saveCompletion indexes the session for Learning Log search', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    clock.advance(const Duration(minutes: 4));
+    await timer.stop();
+    final sessionId = (await timer.snapshot()).session!.id;
+
+    // Save without touching the completion panel (stop-and-start path).
+    expect((await timer.saveCompletion()).isSuccess, isTrue);
+
+    expect(await indexer.searchSessionIds('Piano'), contains(sessionId));
+  });
+
+  test('startup force-complete of extra orphans indexes them', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    final now = clock.nowUtc();
+    // Second in-progress row as if a crash interrupted an earlier session.
+    final extra = PracticeSession(
+      id: 'extra-orphan',
+      skillId: skillId,
+      mode: SessionMode.stopwatch,
+      status: SessionStatus.active,
+      source: 'timer',
+      startAtUtc: now.subtract(const Duration(hours: 2)),
+      activeSeconds: 0,
+      pausedSeconds: 0,
+      timezoneIdAtCreation: 'UTC',
+      offsetMinutesAtStart: 0,
+      createdAtUtc: now.subtract(const Duration(hours: 2)),
+      updatedAtUtc: now.subtract(const Duration(hours: 2)),
+      sourceDeviceId: 'device',
+    );
+    await DriftSessionRepository(db).insertSession(extra);
+    await DriftTimerRuntimeRepository(db).clearToIdle(updatedAtUtc: now);
+
+    final route = await timer.recoverOnStartup();
+    expect(route.isSuccess, isTrue);
+
+    final completed = await DriftSessionRepository(db).findById('extra-orphan');
+    expect(completed!.status, SessionStatus.completed);
+    expect(await indexer.searchSessionIds('Piano'), contains('extra-orphan'));
+  });
+
   test('orphan paused session without heartbeat restores paused', () async {
     final skillId = await createSkill();
     await timer.startStopwatch(skillId);
@@ -458,6 +511,10 @@ void main() {
       skills: DriftSkillRepository(db),
       uow: DriftUnitOfWork(db),
       sessionDeletion: IndexedSessionDeletion(
+        sessions: DriftSessionRepository(db),
+        indexer: SessionSearchIndexer(db),
+      ),
+      sessionIndexing: IndexedSessionCompletion(
         sessions: DriftSessionRepository(db),
         indexer: SessionSearchIndexer(db),
       ),

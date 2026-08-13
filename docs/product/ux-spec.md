@@ -245,6 +245,7 @@ Full state detail: [timer-state-machine.md](../architecture/timer-state-machine.
 | In Progress empty | No skills in progress. | — |
 | Completed empty | No completed skills. | — |
 | Archived empty | No archived skills. | — |
+| Skill search no results (Home) | No skills match your search. | — |
 
 No blame language; one primary next action; illustrations optional.
 

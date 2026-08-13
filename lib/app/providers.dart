@@ -5,7 +5,9 @@ import '../core/logging/app_logger.dart';
 import '../core/time/clock_service.dart';
 import '../core/time/timezone_service.dart';
 import '../database/app_database.dart';
+import '../features/learning_log/application/indexed_session_completion.dart';
 import '../features/learning_log/application/indexed_session_deletion.dart';
+import '../features/learning_log/application/indexed_skill_rename.dart';
 import '../features/learning_log/application/learning_log_service.dart';
 import '../features/learning_log/application/session_note_service.dart';
 import '../features/learning_log/application/tag_service.dart';
@@ -95,6 +97,9 @@ final skillServiceProvider = Provider<SkillService>((ref) {
   return SkillService(
     skills: ref.watch(skillRepositoryProvider),
     sessions: ref.watch(sessionRepositoryProvider),
+    searchReindexing: IndexedSkillRename(
+      ref.watch(sessionSearchIndexerProvider),
+    ),
     clock: ref.watch(clockServiceProvider),
     timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),
@@ -109,6 +114,10 @@ final stopwatchTimerServiceProvider = Provider<StopwatchTimerService>((ref) {
     skills: ref.watch(skillRepositoryProvider),
     uow: ref.watch(unitOfWorkProvider),
     sessionDeletion: ref.watch(permanentSessionDeletionProvider),
+    sessionIndexing: IndexedSessionCompletion(
+      sessions: ref.watch(sessionRepositoryProvider),
+      indexer: ref.watch(sessionSearchIndexerProvider),
+    ),
     clock: ref.watch(clockServiceProvider),
     timezones: ref.watch(timezoneServiceProvider),
     ids: ref.watch(idGeneratorProvider),

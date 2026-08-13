@@ -51,6 +51,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS session_search USING fts5(
     );
   }
 
+  /// Rewrites `skill_name` on every indexed session of [skillId] after a
+  /// rename, reading the current name from `skills`.
+  Future<void> updateSkillName(String skillId) async {
+    await _db.customStatement(
+      'UPDATE session_search '
+      'SET skill_name = (SELECT name FROM skills WHERE id = ?) '
+      'WHERE session_id IN (SELECT id FROM sessions WHERE skill_id = ?)',
+      [skillId, skillId],
+    );
+  }
+
   /// Rebuilds the entire FTS index from completed / completion_pending sessions.
   Future<void> rebuildAll() async {
     await _db.customStatement('DELETE FROM session_search');

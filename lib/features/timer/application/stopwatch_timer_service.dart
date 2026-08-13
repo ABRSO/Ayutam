@@ -16,6 +16,7 @@ final class StopwatchTimerService {
     required SkillRepository skills,
     required UnitOfWork uow,
     required PermanentSessionDeletion sessionDeletion,
+    required CompletedSessionIndexing sessionIndexing,
     required ClockService clock,
     required TimezoneService timezones,
     required IdGenerator ids,
@@ -25,6 +26,7 @@ final class StopwatchTimerService {
        _skills = skills,
        _uow = uow,
        _sessionDeletion = sessionDeletion,
+       _sessionIndexing = sessionIndexing,
        _clock = clock,
        _timezones = timezones,
        _ids = ids,
@@ -35,6 +37,7 @@ final class StopwatchTimerService {
   final SkillRepository _skills;
   final UnitOfWork _uow;
   final PermanentSessionDeletion _sessionDeletion;
+  final CompletedSessionIndexing _sessionIndexing;
   final ClockService _clock;
   final TimezoneService _timezones;
   final IdGenerator _ids;
@@ -398,6 +401,9 @@ final class StopwatchTimerService {
       await _sessions.updateSession(
         session.copyWith(status: SessionStatus.completed, updatedAtUtc: now),
       );
+      // Sessions saved without the completion panel (e.g. stop-and-start)
+      // would otherwise never reach the FTS index.
+      await _sessionIndexing.indexSession(session.id);
       await _runtime.clearToIdle(updatedAtUtc: now);
       return Success(await snapshot());
     });
@@ -946,6 +952,7 @@ final class StopwatchTimerService {
         updatedAtUtc: now,
       ),
     );
+    await _sessionIndexing.indexSession(session.id);
   }
 
   Future<void> _reattachRuntimeToSession(

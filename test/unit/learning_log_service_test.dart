@@ -2,7 +2,9 @@ import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
 import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/learning_log/application/indexed_session_completion.dart';
 import 'package:ayutam/features/learning_log/application/indexed_session_deletion.dart';
+import 'package:ayutam/features/learning_log/application/indexed_skill_rename.dart';
 import 'package:ayutam/features/learning_log/application/learning_log_service.dart';
 import 'package:ayutam/features/learning_log/application/session_note_service.dart';
 import 'package:ayutam/features/learning_log/application/tag_service.dart';
@@ -55,6 +57,7 @@ void main() {
     skills = SkillService(
       skills: skillRepo,
       sessions: sessionRepo,
+      searchReindexing: IndexedSkillRename(indexer),
       clock: clock,
       timezones: const FakeTimezoneService(),
       ids: ids,
@@ -66,6 +69,10 @@ void main() {
       skills: skillRepo,
       uow: uow,
       sessionDeletion: IndexedSessionDeletion(
+        sessions: sessionRepo,
+        indexer: indexer,
+      ),
+      sessionIndexing: IndexedSessionCompletion(
         sessions: sessionRepo,
         indexer: indexer,
       ),
@@ -144,6 +151,21 @@ void main() {
     expect(entry.session.noteMarkdown, contains('**chromatic**'));
     expect(entry.tags.map((t) => t.name), contains('Technique'));
     expect(entry.displayTitle, 'Scales');
+  });
+
+  test('skill rename refreshes FTS skill-name tokens', () async {
+    final skillId = await createSkill('Piano');
+    final sessionId = await completeTimedSession(
+      skillId: skillId,
+      note: 'Arpeggio drills',
+    );
+    expect(await indexer.searchSessionIds('Piano'), contains(sessionId));
+
+    final renamed = await skills.update(id: skillId, name: 'Sitar');
+    expect(renamed.isSuccess, isTrue);
+
+    expect(await indexer.searchSessionIds('Sitar'), contains(sessionId));
+    expect(await indexer.searchSessionIds('Piano'), isNot(contains(sessionId)));
   });
 
   test('autosave draft survives remount-style reload', () async {

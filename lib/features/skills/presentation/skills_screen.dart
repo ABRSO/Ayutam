@@ -20,6 +20,9 @@ class SkillsScreen extends ConsumerStatefulWidget {
 }
 
 class _SkillsScreenState extends ConsumerState<SkillsScreen> {
+  /// Centered list width on desktop ([ux-spec] §4.2: ~900–1100).
+  static const double _desktopListMaxWidth = 1000;
+
   var _filter = SkillHomeFilter.inProgress;
   var _searching = false;
   final _searchController = TextEditingController();
@@ -30,9 +33,20 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
     super.dispose();
   }
 
+  Future<void> _createSkill() async {
+    final saved = await showSkillEditorSheet(context);
+    if (saved && mounted) {
+      ref.invalidate(activeSkillsProvider);
+      ref.invalidate(allSkillsProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final skillsAsync = ref.watch(allSkillsProvider);
+    // Matches the AppShell rail breakpoint; ux-spec §4.2 puts Create in the
+    // toolbar and centers the list on desktop instead of using a FAB.
+    final desktop = MediaQuery.sizeOf(context).width >= 840;
 
     return Scaffold(
       appBar: AppBar(
@@ -60,6 +74,15 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
             },
             icon: Icon(_searching ? Icons.close : Icons.search),
           ),
+          if (desktop)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.tonalIcon(
+                onPressed: _createSkill,
+                icon: const Icon(Icons.add),
+                label: const Text('New Skill'),
+              ),
+            ),
         ],
       ),
       body: skillsAsync.when(
@@ -69,57 +92,62 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
           if (all.isEmpty) {
             return const _EmptySkillsState();
           }
+          final query = _searchController.text;
           final filtered = skillsMatchingQuery(
             skillsForHomeFilter(all, _filter),
-            _searchController.text,
+            query,
           );
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final filter in SkillHomeFilter.values)
-                        ChoiceChip(
-                          label: Text(_filterLabel(filter)),
-                          selected: _filter == filter,
-                          onSelected: (_) => setState(() => _filter = filter),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: filtered.isEmpty
-                    ? _FilterEmptyState(filter: _filter)
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          return _SkillCard(skill: filtered[index]);
-                        },
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _desktopListMaxWidth),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final filter in SkillHomeFilter.values)
+                            ChoiceChip(
+                              label: Text(_filterLabel(filter)),
+                              selected: _filter == filter,
+                              onSelected: (_) =>
+                                  setState(() => _filter = filter),
+                            ),
+                        ],
                       ),
+                    ),
+                  ),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? _FilterEmptyState(filter: _filter, searchQuery: query)
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              return _SkillCard(skill: filtered[index]);
+                            },
+                          ),
+                  ),
+                ],
               ),
-            ],
+            ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final saved = await showSkillEditorSheet(context);
-          if (saved && mounted) {
-            ref.invalidate(activeSkillsProvider);
-            ref.invalidate(allSkillsProvider);
-          }
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Skill'),
-        tooltip: 'Create skill',
-      ),
+      floatingActionButton: desktop
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _createSkill,
+              icon: const Icon(Icons.add),
+              label: const Text('New Skill'),
+              tooltip: 'Create skill',
+            ),
     );
   }
 
@@ -171,17 +199,21 @@ class _EmptySkillsState extends StatelessWidget {
 }
 
 class _FilterEmptyState extends StatelessWidget {
-  const _FilterEmptyState({required this.filter});
+  const _FilterEmptyState({required this.filter, this.searchQuery = ''});
 
   final SkillHomeFilter filter;
+  final String searchQuery;
 
   @override
   Widget build(BuildContext context) {
-    final text = switch (filter) {
-      SkillHomeFilter.inProgress => 'No skills in progress.',
-      SkillHomeFilter.completed => 'No completed skills.',
-      SkillHomeFilter.archived => 'No archived skills.',
-    };
+    // A live search means the emptiness comes from the query, not the filter.
+    final text = searchQuery.trim().isNotEmpty
+        ? 'No skills match your search.'
+        : switch (filter) {
+            SkillHomeFilter.inProgress => 'No skills in progress.',
+            SkillHomeFilter.completed => 'No completed skills.',
+            SkillHomeFilter.archived => 'No archived skills.',
+          };
     return Center(
       child: Text(text, style: Theme.of(context).textTheme.bodyLarge),
     );

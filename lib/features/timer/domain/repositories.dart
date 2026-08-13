@@ -90,3 +90,12 @@ abstract class UnitOfWork {
 abstract class PermanentSessionDeletion {
   Future<void> delete(String sessionId);
 }
+
+/// Upserts the FTS document for a session that just became `completed`.
+///
+/// Covers completions that bypass the completion panel (stop-and-start save,
+/// startup force-complete of extra orphans). Call only from inside an
+/// existing [UnitOfWork] write; timer code must not talk to FTS directly.
+abstract class CompletedSessionIndexing {
+  Future<void> indexSession(String sessionId);
+}

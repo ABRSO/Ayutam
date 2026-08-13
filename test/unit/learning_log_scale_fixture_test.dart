@@ -2,6 +2,7 @@ import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
 import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/learning_log/application/indexed_skill_rename.dart';
 import 'package:ayutam/features/learning_log/application/learning_log_service.dart';
 import 'package:ayutam/features/learning_log/application/session_note_service.dart';
 import 'package:ayutam/features/learning_log/application/tag_service.dart';
@@ -32,6 +33,7 @@ void main() {
       final skills = SkillService(
         skills: skillRepo,
         sessions: sessionRepo,
+        searchReindexing: IndexedSkillRename(indexer),
         clock: clock,
         timezones: const FakeTimezoneService(),
         ids: ids,

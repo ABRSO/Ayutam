@@ -1,5 +1,14 @@
 import 'skill.dart';
 
+/// Rewrites denormalized skill-name tokens in the session search index.
+///
+/// Learning Log FTS stores `skill_name` per session document, so a rename
+/// must refresh those tokens or historical sessions stop matching the new
+/// name. Skill code must not talk to FTS directly.
+abstract class SkillSearchReindexing {
+  Future<void> reindexSkillName(String skillId);
+}
+
 abstract class SkillRepository {
   Stream<List<Skill>> watchActiveSkillsWithProgress();
 

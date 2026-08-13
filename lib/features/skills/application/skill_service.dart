@@ -12,12 +12,14 @@ final class SkillService {
   SkillService({
     required SkillRepository skills,
     required SessionRepository sessions,
+    required SkillSearchReindexing searchReindexing,
     required ClockService clock,
     required TimezoneService timezones,
     required IdGenerator ids,
     required Future<String> Function() deviceId,
   }) : _skills = skills,
        _sessions = sessions,
+       _searchReindexing = searchReindexing,
        _clock = clock,
        _timezones = timezones,
        _ids = ids,
@@ -25,6 +27,7 @@ final class SkillService {
 
   final SkillRepository _skills;
   final SessionRepository _sessions;
+  final SkillSearchReindexing _searchReindexing;
   final ClockService _clock;
   final TimezoneService _timezones;
   final IdGenerator _ids;
@@ -191,6 +194,11 @@ final class SkillService {
       updatedAtUtc: now,
     );
     await _skills.update(updated);
+    if (trimmed != null && trimmed != existing.name) {
+      // FTS documents denormalize the skill name; refresh them on rename so
+      // historical sessions keep matching Learning Log searches.
+      await _searchReindexing.reindexSkillName(id);
+    }
     return Success(updated);
   }
 

@@ -280,6 +280,9 @@ class _ActiveSessionConflictActions extends ConsumerWidget {
       return;
     }
     ref.invalidate(activeSkillsProvider);
+    // The Learning Log list caches month pages; a session saved outside the
+    // completion panel must refresh it just like the panel's Save does.
+    ref.invalidate(learningLogListProvider);
     final startError = await notifier.startStopwatch(requested.id);
     if (startError != null) {
       messenger.showSnackBar(SnackBar(content: Text(startError)));

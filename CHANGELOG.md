@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Home In Progress / Completed / Archived filters, skill search, Restore from Archived, expandable last-five sessions, and accent-colour picker on create/edit. In Progress and Completed are derived from target progress without changing the active lifecycle or stopping further tracking.
+- Desktop Skills Home layout per UX spec: centered list (max width ~1000) and **New Skill** in the toolbar at the 840 dp rail breakpoint; the FAB remains on mobile.
 - In-app **Reduced motion** setting (OR’d with the platform disable-animations flag) stored in `app_settings`.
 - 8-hour long-session warning on the timer (never auto-stops).
 - Phase 3: completion notes/tags with Markdown Edit/Preview (`flutter_markdown_plus`) and debounced autosave; Learning Log list/search/filters/detail (desktop two-pane); **month-based lazy loading**; manual session entry with overlap warning; edit/delete with Undo (edit includes skill and start/end with a totals warning); FTS5 `session_search` (schema v2); skill “View all in Learning Log”.
@@ -34,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Sessions completed outside the completion panel (Stop active and start this, startup force-complete of extra orphans) now get their Learning Log search (FTS) rows; renaming a skill rewrites the indexed skill name on its historical sessions; stop-and-start also refreshes an already-open Learning Log list.
+- Home skill search with no matches now says "No skills match your search." instead of the filter's empty message.
 - Play → Open routes by persisted timer state: `completion_pending` opens Completion (not a fake Running timer); recovery opens Recovery Review.
 - Orphan running sessions no longer get `last_heartbeat_utc = now` before gap classification, so a missing heartbeat goes to Recovery Review instead of silently resuming.
 - Duplicate skill names now warn before create/save (still allowed after confirm).

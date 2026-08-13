@@ -3,6 +3,8 @@ import 'package:ayutam/core/theme/skill_accent_palette.dart';
 import 'package:ayutam/core/time/clock_service.dart';
 import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/learning_log/application/indexed_skill_rename.dart';
+import 'package:ayutam/features/learning_log/data/session_search_indexer.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
 import 'package:ayutam/features/skills/domain/skill.dart';
@@ -24,6 +26,7 @@ void main() {
     skills = SkillService(
       skills: repository,
       sessions: DriftSessionRepository(db),
+      searchReindexing: IndexedSkillRename(SessionSearchIndexer(db)),
       clock: clock,
       timezones: const FakeTimezoneService(
         ianaId: 'Asia/Kolkata',
