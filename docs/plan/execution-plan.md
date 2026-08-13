@@ -237,9 +237,23 @@ Defects found / fixes applied: none on this re-run. Gradle warned that `flutter_
 
 ### Exit criteria
 
-- [ ] Stats match Learning Log totals for fixtures.
-- [ ] Heatmap day opens filtered Log.
-- [ ] Projection/streak labeled correctly in UI.
+- [x] Stats match Learning Log totals for fixtures.
+- [x] Heatmap day opens filtered Log.
+- [x] Projection/streak labeled correctly in UI.
+
+Platform smoke (2026-08-14, see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
+
+| Check | Result |
+|---|---|
+| `flutter analyze` | ✅ No issues |
+| `flutter test` | ✅ All 136 tests passed |
+| **Windows** build + launch | ✅ `tool\win_build.bat --debug` → `ayutam.exe`; alive after 7 s (`WIN_SMOKE_OK`) |
+| **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → install + `am start` → `pidof` returned `7382` (`ANDROID_SMOKE_OK`) |
+| **Linux** build + launch (WSL) | ✅ `tool/wsl_build_linux.sh` via `tr -d '\r' \| bash` → `LINUX_SMOKE_OK` |
+
+Defects found during smoke: none in the app. Two harness gotchas: the WSL script needs CRLF stripping when the checkout is Windows-line-ended, and a WSL `flutter pub get` rewrites `.dart_tool/package_config.json` with Linux paths — re-run `flutter pub get` on Windows before building the APK (both recorded in the smoke doc).
+
+**Phase 4 notes (2026-08-14):** Implemented on `phase/4-statistics`. `StatisticsSource` (Drift) feeds a pure `StatisticsService`: work segments split across configured-timezone midnights (`allocateDailySeconds`, DST-refined, per [database.md §4](../architecture/database.md) — computed on demand, no cache table yet), global streak (120 s default threshold, today-grace frozen in tests), previous-28-complete-days **4-week average**, soft-language projection (unavailable when target reached / zero average / <7 days history). UI: scope control (single / all / compare ≤5, archived selectable), summary card, `fl_chart` **1.2.0** cumulative line chart behind an adapter (ADR-013) with range presets + custom picker, auto daily/weekly/monthly aggregation, milestone/goal lines, tooltips, fullscreen, and PNG export (`file_selector` **1.1.0** save dialog on desktop; Android writes to app documents — no save-dialog support there), custom heatmap (rolling 12 months/year windows, fixed buckets, day popover → filtered Learning Log via existing filters), summary table Day/Week/Month/Year (Monday weeks until the week-start setting ships) with % change / “New” / em dash. **Deviations:** chart zoom/pan is served by range presets + custom range rather than gesture pinch/pan (fl_chart has no built-in pan-zoom; revisit if ranges prove insufficient); the projection run-out renders on the **All** range where the axis can extend past today. Statistics-related Settings (default range, heatmap bucket overrides, streak minimum UI, week start, configured-timezone override) remain Settings-phase work; the service already parameterizes the streak threshold.
 
 ---
 

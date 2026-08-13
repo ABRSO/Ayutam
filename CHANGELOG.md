@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Phase 4 Statistics: scope control (one skill / all skills / compare up to 5), summary card (total active, progress, remaining, sessions, labeled **4-week average**, global streak, soft-language projection), cumulative `fl_chart` line chart (7d/30d/3mo/6mo/1yr/All/custom ranges, automatic daily→weekly→monthly aggregation, milestone and goal lines, tooltips, fullscreen, PNG export, dashed projection run-out on the All range), custom calendar heatmap (rolling 12 months + year selector, fixed buckets none/≤30m/≤1h/≤2h/≤4h/4h+, day popover with **Open in Learning Log**), and a Day/Week/Month/Year summary table with % change (“New” / em dash). Active time is allocated across configured-timezone midnights, so cross-midnight sessions count on both local days.
+- New dependencies: `fl_chart` 1.2.0 (MIT; line chart only, behind an adapter per ADR-013) and `file_selector` 1.1.0 (BSD-3; native PNG save dialog on Windows/Linux — Android saves to the app documents folder instead).
 - Home In Progress / Completed / Archived filters, skill search, Restore from Archived, expandable last-five sessions, and accent-colour picker on create/edit. In Progress and Completed are derived from target progress without changing the active lifecycle or stopping further tracking.
 - Desktop Skills Home layout per UX spec: centered list (max width ~1000) and **New Skill** in the toolbar at the 840 dp rail breakpoint; the FAB remains on mobile.
 - In-app **Reduced motion** setting (OR’d with the platform disable-animations flag) stored in `app_settings`.

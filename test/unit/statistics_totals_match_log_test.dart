@@ -1,0 +1,165 @@
+import 'package:ayutam/core/id/id_generator.dart';
+import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
+import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/learning_log/application/indexed_session_completion.dart';
+import 'package:ayutam/features/learning_log/application/indexed_session_deletion.dart';
+import 'package:ayutam/features/learning_log/application/indexed_skill_rename.dart';
+import 'package:ayutam/features/learning_log/application/session_note_service.dart';
+import 'package:ayutam/features/learning_log/application/tag_service.dart';
+import 'package:ayutam/features/learning_log/data/drift_tag_repository.dart';
+import 'package:ayutam/features/learning_log/data/session_search_indexer.dart';
+import 'package:ayutam/features/skills/application/skill_service.dart';
+import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
+import 'package:ayutam/features/statistics/application/statistics_service.dart';
+import 'package:ayutam/features/statistics/data/drift_statistics_source.dart';
+import 'package:ayutam/features/statistics/domain/statistics_models.dart';
+import 'package:ayutam/features/timer/application/stopwatch_timer_service.dart';
+import 'package:ayutam/features/timer/data/drift_session_repository.dart';
+import 'package:ayutam/features/timer/data/drift_timer_runtime_repository.dart';
+import 'package:ayutam/features/timer/data/drift_unit_of_work.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+/// Exit criterion: statistics totals match the Learning Log / skill totals
+/// for the same fixture, including a cross-midnight session.
+void main() {
+  // Configured zone +05:30 (IST-style) so midnight splits are non-trivial.
+  const tz = FakeTimezoneService(ianaId: 'Asia/Kolkata', offsetMinutes: 330);
+
+  late FakeClockService clock;
+  late AppDatabase db;
+  late DriftSkillRepository skillRepo;
+  late SkillService skills;
+  late StopwatchTimerService timer;
+  late SessionNoteService notes;
+  late StatisticsService stats;
+
+  setUp(() async {
+    clock = FakeClockService(initialUtc: DateTime.utc(2026, 8, 1, 6));
+    const ids = UuidIdGenerator();
+    db = AppDatabase.memory(clock: clock, ids: ids);
+    await db.ensureSeeded(clock: clock, ids: ids);
+    skillRepo = DriftSkillRepository(db);
+    final sessionRepo = DriftSessionRepository(db);
+    final indexer = SessionSearchIndexer(db);
+    final uow = DriftUnitOfWork(db);
+    skills = SkillService(
+      skills: skillRepo,
+      sessions: sessionRepo,
+      searchReindexing: IndexedSkillRename(indexer),
+      clock: clock,
+      timezones: tz,
+      ids: ids,
+      deviceId: db.requireDeviceId,
+    );
+    timer = StopwatchTimerService(
+      sessions: sessionRepo,
+      runtime: DriftTimerRuntimeRepository(db),
+      skills: skillRepo,
+      uow: uow,
+      sessionDeletion: IndexedSessionDeletion(
+        sessions: sessionRepo,
+        indexer: indexer,
+      ),
+      sessionIndexing: IndexedSessionCompletion(
+        sessions: sessionRepo,
+        indexer: indexer,
+      ),
+      clock: clock,
+      timezones: tz,
+      ids: ids,
+      deviceId: db.requireDeviceId,
+    );
+    notes = SessionNoteService(
+      sessions: sessionRepo,
+      skills: skillRepo,
+      tags: TagService(
+        tags: DriftTagRepository(db),
+        clock: clock,
+        ids: ids,
+        deviceId: db.requireDeviceId,
+      ),
+      indexer: indexer,
+      uow: uow,
+      clock: clock,
+      timezones: tz,
+      ids: ids,
+      deviceId: db.requireDeviceId,
+    );
+    stats = StatisticsService(
+      source: DriftStatisticsSource(db),
+      skills: skillRepo,
+      clock: clock,
+      timezones: tz,
+    );
+  });
+
+  tearDown(() async {
+    await db.close();
+  });
+
+  Future<void> timedSession(String skillId, Duration length) async {
+    expect((await timer.startStopwatch(skillId)).isSuccess, isTrue);
+    clock.advance(length);
+    expect((await timer.stop()).isSuccess, isTrue);
+    expect((await timer.saveCompletion()).isSuccess, isTrue);
+  }
+
+  test('stats totals equal skill totals, split across local days', () async {
+    final piano = (await skills.create(name: 'Piano')).valueOrNull!;
+    final guitar = (await skills.create(name: 'Guitar')).valueOrNull!;
+
+    // Plain daytime session: 40 minutes of Piano.
+    await timedSession(piano.id, const Duration(minutes: 40));
+
+    // Cross-midnight session: 23:00 IST → 01:00 IST (17:30–19:30 UTC).
+    clock.advance(const Duration(hours: 8)); // 2026-08-01 ~15:xx UTC
+    final beforeMidnight = DateTime.utc(2026, 8, 1, 17, 30);
+    clock.advance(beforeMidnight.difference(clock.nowUtc()));
+    await timedSession(piano.id, const Duration(hours: 2));
+
+    // Guitar the next local day, 30 minutes.
+    clock.advance(const Duration(hours: 5));
+    await timedSession(guitar.id, const Duration(minutes: 30));
+
+    // Manual Guitar entry: 1 hour earlier in the month.
+    final manual = await notes.createManualSession(
+      skillId: guitar.id,
+      startAtUtc: DateTime.utc(2026, 7, 20, 9),
+      endAtUtc: DateTime.utc(2026, 7, 20, 10),
+    );
+    expect(manual.isSuccess, isTrue);
+
+    final bundle = await stats.load(const StatsScope.all());
+
+    // Summary total matches the Home/Learning Log source of truth.
+    final skillRows = await skillRepo.listActiveSkillsWithProgress();
+    final skillTotal = skillRows.fold<int>(
+      0,
+      (sum, s) => sum + s.completedActiveSeconds,
+    );
+    expect(bundle.summary.totalActiveSeconds, skillTotal);
+    expect(bundle.summary.totalActiveSeconds, (40 + 120 + 30 + 60) * 60);
+    expect(bundle.summary.sessionCount, 4);
+
+    // Allocation preserves every second (chart/heatmap consistency).
+    final allocated = bundle.dailyTotals.values.fold<int>(0, (a, b) => a + b);
+    expect(allocated, skillTotal);
+
+    // The 23:00–01:00 IST session splits an hour onto each local day.
+    expect(bundle.dailyTotals[DateTime(2026, 8, 1)], (40 + 60) * 60);
+    expect(bundle.dailyTotals[DateTime(2026, 8, 2)], (60 + 30) * 60);
+
+    // Single-skill scope matches that skill's own total.
+    final pianoBundle = await stats.load(StatsScope.single(piano.id));
+    final pianoRow = skillRows.singleWhere((s) => s.id == piano.id);
+    expect(
+      pianoBundle.summary.totalActiveSeconds,
+      pianoRow.completedActiveSeconds,
+    );
+    expect(
+      pianoBundle.dailyTotals.values.fold<int>(0, (a, b) => a + b),
+      pianoRow.completedActiveSeconds,
+    );
+  });
+}
