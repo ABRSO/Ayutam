@@ -236,14 +236,21 @@ final class StatisticsService {
     if (first == null) return const [];
 
     // Session index per covered local day; sessions rarely span > 2 days.
+    // The end instant is exclusive (like the allocator's half-open
+    // segments): a session ending exactly at local midnight belongs to the
+    // day before, which received all of its seconds.
     final sessionsByDay = <DateTime, List<int>>{};
     for (var i = 0; i < bundle.sessions.length; i++) {
       final session = bundle.sessions[i];
       final startDay = configuredLocalDayAt(session.startAtUtc, _timezones);
-      final endDay = configuredLocalDayAt(
-        session.endAtUtc ?? session.startAtUtc,
+      final endInstant = session.endAtUtc ?? session.startAtUtc;
+      var endDay = configuredLocalDayAt(
+        endInstant.isAfter(session.startAtUtc)
+            ? endInstant.subtract(const Duration(seconds: 1))
+            : endInstant,
         _timezones,
       );
+      if (endDay.isBefore(startDay)) endDay = startDay;
       for (
         var day = startDay;
         !day.isAfter(endDay);

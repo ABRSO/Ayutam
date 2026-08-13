@@ -202,6 +202,41 @@ void main() {
     expect(aug2Row.totalSeconds, (60 + 30) * 60);
   });
 
+  test('overlap day link crosses month boundaries despite paging', () async {
+    final piano = (await skills.create(name: 'Piano')).valueOrNull!;
+
+    // 23:00 IST Jul 31 → 01:00 IST Aug 1 (17:30–19:30 UTC Jul 31).
+    final crossMonth = await notes.createManualSession(
+      skillId: piano.id,
+      startAtUtc: DateTime.utc(2026, 7, 31, 17, 30),
+      endAtUtc: DateTime.utc(2026, 7, 31, 19, 30),
+    );
+    expect(crossMonth.isSuccess, isTrue);
+    // Plain Aug 1 daytime session.
+    final daytime = await notes.createManualSession(
+      skillId: piano.id,
+      startAtUtc: DateTime.utc(2026, 8, 1, 5),
+      endAtUtc: DateTime.utc(2026, 8, 1, 6),
+    );
+    expect(daytime.isSuccess, isTrue);
+
+    final log = LearningLogService(
+      sessions: DriftSessionRepository(db),
+      skills: skillRepo,
+      tags: DriftTagRepository(db),
+      indexer: SessionSearchIndexer(db),
+    );
+    final filters = LearningLogFilters(
+      overlapStartUtc: utcStartOfConfiguredDay(DateTime(2026, 8, 1), tz),
+      overlapEndUtc: utcStartOfConfiguredDay(DateTime(2026, 8, 2), tz),
+    );
+    // Month-paged initial load must not hide the July-started session.
+    final state = await log.loadInitial(filters);
+    expect(state.entries, hasLength(2));
+    expect(state.hasMoreOlder, isFalse);
+    expect(state.hasMoreNewer, isFalse);
+  });
+
   test('watchChanges fires when a skill row changes', () async {
     final source = DriftStatisticsSource(db);
     final skill = (await skills.create(name: 'Piano')).valueOrNull!;

@@ -415,6 +415,45 @@ void main() {
       expect(week.totalSeconds, 7200);
     });
 
+    test(
+      'session ending exactly at midnight stays on the earlier day',
+      () async {
+        // 23:00 → 00:00 sharp: all seconds allocate to Aug 12, so Aug 13 must
+        // not report a session with zero practice time.
+        final start = DateTime.utc(2026, 8, 12, 23);
+        final end = DateTime.utc(2026, 8, 13);
+        final source = _FakeSource(
+          slices: [WorkSlice(skillId: 'a', startAtUtc: start, endAtUtc: end)],
+          sessions: [
+            CompletedSessionStat(
+              skillId: 'a',
+              startAtUtc: start,
+              endAtUtc: end,
+              activeSeconds: 3600,
+            ),
+          ],
+        );
+        final statsService = service(source);
+        final bundle = await statsService.load(const StatsScope.all());
+        final rows = statsService.summaryRows(
+          bundle: bundle,
+          granularity: SummaryGranularity.day,
+        );
+
+        final aug12 = rows.singleWhere(
+          (r) => r.periodStart == DateTime(2026, 8, 12),
+        );
+        expect(aug12.totalSeconds, 3600);
+        expect(aug12.sessionCount, 1);
+        // "Today" (Aug 13) exists as a row but received nothing.
+        final aug13 = rows.singleWhere(
+          (r) => r.periodStart == DateTime(2026, 8, 13),
+        );
+        expect(aug13.totalSeconds, 0);
+        expect(aug13.sessionCount, 0);
+      },
+    );
+
     test('a period after a zero period is marked New', () async {
       final start = today.subtract(const Duration(days: 2));
       final source = _FakeSource(

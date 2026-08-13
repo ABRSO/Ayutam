@@ -64,6 +64,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // The screen arms a real midnight timer; unmount so the fake-async
+  // pending-timer guard stays green at the end of each test.
+  Future<void> unmount(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+  }
+
   testWidgets('shows the guided empty state with no completed sessions', (
     tester,
   ) async {
@@ -72,6 +78,7 @@ void main() {
       find.text('Complete a session to begin building your progress chart.'),
       findsOneWidget,
     );
+    await unmount(tester);
   });
 
   testWidgets('summary card and cumulative chart render with data', (
@@ -87,6 +94,7 @@ void main() {
     expect(find.text('1 day'), findsOneWidget);
     expect(find.byType(CumulativeChartView), findsOneWidget);
     expect(find.byType(LineChart), findsOneWidget);
+    await unmount(tester);
   });
 
   testWidgets('view switcher reaches heatmap and summary table', (
@@ -105,6 +113,7 @@ void main() {
     expect(find.byType(SummaryTableView), findsOneWidget);
     expect(find.text('Period'), findsOneWidget);
     expect(find.text('Sessions'), findsWidgets);
+    await unmount(tester);
   });
 
   testWidgets('heatmap day popover opens a filtered Learning Log', (
@@ -138,9 +147,10 @@ void main() {
     expect(filters.overlapEndUtc, DateTime.utc(2026, 8, 7));
     expect(filters.startAfterUtc, isNull);
     expect(filters.endBeforeUtc, isNull);
+    await unmount(tester);
   });
 
-  testWidgets('day rollover reloads day-relative stats', (tester) async {
+  testWidgets('day rollover reloads on app resume', (tester) async {
     await completedSession();
     await pumpStats(tester);
     expect(find.text('1 day'), findsOneWidget);
@@ -152,6 +162,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('0 days'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('idle screen rolls over via the midnight timer', (tester) async {
+    await completedSession();
+    await pumpStats(tester);
+    expect(find.text('1 day'), findsOneWidget);
+
+    // No interaction, no lifecycle event: the armed timer alone must reload
+    // once fake time passes the configured-local midnight.
+    clock.advance(const Duration(hours: 49));
+    await tester.pump(const Duration(hours: 13));
+    await tester.pumpAndSettle();
+
+    expect(find.text('0 days'), findsOneWidget);
+    await unmount(tester);
   });
 
   testWidgets('fullscreen keeps the picked custom range', (tester) async {
@@ -211,5 +237,6 @@ void main() {
     expect(find.text('Progress'), findsWidgets);
     expect(find.text('Remaining'), findsOneWidget);
     expect(find.textContaining('Projection unavailable'), findsOneWidget);
+    await unmount(tester);
   });
 }

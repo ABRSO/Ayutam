@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -23,15 +25,18 @@ class StatisticsScreen extends ConsumerStatefulWidget {
 class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
     with WidgetsBindingObserver {
   var _view = 0;
+  Timer? _midnightTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _armMidnightTimer();
   }
 
   @override
   void dispose() {
+    _midnightTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -40,7 +45,28 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _reloadIfDayRolledOver();
+      _armMidnightTimer();
     }
+  }
+
+  /// Fires just past the next configured-local midnight so an idle, visible
+  /// screen still rolls its day-relative metrics without user interaction.
+  void _armMidnightTimer() {
+    _midnightTimer?.cancel();
+    final now = ref.read(clockServiceProvider).nowUtc();
+    final timezones = ref.read(timezoneServiceProvider);
+    final today = configuredLocalDayAt(now, timezones);
+    final nextMidnightUtc = utcStartOfConfiguredDay(
+      today.add(const Duration(days: 1)),
+      timezones,
+    );
+    var wait = nextMidnightUtc.difference(now) + const Duration(seconds: 1);
+    if (wait <= Duration.zero) wait = const Duration(minutes: 1);
+    _midnightTimer = Timer(wait, () {
+      if (!mounted) return;
+      _reloadIfDayRolledOver();
+      _armMidnightTimer();
+    });
   }
 
   /// Streak, today-grace, and the 4-week window are day-relative; a bundle
