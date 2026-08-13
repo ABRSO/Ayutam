@@ -1,4 +1,9 @@
-import 'package:timezone/data/latest.dart' as tzdata;
+// latest_all (not the trimmed latest): Windows/ICU and some Android OEMs
+// report CLDR-canonical alias ids such as Asia/Calcutta or Asia/Saigon. The
+// trimmed database omits those link zones, which silently degraded the
+// configured timezone to UTC (wrong "today" for date pickers and wrong
+// timezone_id_at_creation on sessions).
+import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'timezone_service.dart';
