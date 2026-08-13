@@ -13,6 +13,8 @@ class SessionDetailScreen extends ConsumerStatefulWidget {
   });
 
   final String sessionId;
+
+  /// Neighbor snapshot for Previous/Next until the live list reloads.
   final List<LearningLogEntry> entries;
 
   @override
@@ -29,40 +31,29 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
     _sessionId = widget.sessionId;
   }
 
-  LearningLogEntry? _fromList(String id) {
-    for (final entry in widget.entries) {
-      if (entry.session.id == id) return entry;
-    }
-    return null;
+  void _invalidateAfterChange() {
+    ref.invalidate(learningLogListProvider);
+    ref.invalidate(learningLogEntryProvider(_sessionId));
   }
 
   @override
   Widget build(BuildContext context) {
-    final fromList = _fromList(_sessionId);
+    final liveEntries = ref.watch(learningLogListProvider).value?.entries;
+    final neighborEntries = (liveEntries != null && liveEntries.isNotEmpty)
+        ? liveEntries
+        : widget.entries;
+    final entryAsync = ref.watch(learningLogEntryProvider(_sessionId));
 
-    if (fromList != null) {
-      return SessionDetailPane(
-        entry: fromList,
-        entries: widget.entries,
-        embedded: false,
-        onDeleted: () {
-          if (context.mounted) Navigator.of(context).pop();
-        },
-        onChanged: () => ref.invalidate(learningLogListProvider),
-        onNavigateTo: (id) => setState(() => _sessionId = id),
-      );
-    }
-
-    return FutureBuilder(
-      future: ref.read(learningLogServiceProvider).getEntry(_sessionId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Session')),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        final entry = snapshot.data;
+    return entryAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text('Session')),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(title: const Text('Session')),
+        body: Center(child: Text('$e')),
+      ),
+      data: (entry) {
         if (entry == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Session')),
@@ -71,12 +62,12 @@ class _SessionDetailScreenState extends ConsumerState<SessionDetailScreen> {
         }
         return SessionDetailPane(
           entry: entry,
-          entries: widget.entries,
+          entries: neighborEntries,
           embedded: false,
           onDeleted: () {
             if (context.mounted) Navigator.of(context).pop();
           },
-          onChanged: () => ref.invalidate(learningLogListProvider),
+          onChanged: _invalidateAfterChange,
           onNavigateTo: (id) => setState(() => _sessionId = id),
         );
       },

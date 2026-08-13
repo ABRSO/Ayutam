@@ -246,11 +246,13 @@ final class SessionNoteService {
         AppFailure(code: 'SESS-MISS', message: 'Session not found.'),
       );
     }
-    if (session.status != SessionStatus.completed) {
+    if (session.status != SessionStatus.completed &&
+        session.status != SessionStatus.completionPending) {
       return const Failure(
         AppFailure(
           code: 'SESS-STATE',
-          message: 'Only completed sessions can be edited here.',
+          message:
+              'Only completed or completion-pending sessions can be edited here.',
         ),
       );
     }

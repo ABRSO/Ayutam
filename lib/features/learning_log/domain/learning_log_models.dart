@@ -136,6 +136,27 @@ final class LearningLogEntry {
   }
 }
 
+/// Inclusive UTC instant at local midnight of [day]'s calendar date.
+DateTime inclusiveStartOfLocalDay(DateTime day) =>
+    DateTime(day.year, day.month, day.day).toUtc();
+
+/// Exclusive UTC bound just after [day]'s local calendar date (next local
+/// midnight). Use with `start_at_utc < endBeforeUtc` so the whole last second
+/// of the chosen day is included.
+DateTime exclusiveUtcAfterLocalDay(DateTime day) =>
+    DateTime(day.year, day.month, day.day + 1).toUtc();
+
+/// Inclusive local calendar date represented by an exclusive [endBeforeUtc].
+DateTime inclusiveLocalDayForExclusiveEnd(DateTime endBeforeUtc) {
+  final local = endBeforeUtc.toLocal();
+  final startOfLocal = DateTime(local.year, local.month, local.day);
+  if (local.difference(startOfLocal) == Duration.zero) {
+    final previous = startOfLocal.subtract(const Duration(days: 1));
+    return DateTime(previous.year, previous.month, previous.day);
+  }
+  return startOfLocal;
+}
+
 /// Local calendar month used as the Learning Log fetch window.
 final class CalendarMonth {
   const CalendarMonth(this.year, this.month)

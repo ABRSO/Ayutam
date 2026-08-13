@@ -79,31 +79,22 @@ class _LearningLogFiltersSheetState
     );
     if (picked == null) return;
     setState(() {
-      _draft = _draft.copyWith(
-        startAfterUtc: DateTime(picked.year, picked.month, picked.day).toUtc(),
-      );
+      _draft = _draft.copyWith(startAfterUtc: inclusiveStartOfLocalDay(picked));
     });
   }
 
   Future<void> _pickEnd() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _draft.endBeforeUtc?.toLocal() ?? DateTime.now(),
+      initialDate: _draft.endBeforeUtc == null
+          ? DateTime.now()
+          : inclusiveLocalDayForExclusiveEnd(_draft.endBeforeUtc!),
       firstDate: DateTime(1970),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked == null) return;
     setState(() {
-      _draft = _draft.copyWith(
-        endBeforeUtc: DateTime(
-          picked.year,
-          picked.month,
-          picked.day,
-          23,
-          59,
-          59,
-        ).toUtc(),
-      );
+      _draft = _draft.copyWith(endBeforeUtc: exclusiveUtcAfterLocalDay(picked));
     });
   }
 
@@ -207,7 +198,11 @@ class _LearningLogFiltersSheetState
                         child: Text(
                           _draft.endBeforeUtc == null
                               ? 'End date'
-                              : dateFmt.format(_draft.endBeforeUtc!.toLocal()),
+                              : dateFmt.format(
+                                  inclusiveLocalDayForExclusiveEnd(
+                                    _draft.endBeforeUtc!,
+                                  ),
+                                ),
                         ),
                       ),
                     ),

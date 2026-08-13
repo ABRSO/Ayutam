@@ -197,6 +197,12 @@ final learningLogListProvider =
       LearningLogListNotifier.new,
     );
 
+/// Live Learning Log row for [sessionId]. Invalidated with the list after edits.
+final learningLogEntryProvider = FutureProvider.autoDispose
+    .family<LearningLogEntry?, String>((ref, sessionId) {
+      return ref.watch(learningLogServiceProvider).getEntry(sessionId);
+    });
+
 final class SelectedLearningLogSessionIdNotifier extends Notifier<String?> {
   @override
   String? build() => null;

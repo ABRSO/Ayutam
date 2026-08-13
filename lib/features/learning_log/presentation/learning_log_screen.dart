@@ -58,14 +58,12 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
       helpText: 'Jump to date',
     );
     if (picked == null) return;
-    final start = DateTime(picked.year, picked.month, picked.day);
-    final end = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
     ref
         .read(learningLogFiltersProvider.notifier)
         .update(
           (f) => f.copyWith(
-            startAfterUtc: start.toUtc(),
-            endBeforeUtc: end.toUtc(),
+            startAfterUtc: inclusiveStartOfLocalDay(picked),
+            endBeforeUtc: exclusiveUtcAfterLocalDay(picked),
           ),
         );
     if (_listScrollController.hasClients) {

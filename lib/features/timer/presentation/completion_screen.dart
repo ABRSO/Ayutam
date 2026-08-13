@@ -9,6 +9,7 @@ import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/time/duration_format.dart';
 import '../../learning_log/presentation/learning_log_format.dart';
+import '../../learning_log/presentation/session_time_picker.dart';
 import '../../learning_log/presentation/widgets/markdown_note_editor.dart';
 import '../../learning_log/presentation/widgets/tag_chip_input.dart';
 import '../../timer/domain/models.dart';
@@ -111,13 +112,13 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
     });
   }
 
-  Future<void> _flushSave(String sessionId) async {
+  Future<bool> _flushSave(String sessionId) async {
     _debounce?.cancel();
     // Typed text in the tag field is not a chip until committed.
     final tags = _tagInputController.commitPending();
     _tags = tags;
     if (!mounted) {
-      await ref
+      final result = await ref
           .read(sessionNoteServiceProvider)
           .updateDraft(
             sessionId: sessionId,
@@ -127,7 +128,7 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
             updateNote: true,
             tagNames: tags,
           );
-      return;
+      return result.isSuccess;
     }
     setState(() => _saveStatus = _NoteSaveStatus.saving);
     final result = await ref
@@ -140,12 +141,92 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
           updateNote: true,
           tagNames: tags,
         );
-    if (!mounted) return;
+    if (!mounted) return result.isSuccess;
     setState(() {
       _saveStatus = result.isSuccess
           ? _NoteSaveStatus.saved
           : _NoteSaveStatus.failed;
     });
+    return result.isSuccess;
+  }
+
+  Future<void> _editTimes(PracticeSession session) async {
+    final start = await pickCompletedSessionDateTime(
+      context,
+      session.startAtUtc.toLocal(),
+    );
+    if (start == null || !mounted) return;
+    final end = await pickCompletedSessionDateTime(
+      context,
+      (session.endAtUtc ?? session.startAtUtc).toLocal(),
+    );
+    if (end == null || !mounted) return;
+    if (!end.isAfter(start)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End time must be after start time.')),
+      );
+      return;
+    }
+    await _applyTimes(
+      sessionId: session.id,
+      startAtUtc: start.toUtc(),
+      endAtUtc: end.toUtc(),
+    );
+  }
+
+  Future<void> _applyTimes({
+    required String sessionId,
+    required DateTime startAtUtc,
+    required DateTime endAtUtc,
+    bool allowOverlap = false,
+  }) async {
+    final result = await ref
+        .read(sessionNoteServiceProvider)
+        .updateCompletedSession(
+          sessionId: sessionId,
+          startAtUtc: startAtUtc,
+          endAtUtc: endAtUtc,
+          allowOverlap: allowOverlap,
+        );
+    if (!mounted) return;
+    await result.when(
+      success: (_) async {
+        await ref.read(timerSessionProvider.notifier).refresh();
+      },
+      failure: (f) async {
+        if (f.code == 'SESS-OVERLAP') {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Overlapping session'),
+              content: Text('${f.message} Save anyway?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Save anyway'),
+                ),
+              ],
+            ),
+          );
+          if (ok == true && mounted) {
+            await _applyTimes(
+              sessionId: sessionId,
+              startAtUtc: startAtUtc,
+              endAtUtc: endAtUtc,
+              allowOverlap: true,
+            );
+          }
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(f.message)));
+      },
+    );
   }
 
   @override
@@ -165,6 +246,7 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
           }
           return CompletionBody(
             activeSeconds: seconds,
+            pausedSeconds: session?.pausedSeconds ?? 0,
             skillName: session == null ? null : _skillName,
             dateLabel: session == null
                 ? null
@@ -215,9 +297,23 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
                       if (id != null) unawaited(_flushSave(id));
                     },
                   ),
+            onEditTime: session == null ? null : () => _editTimes(session),
             onSave: () async {
               final id = _sessionId;
-              if (id != null) await _flushSave(id);
+              if (id != null) {
+                final saved = await _flushSave(id);
+                if (!saved) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Could not save the note. The session was not completed.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+              }
               final error = await ref
                   .read(timerSessionProvider.notifier)
                   .saveCompletion();
@@ -234,7 +330,20 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
             },
             onResume: () async {
               final id = _sessionId;
-              if (id != null) await _flushSave(id);
+              if (id != null) {
+                final saved = await _flushSave(id);
+                if (!saved) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Could not save the note. Resume was not started.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+              }
               final error = await ref
                   .read(timerSessionProvider.notifier)
                   .resumeFromCompletion();
@@ -344,6 +453,7 @@ class CompletionBody extends StatelessWidget {
     required this.onSave,
     required this.onResume,
     required this.onDiscard,
+    this.pausedSeconds = 0,
     this.skillName,
     this.dateLabel,
     this.timeRangeLabel,
@@ -352,9 +462,11 @@ class CompletionBody extends StatelessWidget {
     this.noteEditor,
     this.tagInput,
     this.saveStatus,
+    this.onEditTime,
   });
 
   final int activeSeconds;
+  final int pausedSeconds;
   final VoidCallback onSave;
   final VoidCallback onResume;
   final VoidCallback onDiscard;
@@ -366,6 +478,7 @@ class CompletionBody extends StatelessWidget {
   final Widget? noteEditor;
   final Widget? tagInput;
   final Widget? saveStatus;
+  final VoidCallback? onEditTime;
 
   bool get _expanded =>
       skillName != null ||
@@ -397,7 +510,19 @@ class CompletionBody extends StatelessWidget {
                         timeRangeLabel: timeRangeLabel ?? '',
                         modeLabel: modeLabel ?? '',
                         activeSeconds: activeSeconds,
+                        pausedSeconds: pausedSeconds,
                       ),
+                      if (onEditTime != null) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: onEditTime,
+                            icon: const Icon(Icons.schedule_outlined),
+                            label: const Text('Edit Time'),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       if (titleField != null) ...[
                         titleField!,
@@ -468,6 +593,7 @@ class _SummaryCard extends StatelessWidget {
     required this.timeRangeLabel,
     required this.modeLabel,
     required this.activeSeconds,
+    required this.pausedSeconds,
   });
 
   final String skillName;
@@ -475,6 +601,7 @@ class _SummaryCard extends StatelessWidget {
   final String timeRangeLabel;
   final String modeLabel;
   final int activeSeconds;
+  final int pausedSeconds;
 
   @override
   Widget build(BuildContext context) {
@@ -501,10 +628,19 @@ class _SummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              formatActiveDuration(activeSeconds),
+              'Active ${formatActiveDuration(activeSeconds)}',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontFamily: 'monospace',
                 fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Paused ${formatActiveDuration(pausedSeconds)}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontFamily: 'monospace',
+                fontFeatures: const [FontFeature.tabularFigures()],
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),

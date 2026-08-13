@@ -116,7 +116,7 @@ On Stop:
 2. Persist status `completion_pending` immediately (so a crash does not lose the session).
 3. Open completion panel.
 
-**Panel:** Read-only skill/date/start–end/active/paused/mode. Editable optional title, Markdown note (soft counter past 2,000 chars, no hard limit), tags. Actions: **Save Session** (empty note OK), **Resume Session**, **Discard Session** (confirm). Back/close keeps `completion_pending` and autosaves draft (debounce ~300–750 ms + on blur/lifecycle).
+**Panel:** Read-only skill/date/start–end/active/paused/mode. Editable optional title, Markdown note (soft counter past 2,000 chars, no hard limit), tags. **Edit Time** corrects start/end on the pending session (remaps segments; overlap warning). Actions: **Save Session** (empty note OK), **Resume Session**, **Discard Session** (confirm). Draft title/note/tags must persist successfully before Save/Resume. Back/close keeps `completion_pending` and autosaves draft (debounce ~300–750 ms + on blur/lifecycle).
 
 **Markdown:** CommonMark-ish — headings, emphasis, lists, blockquotes, code, links. No remote images, no arbitrary HTML. Render with `flutter_markdown_plus`.
 

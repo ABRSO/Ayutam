@@ -111,4 +111,31 @@ void main() {
     expect(discardTapped, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('summary shows paused duration and Edit Time', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompletionBody(
+            activeSeconds: 600,
+            pausedSeconds: 60,
+            skillName: 'Piano',
+            dateLabel: 'Aug 1, 2026',
+            timeRangeLabel: '10:00 AM – 11:00 AM',
+            modeLabel: 'Stopwatch',
+            onEditTime: () {},
+            onSave: () {},
+            onResume: () {},
+            onDiscard: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Active 10:00'), findsOneWidget);
+    expect(find.text('Paused 01:00'), findsOneWidget);
+    expect(find.text('Edit Time'), findsOneWidget);
+    expect(find.text('Stopwatch'), findsOneWidget);
+  });
 }

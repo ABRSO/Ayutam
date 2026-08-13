@@ -587,4 +587,63 @@ void main() {
     expect(session.timezoneIdAtCreation, 'Asia/Kolkata');
     expect(session.offsetMinutesAtStart, 330);
   });
+
+  test(
+    'date filter includes the last second of the chosen local day',
+    () async {
+      final skillId = await createSkill();
+      final day = DateTime(2026, 8, 1);
+      final late = DateTime(2026, 8, 1, 23, 59, 59);
+      await notes.createManualSession(
+        skillId: skillId,
+        startAtUtc: late.toUtc(),
+        endAtUtc: late.add(const Duration(minutes: 1)).toUtc(),
+        title: 'Late',
+      );
+
+      final excluded = await log.query(
+        LearningLogFilters(
+          startAfterUtc: inclusiveStartOfLocalDay(day),
+          endBeforeUtc: DateTime(2026, 8, 1, 23, 59, 59).toUtc(),
+        ),
+      );
+      expect(excluded.map((e) => e.session.title), isEmpty);
+
+      final included = await log.query(
+        LearningLogFilters(
+          startAfterUtc: inclusiveStartOfLocalDay(day),
+          endBeforeUtc: exclusiveUtcAfterLocalDay(day),
+        ),
+      );
+      expect(included.map((e) => e.session.title), ['Late']);
+
+      expect(
+        inclusiveLocalDayForExclusiveEnd(exclusiveUtcAfterLocalDay(day)),
+        DateTime(day.year, day.month, day.day),
+      );
+    },
+  );
+
+  test('completion-pending times can be edited before save', () async {
+    final skillId = await createSkill();
+    await timer.startStopwatch(skillId);
+    clock.advance(const Duration(minutes: 10));
+    await timer.stop();
+    clock.advance(const Duration(minutes: 10));
+    final pending = (await timer.snapshot()).session!;
+    expect(pending.status, SessionStatus.completionPending);
+
+    final edited = await notes.updateCompletedSession(
+      sessionId: pending.id,
+      startAtUtc: pending.startAtUtc,
+      endAtUtc: pending.endAtUtc!.add(const Duration(minutes: 5)),
+    );
+    expect(edited.isSuccess, isTrue);
+    expect(edited.valueOrNull!.status, SessionStatus.completionPending);
+    expect(edited.valueOrNull!.activeSeconds, 15 * 60);
+
+    await timer.saveCompletion();
+    final entry = await log.getEntry(pending.id);
+    expect(entry!.session.activeSeconds, 15 * 60);
+  });
 }
