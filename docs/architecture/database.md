@@ -183,7 +183,13 @@ CREATE VIRTUAL TABLE session_search USING fts5(
 );
 ```
 
-Maintain via repository updates or triggers. Diagnostics must offer rebuild. Search joins back to non-deleted completed (and optionally pending) sessions. Required for Learning Log latency targets (ADR-017).
+Maintain via `SessionSearchIndexer` on note/tag/session writes (upsert/delete by `session_id`). Permanent session deletion (completion Discard, recovery Discard) goes through `PermanentSessionDeletion` / `IndexedSessionDeletion` so the FTS document is removed in the same unit of work as the session row. Diagnostics must offer `rebuildAll()`. Search joins back to non-deleted completed (and optionally pending) sessions. Required for Learning Log latency targets (ADR-017).
+
+The FTS `tags_text` column also stores **date search tokens** (compact `yyyyMMdd`, ISO `yyyy-MM-dd`, English month names) derived from `start_at_utc` + `offset_minutes_at_start` (and the end date when it falls on another local day). MATCH queries preserve Unicode; ISO date terms are rewritten to compact `yyyyMMdd` because hyphens are FTS operators/separators.
+
+**Schema v2:** FTS table is created in `onCreate` and in the `1→2` migration.
+
+**Schema v3:** Rebuilds `session_search` so existing rows include date tokens (and remain searchable with Unicode MATCH queries). Table shape is unchanged.
 
 ---
 
@@ -228,4 +234,4 @@ Every schema bump requires:
 
 ## 7. Scale notes
 
-At ~100k sessions / ~300k segments / ~2 KB notes, expect well under hundreds of MB. Composite indexes above keep Learning Log and stats queries fast. Soft-deleted rows are purged after a short retention (days), not a 30-day trash UI.
+At ~100k sessions / ~300k segments / ~2 KB notes, expect well under hundreds of MB. Composite indexes above keep Learning Log and stats queries fast. The Learning Log UI fetches **one local calendar month at a time** (load earlier/later months on scroll); tag filters use a grouped `session_tags` AND query plus a batched tag join, not per-row `listForSession`. Soft-deleted rows are purged after a short retention (days), not a 30-day trash UI.

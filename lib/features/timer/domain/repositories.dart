@@ -23,7 +23,45 @@ abstract class SessionRepository {
 
   Future<void> updateSegment(SessionSegment segment);
 
+  Future<void> deleteSegmentsForSession(String sessionId);
+
   Future<int> sumCompletedActiveSeconds(String skillId);
+
+  /// Completed (and optionally soft-deleted) sessions for Learning Log.
+  Future<List<PracticeSession>> listJournalSessions({
+    Set<String>? ids,
+    Set<String>? skillIds,
+    DateTime? startAfterUtc,
+    DateTime? endBeforeUtc,
+    int? minActiveSeconds,
+    int? maxActiveSeconds,
+    bool? hasNote,
+    String? sourceEquals,
+    bool excludeManual = false,
+    bool includeDeleted = false,
+  });
+
+  /// Earliest or latest `start_at_utc` among journal rows matching [filters].
+  Future<DateTime?> firstJournalStartUtc({
+    Set<String>? ids,
+    Set<String>? skillIds,
+    DateTime? startAfterUtc,
+    DateTime? endBeforeUtc,
+    int? minActiveSeconds,
+    int? maxActiveSeconds,
+    bool? hasNote,
+    String? sourceEquals,
+    bool excludeManual = false,
+    bool descending = true,
+  });
+
+  /// Sessions for [skillId] whose [start,end] overlaps [startAt,endAt].
+  Future<List<PracticeSession>> findOverlapping({
+    required String skillId,
+    required DateTime startAtUtc,
+    required DateTime endAtUtc,
+    String? excludeSessionId,
+  });
 }
 
 abstract class TimerRuntimeRepository {
@@ -37,4 +75,12 @@ abstract class TimerRuntimeRepository {
 /// Runs [action] inside a single write transaction.
 abstract class UnitOfWork {
   Future<T> write<T>(Future<T> Function() action);
+}
+
+/// Hard-deletes a session and dependent rows (segments, FTS).
+///
+/// Call only from inside an existing [UnitOfWork] write so FTS and SQL
+/// stay in one transaction. Timer code must not talk to FTS directly.
+abstract class PermanentSessionDeletion {
+  Future<void> delete(String sessionId);
 }

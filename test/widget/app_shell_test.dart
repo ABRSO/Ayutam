@@ -2,6 +2,7 @@ import 'package:ayutam/app/ayutam_app.dart';
 import 'package:ayutam/bootstrap.dart';
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,7 +15,12 @@ void main() {
     final clock = FakeClockService();
     const ids = UuidIdGenerator();
     final db = AppDatabase.memory(clock: clock, ids: ids);
-    final container = await bootstrap(clock: clock, ids: ids, database: db);
+    final container = await bootstrap(
+      clock: clock,
+      ids: ids,
+      database: db,
+      timezones: const FakeTimezoneService(),
+    );
 
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: const AyutamApp()),
@@ -36,7 +42,12 @@ void main() {
     final clock = FakeClockService();
     const ids = UuidIdGenerator();
     final db = AppDatabase.memory(clock: clock, ids: ids);
-    final container = await bootstrap(clock: clock, ids: ids, database: db);
+    final container = await bootstrap(
+      clock: clock,
+      ids: ids,
+      database: db,
+      timezones: const FakeTimezoneService(),
+    );
 
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1.0;

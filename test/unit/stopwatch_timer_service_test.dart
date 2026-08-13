@@ -1,6 +1,9 @@
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/learning_log/application/indexed_session_deletion.dart';
+import 'package:ayutam/features/learning_log/data/session_search_indexer.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
 import 'package:ayutam/features/timer/application/stopwatch_timer_service.dart';
@@ -36,6 +39,10 @@ void main() {
     final sessionRepo = DriftSessionRepository(db);
     final runtimeRepo = DriftTimerRuntimeRepository(db);
     final uow = DriftUnitOfWork(db);
+    final sessionDeletion = IndexedSessionDeletion(
+      sessions: sessionRepo,
+      indexer: SessionSearchIndexer(db),
+    );
     skills = SkillService(
       skills: skillRepo,
       sessions: sessionRepo,
@@ -48,7 +55,9 @@ void main() {
       runtime: runtimeRepo,
       skills: skillRepo,
       uow: uow,
+      sessionDeletion: sessionDeletion,
       clock: clock,
+      timezones: const FakeTimezoneService(),
       ids: ids,
       deviceId: db.requireDeviceId,
     );
@@ -400,5 +409,30 @@ void main() {
       result.when(success: (_) => '', failure: (f) => f.code),
       'VAL-TARGET',
     );
+  });
+
+  test('start stores IANA timezone id not abbreviation', () async {
+    final skillId = await createSkill();
+    final ianaTimer = StopwatchTimerService(
+      sessions: DriftSessionRepository(db),
+      runtime: DriftTimerRuntimeRepository(db),
+      skills: DriftSkillRepository(db),
+      uow: DriftUnitOfWork(db),
+      sessionDeletion: IndexedSessionDeletion(
+        sessions: DriftSessionRepository(db),
+        indexer: SessionSearchIndexer(db),
+      ),
+      clock: clock,
+      timezones: const FakeTimezoneService(
+        ianaId: 'Asia/Kolkata',
+        offsetMinutes: 330,
+      ),
+      ids: ids,
+      deviceId: db.requireDeviceId,
+    );
+    expect((await ianaTimer.startStopwatch(skillId)).isSuccess, isTrue);
+    final session = (await ianaTimer.snapshot()).session!;
+    expect(session.timezoneIdAtCreation, 'Asia/Kolkata');
+    expect(session.offsetMinutesAtStart, 330);
   });
 }

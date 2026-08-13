@@ -2,6 +2,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/id/id_generator.dart';
 import '../../../core/result/result.dart';
 import '../../../core/time/clock_service.dart';
+import '../../../core/time/timezone_service.dart';
 import '../../skills/domain/skill.dart';
 import '../../skills/domain/skill_repository.dart';
 import '../domain/models.dart';
@@ -14,14 +15,18 @@ final class StopwatchTimerService {
     required TimerRuntimeRepository runtime,
     required SkillRepository skills,
     required UnitOfWork uow,
+    required PermanentSessionDeletion sessionDeletion,
     required ClockService clock,
+    required TimezoneService timezones,
     required IdGenerator ids,
     required Future<String> Function() deviceId,
   }) : _sessions = sessions,
        _runtime = runtime,
        _skills = skills,
        _uow = uow,
+       _sessionDeletion = sessionDeletion,
        _clock = clock,
+       _timezones = timezones,
        _ids = ids,
        _deviceId = deviceId;
 
@@ -29,7 +34,9 @@ final class StopwatchTimerService {
   final TimerRuntimeRepository _runtime;
   final SkillRepository _skills;
   final UnitOfWork _uow;
+  final PermanentSessionDeletion _sessionDeletion;
   final ClockService _clock;
+  final TimezoneService _timezones;
   final IdGenerator _ids;
   final Future<String> Function() _deviceId;
 
@@ -83,7 +90,6 @@ final class StopwatchTimerService {
       }
 
       final now = _clock.nowUtc();
-      final local = now.toLocal();
       final sessionId = _ids.v4();
       final segmentId = _ids.v4();
       final deviceId = await _deviceId();
@@ -97,8 +103,8 @@ final class StopwatchTimerService {
         startAtUtc: now,
         activeSeconds: 0,
         pausedSeconds: 0,
-        timezoneIdAtCreation: local.timeZoneName,
-        offsetMinutesAtStart: local.timeZoneOffset.inMinutes,
+        timezoneIdAtCreation: _timezones.ianaId,
+        offsetMinutesAtStart: _timezones.offsetMinutesAt(now),
         createdAtUtc: now,
         updatedAtUtc: now,
         sourceDeviceId: deviceId,
@@ -422,7 +428,7 @@ final class StopwatchTimerService {
       final now = _clock.nowUtc();
       // Clear FK from timer_runtime before deleting the session.
       await _runtime.clearToIdle(updatedAtUtc: now);
-      await _sessions.deleteSessionCascade(sessionId);
+      await _sessionDeletion.delete(sessionId);
       return Success(await snapshot());
     });
   }
@@ -753,7 +759,7 @@ final class StopwatchTimerService {
         case RecoveryDecision.discard:
           final nowDiscard = _clock.nowUtc();
           await _runtime.clearToIdle(updatedAtUtc: nowDiscard);
-          await _sessions.deleteSessionCascade(session.id);
+          await _sessionDeletion.delete(session.id);
           return Success(await snapshot());
 
         case RecoveryDecision.includeFullGap:

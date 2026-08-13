@@ -191,9 +191,25 @@ Defects found / fixes applied: none.
 
 ### Exit criteria
 
-- [ ] Completion with note/tags works; empty note OK.
-- [ ] Learning Log usable with synthetic multi-year fixture (≥10k sessions preferred).
-- [ ] Search meets soft latency target on mid hardware or documented baseline.
+- [x] Completion with note/tags works; empty note OK.
+- [x] Learning Log usable with synthetic multi-year fixture (≥10k sessions preferred).
+- [x] Search meets soft latency target on mid hardware or documented baseline.
+
+**Phase 3 notes (2026-08-06, follow-up 2026-08-12 / 2026-08-13):** Implemented on `phase/3-notes-learning-log`. Schema v2 adds FTS5 `session_search` (create + 1→2 backfill); **schema v3** rebuilds FTS with date tokens. `TagService` / `SessionNoteService` / `LearningLogService` + indexer. Completion panel: title, Markdown Edit/Preview (`flutter_markdown_plus` 1.0.12), tags, ~500 ms autosave, **paused duration**, **Edit Time** (pending start/end remap), Save/Resume blocked if draft persist fails. Learning Log: search, day/week/month grouping, AND filters, sort, calendar jump, sticky headers, mobile detail route (live `getEntry` after edit), desktop two-pane ≥1000 dp, **month-based lazy loading**, manual entry with overlap warn, edit (title/note/tags/skill/start/end + totals warning)/delete Undo, Skills “View all in Learning Log”. Archived skills remain in Log filters. Tag filter uses SQL AND + batched tag join. End-date filters use exclusive next-local-midnight. Follow-up: time edits remap work/pause segments (caches match segment sums); FTS date tokens + Unicode queries; IANA timezone service for timed/manual sessions; future timestamps rejected; skill-only overlap warn. Discard of a completion-pending session goes through `PermanentSessionDeletion` / `IndexedSessionDeletion` so the FTS document is removed with the session row. Save/Resume stay gated on successful draft persist (`completion_draft_gate`). Current `flutter test` count after those regressions: **82**.
+
+Latency baseline (in-memory 10k-session fixture, `learning_log_scale_fixture_test`): **search ~5–8 ms** (soft &lt;300 ms met); **single-month list** is the UI path (unfiltered all-time `query()` is test-only).
+
+Platform smoke (2026-08-13, re-run after schema v3 + `flutter_timezone`; see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
+
+| Check | Result |
+|---|---|
+| `flutter analyze` | ✅ No issues |
+| `flutter test` | ✅ All 79 tests passed |
+| **Windows** build + launch | ✅ `tool\win_build.bat --debug` → `ayutam.exe`; alive after 7 s (`WIN_SMOKE_OK`) |
+| **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → uninstall + install + `am start` → `pidof` returned `4896` (`ANDROID_SMOKE_OK`) |
+| **Linux** build + launch (WSL) | ✅ `tool/wsl_build_linux.sh` → `LINUX_SMOKE_OK` |
+
+Defects found / fixes applied: none on this re-run. Gradle warned that `flutter_timezone` still applies Kotlin Gradle Plugin (KGP); the APK built and launched. Prior 2026-08-06 smoke (59 tests, pre-`flutter_timezone`) remains historical only.
 
 ---
 

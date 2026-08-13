@@ -10,6 +10,7 @@ import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 import '../core/constants/app_constants.dart';
 import '../core/id/id_generator.dart';
 import '../core/time/clock_service.dart';
+import '../features/learning_log/data/session_search_indexer.dart';
 import 'tables/tables.dart';
 
 part 'app_database.g.dart';
@@ -70,36 +71,49 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
-      await customStatement('PRAGMA foreign_keys = ON');
-      await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_skills_status_sort '
-        'ON skills (status, sort_order)',
-      );
-      await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_sessions_skill_status_start '
-        'ON sessions (skill_id, status, start_at_utc DESC)',
-      );
-      await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_sessions_status_start '
-        'ON sessions (status, start_at_utc DESC)',
-      );
-      await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_sessions_updated '
-        'ON sessions (updated_at_utc)',
-      );
-      await customStatement(
-        'CREATE INDEX IF NOT EXISTS idx_segments_session_start '
-        'ON session_segments (session_id, start_at_utc)',
-      );
-      await customStatement(
-        'CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_normalized '
-        'ON tags (normalized_name)',
-      );
+      await _createIndexes();
+      await SessionSearchIndexer(this).ensureCreated();
+    },
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 2) {
+        await SessionSearchIndexer(this).ensureCreated();
+      }
+      if (from < 3) {
+        await SessionSearchIndexer(this).rebuildAll();
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<void> _createIndexes() async {
+    await customStatement('PRAGMA foreign_keys = ON');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_skills_status_sort '
+      'ON skills (status, sort_order)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sessions_skill_status_start '
+      'ON sessions (skill_id, status, start_at_utc DESC)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sessions_status_start '
+      'ON sessions (status, start_at_utc DESC)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sessions_updated '
+      'ON sessions (updated_at_utc)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_segments_session_start '
+      'ON session_segments (session_id, start_at_utc)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_normalized '
+      'ON tags (normalized_name)',
+    );
+  }
 
   /// Ensures device identity and idle timer_runtime row exist.
   Future<void> ensureSeeded({

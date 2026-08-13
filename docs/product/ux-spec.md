@@ -149,9 +149,13 @@ Primary label: **Save Session**. Autosave status: Saving… / Saved locally / Sa
 
 ### 4.6 Learning Log
 
-**Mobile:** Search, grouping Day/Week/Month, filter button with count, calendar in toolbar, sticky group headers, cards → full-screen detail (preserve scroll on back).
+**Mobile:** Search, grouping Day/Week/Month, filter button with count, calendar in toolbar, sticky group headers, cards → full-screen detail (preserve scroll on back). List fetches the current (or latest matching) month first and loads additional months on scroll.
 
 **Desktop (≥ ~1000 dp):** Left — calendar, filters, grouped list; right — detail + rendered Markdown. Selected card highlighted.
+
+**Filters:** Skill chips include archived skills labeled “(archived)”. Tag chips list existing tags.
+
+**Edit session:** Title, note, tags, skill, start, and end. Changing skill or times warns that totals/statistics will change. Start/end cannot be in the future.
 
 **Card (collapsed):** title or first note line or “Untitled session”; skill + accent; date and start–end; duration; tag chips; note preview; source icon (manual/Pomodoro/stopwatch); overflow. Prefer overflow over permanent Edit/Delete on every mobile card.
 

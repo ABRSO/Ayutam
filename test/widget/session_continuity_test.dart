@@ -3,6 +3,7 @@ import 'package:ayutam/app/providers.dart';
 import 'package:ayutam/bootstrap.dart';
 import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
+import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
 import 'package:ayutam/features/skills/domain/skill.dart';
 import 'package:ayutam/features/timer/domain/timer_enums.dart';
@@ -22,7 +23,12 @@ void main() {
     clock = FakeClockService(initialUtc: DateTime.utc(2026, 7, 22, 12));
     const ids = UuidIdGenerator();
     db = AppDatabase.memory(clock: clock, ids: ids);
-    container = await bootstrap(clock: clock, ids: ids, database: db);
+    container = await bootstrap(
+      clock: clock,
+      ids: ids,
+      database: db,
+      timezones: const FakeTimezoneService(),
+    );
   });
 
   tearDown(() async {
@@ -188,6 +194,7 @@ void main() {
         clock: clock,
         ids: const UuidIdGenerator(),
         database: db,
+        timezones: const FakeTimezoneService(),
       );
       addTearDown(cold.dispose);
 

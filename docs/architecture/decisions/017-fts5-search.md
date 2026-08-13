@@ -9,7 +9,7 @@ Acceptance targets require search over notes/titles/tags at 10k–100k sessions 
 
 ## Decision
 
-Maintain an FTS5 virtual table (`session_search`) for title, note, skill name, tags text. Rebuild available in diagnostics.
+Maintain an FTS5 virtual table (`session_search`) for title, note, skill name, tags text, and date tokens (ISO / compact day + English month names, stored in the `tags_text` column). User MATCH queries must preserve Unicode letters (quote/escape FTS syntax; do not ASCII-strip). Rebuild available in diagnostics.
 
 ## Consequences
 

@@ -96,7 +96,9 @@ Only one session may be `active`, `paused`, or `completion_pending` at a time. S
 
 **Long session:** Warn after 8 hours of active time; never auto-stop. No idle detection in v1.
 
-**Overlaps:** Warn on overlap; allow save.
+**Overlaps:** Warn on overlap; allow save. The same warning applies when a completed session is reassigned to a skill that already has a session in that interval, even if start/end are unchanged.
+
+**Completed / manual times:** Start and end must be ≤ now (UTC). Future timestamps are rejected (`VAL-FUTURE`). Date pickers stop at today; a time later today is also invalid.
 
 **Cross-midnight:** One session record; active duration split across local calendar days for heatmap/daily stats (configured timezone).
 
@@ -114,24 +116,25 @@ On Stop:
 2. Persist status `completion_pending` immediately (so a crash does not lose the session).
 3. Open completion panel.
 
-**Panel:** Read-only skill/date/start–end/active/paused/mode. Editable optional title, Markdown note (soft counter past 2,000 chars, no hard limit), tags. Actions: **Save Session** (empty note OK), **Resume Session**, **Discard Session** (confirm). Back/close keeps `completion_pending` and autosaves draft (debounce ~300–750 ms + on blur/lifecycle).
+**Panel:** Read-only skill/date/start–end/active/paused/mode. Editable optional title, Markdown note (soft counter past 2,000 chars, no hard limit), tags. **Edit Time** corrects start/end on the pending session (remaps segments; overlap warning). Actions: **Save Session** (empty note OK), **Resume Session**, **Discard Session** (confirm). Draft title/note/tags must persist successfully before Save/Resume. Back/close keeps `completion_pending` and autosaves draft (debounce ~300–750 ms + on blur/lifecycle).
 
 **Markdown:** CommonMark-ish — headings, emphasis, lists, blockquotes, code, links. No remote images, no arbitrary HTML. Render with `flutter_markdown_plus`.
 
-**Edit later:** Title, note, tags, skill, start/end (warns that totals/stats change). Manual entry supported (no timer). Delete: Undo snackbar ~5 s, then soft-delete cleanup — no full trash UI in v1.
+**Edit later:** Title, note, tags, skill, start/end (warns that totals/stats change). Changing skill or times warns on overlap with another session of the destination skill (save anyway allowed). Manual entry supported (no timer). Completed and manual sessions cannot be dated in the future. Delete: Undo snackbar ~5 s, then soft-delete cleanup — no full trash UI in v1.
 
-**Tags:** Global, case-insensitive unique with preserved casing, autocomplete, filterable. Deleting a tag removes associations, not sessions.
+**Tags:** Global, case-insensitive unique with preserved casing, autocomplete, filterable. Deleting a tag removes associations, not sessions. Typed tag text must become a chip on Done/Enter, suggestion pick, focus loss, or Save/Apply — never discarded because the user skipped Enter. Learning Log filters show existing tags as selectable chips (same pattern as skill chips).
 
 ### 2.5 Learning Log
 
 Dedicated journal of sessions (including those without notes — show “No note added”).
 
 - Group by day / week / month (user-selectable).
-- Search: title, note, skill names, tags, dates (FTS5).
+- Search: title, note, skill names, tags, dates (FTS5). Date queries match ISO `yyyy-MM-dd` / compact `yyyyMMdd` and English month-day-year tokens of the session’s recorded local start (and end, if another calendar day). Search terms keep Unicode letters (not ASCII-stripped).
 - Filters (AND): skill, date range, min/max duration, with/without notes, tags, manual/timed.
 - Sort: newest (default), oldest, longest, shortest.
-- Month-based lazy loading.
+- Month-based lazy loading (fetch one local calendar month at a time; load earlier/later months on scroll).
 - Compact calendar jump.
+- Filters include archived skills (history remains after archive; Home/timer picker still hide them).
 - Mobile: timeline + full-screen detail. Desktop: two-pane list + detail.
 - Detail: rendered Markdown, metadata, prev/next, Edit / Delete / Copy note.
 
@@ -219,7 +222,7 @@ Three steps: track skills → local-only / no accounts → manual backup respons
 | F-012 | Heatmap | P0 | Fixed buckets; day → total + open log |
 | F-013 | Summary table | P1 | Switchable granularity + change column |
 | F-014 | Pomodoro | P1 | Work-only totals; phase recovery |
-| F-015 | Manual session | P1 | Historical entry + overlap warn |
+| F-015 | Manual session | P1 | Historical entry + overlap warn; no future timestamps |
 | F-016 | Android notification | P1 | Persistent; Pause/Stop same commands |
 | F-017 | Desktop tray + shortcuts | P1 | Tray live state; keyboard when focused |
 | F-018 | Backup reminders | P1 | Weekly + last-backup indicator |

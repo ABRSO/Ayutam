@@ -3282,7 +3282,7 @@ class TimerRuntimeCompanion extends UpdateCompanion<TimerRuntimeData> {
   }
 }
 
-class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
+class $TagsTable extends Tags with TableInfo<$TagsTable, TagRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -3365,7 +3365,7 @@ class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
   static const String $name = 'tags';
   @override
   VerificationContext validateIntegrity(
-    Insertable<Tag> instance, {
+    Insertable<TagRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -3433,9 +3433,9 @@ class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Tag map(Map<String, dynamic> data, {String? tablePrefix}) {
+  TagRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Tag(
+    return TagRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -3469,14 +3469,14 @@ class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
   }
 }
 
-class Tag extends DataClass implements Insertable<Tag> {
+class TagRow extends DataClass implements Insertable<TagRow> {
   final String id;
   final String name;
   final String normalizedName;
   final int createdAtUtc;
   final int updatedAtUtc;
   final String sourceDeviceId;
-  const Tag({
+  const TagRow({
     required this.id,
     required this.name,
     required this.normalizedName,
@@ -3507,12 +3507,12 @@ class Tag extends DataClass implements Insertable<Tag> {
     );
   }
 
-  factory Tag.fromJson(
+  factory TagRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Tag(
+    return TagRow(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       normalizedName: serializer.fromJson<String>(json['normalizedName']),
@@ -3534,14 +3534,14 @@ class Tag extends DataClass implements Insertable<Tag> {
     };
   }
 
-  Tag copyWith({
+  TagRow copyWith({
     String? id,
     String? name,
     String? normalizedName,
     int? createdAtUtc,
     int? updatedAtUtc,
     String? sourceDeviceId,
-  }) => Tag(
+  }) => TagRow(
     id: id ?? this.id,
     name: name ?? this.name,
     normalizedName: normalizedName ?? this.normalizedName,
@@ -3549,8 +3549,8 @@ class Tag extends DataClass implements Insertable<Tag> {
     updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
     sourceDeviceId: sourceDeviceId ?? this.sourceDeviceId,
   );
-  Tag copyWithCompanion(TagsCompanion data) {
-    return Tag(
+  TagRow copyWithCompanion(TagsCompanion data) {
+    return TagRow(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       normalizedName: data.normalizedName.present
@@ -3570,7 +3570,7 @@ class Tag extends DataClass implements Insertable<Tag> {
 
   @override
   String toString() {
-    return (StringBuffer('Tag(')
+    return (StringBuffer('TagRow(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('normalizedName: $normalizedName, ')
@@ -3593,7 +3593,7 @@ class Tag extends DataClass implements Insertable<Tag> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Tag &&
+      (other is TagRow &&
           other.id == this.id &&
           other.name == this.name &&
           other.normalizedName == this.normalizedName &&
@@ -3602,7 +3602,7 @@ class Tag extends DataClass implements Insertable<Tag> {
           other.sourceDeviceId == this.sourceDeviceId);
 }
 
-class TagsCompanion extends UpdateCompanion<Tag> {
+class TagsCompanion extends UpdateCompanion<TagRow> {
   final Value<String> id;
   final Value<String> name;
   final Value<String> normalizedName;
@@ -3633,7 +3633,7 @@ class TagsCompanion extends UpdateCompanion<Tag> {
        createdAtUtc = Value(createdAtUtc),
        updatedAtUtc = Value(updatedAtUtc),
        sourceDeviceId = Value(sourceDeviceId);
-  static Insertable<Tag> custom({
+  static Insertable<TagRow> custom({
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? normalizedName,
@@ -8361,7 +8361,7 @@ typedef $$TagsTableUpdateCompanionBuilder =
     });
 
 final class $$TagsTableReferences
-    extends BaseReferences<_$AppDatabase, $TagsTable, Tag> {
+    extends BaseReferences<_$AppDatabase, $TagsTable, TagRow> {
   $$TagsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
   static MultiTypedResultKey<$SessionTagsTable, List<SessionTag>>
@@ -8552,14 +8552,14 @@ class $$TagsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $TagsTable,
-          Tag,
+          TagRow,
           $$TagsTableFilterComposer,
           $$TagsTableOrderingComposer,
           $$TagsTableAnnotationComposer,
           $$TagsTableCreateCompanionBuilder,
           $$TagsTableUpdateCompanionBuilder,
-          (Tag, $$TagsTableReferences),
-          Tag,
+          (TagRow, $$TagsTableReferences),
+          TagRow,
           PrefetchHooks Function({bool sessionTagsRefs})
         > {
   $$TagsTableTableManager(_$AppDatabase db, $TagsTable table)
@@ -8623,7 +8623,7 @@ class $$TagsTableTableManager
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (sessionTagsRefs)
-                    await $_getPrefetchedData<Tag, $TagsTable, SessionTag>(
+                    await $_getPrefetchedData<TagRow, $TagsTable, SessionTag>(
                       currentTable: table,
                       referencedTable: $$TagsTableReferences
                           ._sessionTagsRefsTable(db),
@@ -8645,14 +8645,14 @@ typedef $$TagsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $TagsTable,
-      Tag,
+      TagRow,
       $$TagsTableFilterComposer,
       $$TagsTableOrderingComposer,
       $$TagsTableAnnotationComposer,
       $$TagsTableCreateCompanionBuilder,
       $$TagsTableUpdateCompanionBuilder,
-      (Tag, $$TagsTableReferences),
-      Tag,
+      (TagRow, $$TagsTableReferences),
+      TagRow,
       PrefetchHooks Function({bool sessionTagsRefs})
     >;
 typedef $$SessionTagsTableCreateCompanionBuilder =

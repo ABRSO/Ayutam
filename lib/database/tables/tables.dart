@@ -87,6 +87,7 @@ class TimerRuntime extends Table {
   Set<Column<Object>> get primaryKey => {singletonId};
 }
 
+@DataClassName('TagRow')
 class Tags extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();

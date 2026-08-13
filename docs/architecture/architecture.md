@@ -59,6 +59,7 @@ Drift/SQLite   File/backup I/O   Platform services
 | Desktop | `window_manager`, `tray_manager` | Graceful degrade if tray fails |
 | Wakelock | `wakelock_plus` | |
 | IDs / locale | `uuid`, `intl`, `timezone` | |
+| Device IANA zone | `flutter_timezone` | Default configured timezone until Settings ships |
 | CSV | `csv` | |
 
 **Package policy:** Prefer mature MIT/BSD/Apache-2.0 packages; minimize count; document purpose, licence, platform matrix, replacement plan. Re-check versions on pub.dev before pinning. Do not add packages for trivial Dart/Flutter-native capability.
@@ -175,6 +176,7 @@ Controller asks injectable clock for `now`, combines with persisted anchors — 
 | Service | Responsibility |
 |---|---|
 | ClockService | Wall UTC + monotonic elapsed; single place for clock-change validation |
+| TimezoneService | Configured IANA id + offset at an instant; device default via `flutter_timezone` |
 | Timer services | Start/Pause/Resume/Stop/Recover/Finalize — transactional |
 | BackupService | Archive build/validate, merge/replace, snapshots |
 | NotificationService | Android ongoing notification + Pomodoro alerts |
