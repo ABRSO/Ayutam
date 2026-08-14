@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Statistics on desktop (≥840 dp) uses a tab bar (Cumulative / Heatmap / Summary Table); compact layouts keep the segmented Progress / Activity / Summary control.
+- Cumulative chart time window is range presets plus a custom date-range picker. Product spec §2.6 now matches that behavior (gesture zoom/pan is not required).
 - Agent/human phase workflow: README status must update each phase; Android/Windows/Linux platform smokes are mandatory before claiming a phase done; phase branches PR into `main` before starting the next phase.
 - Timer screen shows skill-total flip clock plus monospace current-session duration; Home skill cards use accent strip and polished card theme.
 - Expanded [`docs/dev/build-and-run.md`](docs/dev/build-and-run.md): step-by-step JDK 17 / Android SDK / AVD / env vars; WSL Linux; **native Linux** (Ubuntu/Debian) setup, build, and run; Xiaomi/`INSTALL_FAILED_USER_RESTRICTED` install notes; debug vs release APK size and performance guidance.

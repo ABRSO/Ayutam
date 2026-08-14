@@ -23,13 +23,16 @@ class StatisticsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   var _view = 0;
   Timer? _midnightTimer;
+  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_syncViewFromTabs);
     WidgetsBinding.instance.addObserver(this);
     _armMidnightTimer();
   }
@@ -37,8 +40,23 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
   @override
   void dispose() {
     _midnightTimer?.cancel();
+    _tabController.removeListener(_syncViewFromTabs);
+    _tabController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _syncViewFromTabs() {
+    if (_tabController.index == _view) return;
+    setState(() => _view = _tabController.index);
+  }
+
+  void _selectView(int index) {
+    if (_view == index) return;
+    setState(() => _view = index);
+    if (_tabController.index != index) {
+      _tabController.index = index;
+    }
   }
 
   @override
@@ -129,18 +147,26 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
     );
   }
 
+  /// ux-spec §4.7: desktop tabs, compact segmented control. Same `_view`.
   Widget _viewSwitcher(bool desktop) {
-    final segments = desktop
-        ? const ['Cumulative', 'Heatmap', 'Summary Table']
-        : const ['Progress', 'Activity', 'Summary'];
+    if (desktop) {
+      return TabBar(
+        controller: _tabController,
+        tabs: const [
+          Tab(text: 'Cumulative'),
+          Tab(text: 'Heatmap'),
+          Tab(text: 'Summary Table'),
+        ],
+      );
+    }
     return SegmentedButton<int>(
-      segments: [
-        for (var i = 0; i < segments.length; i++)
-          ButtonSegment(value: i, label: Text(segments[i])),
+      segments: const [
+        ButtonSegment(value: 0, label: Text('Progress')),
+        ButtonSegment(value: 1, label: Text('Activity')),
+        ButtonSegment(value: 2, label: Text('Summary')),
       ],
       selected: {_view},
-      onSelectionChanged: (selection) =>
-          setState(() => _view = selection.first),
+      onSelectionChanged: (selection) => _selectView(selection.first),
     );
   }
 

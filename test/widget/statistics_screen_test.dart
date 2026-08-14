@@ -64,6 +64,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  void useViewSize(WidgetTester tester, Size size) {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   // The screen arms a real midnight timer; unmount so the fake-async
   // pending-timer guard stays green at the end of each test.
   Future<void> unmount(WidgetTester tester) async {
@@ -97,11 +104,15 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('view switcher reaches heatmap and summary table', (
+  testWidgets('mobile segmented control reaches heatmap and summary table', (
     tester,
   ) async {
+    useViewSize(tester, const Size(800, 800));
     await completedSession();
     await pumpStats(tester);
+
+    expect(find.byType(SegmentedButton<int>), findsOneWidget);
+    expect(find.byType(TabBar), findsNothing);
 
     await tester.tap(find.text('Activity'));
     await tester.pumpAndSettle();
@@ -116,9 +127,34 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('desktop tabs reach heatmap and summary table', (tester) async {
+    useViewSize(tester, const Size(1280, 800));
+    await completedSession();
+    await pumpStats(tester);
+
+    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.byType(SegmentedButton<int>), findsNothing);
+    expect(find.text('Cumulative'), findsOneWidget);
+    expect(find.text('Heatmap'), findsOneWidget);
+    expect(find.text('Summary Table'), findsOneWidget);
+
+    await tester.tap(find.text('Heatmap'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PracticeHeatmap), findsOneWidget);
+    expect(find.text('Last 12 months'), findsOneWidget);
+
+    await tester.tap(find.text('Summary Table'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SummaryTableView), findsOneWidget);
+    expect(find.text('Period'), findsOneWidget);
+    expect(find.text('Sessions'), findsWidgets);
+    await unmount(tester);
+  });
+
   testWidgets('heatmap day popover opens a filtered Learning Log', (
     tester,
   ) async {
+    useViewSize(tester, const Size(800, 800));
     await completedSession();
     await pumpStats(tester);
 

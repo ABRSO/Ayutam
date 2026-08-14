@@ -50,7 +50,7 @@ Drift/SQLite   File/backup I/O   Platform services
 | State / DI | **Riverpod 3.x** (`flutter_riverpod`) | Modern `Notifier` / `AsyncNotifier` — **not** legacy `StateNotifierProvider` (see ADR-007) |
 | Database | Drift + native SQLite | Typed queries, migrations, `.watch()`, desktop support |
 | Navigation | Standard `Navigator` + typed route builders | No `go_router` in v1 (ADR-008) |
-| Charts | `fl_chart` behind a thin adapter | Heatmap is custom |
+| Charts | `fl_chart` behind a thin adapter | Heatmap is custom; cumulative chart window is range presets + custom picker (no pinch/pan) |
 | Flip clock | Custom widgets | No novelty package |
 | Markdown | **`flutter_markdown_plus`** | Successor to discontinued `flutter_markdown` (ADR-015) |
 | Archive / hash | `archive`, `crypto` | ZIP + SHA-256 |

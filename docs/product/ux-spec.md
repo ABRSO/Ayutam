@@ -167,7 +167,7 @@ Primary label: **Save Session**. Autosave status: Saving… / Saved locally / Sa
 
 Skill scope control + compact summary above views. Mobile: horizontally scrollable summary or 2-col grid; segmented Progress / Activity / Summary. Desktop: tabs Cumulative / Heatmap / Summary Table.
 
-Chart min height ~280 mobile / ~420 desktop. Range controls collapse on narrow layouts. Comparison: colour **and** dash/marker differences. Heatmap: weekly columns, weekday rows, legend, focus/tap shows exact duration. Summary table: desktop table; mobile cards or horizontal scroll; change uses icon + text.
+Chart min height ~280 mobile / ~420 desktop. Range controls collapse on narrow layouts. The selected preset or custom date range is the time window; the chart does not pinch-zoom or pan. Comparison: colour **and** dash/marker differences. Heatmap: weekly columns, weekday rows, legend, focus/tap shows exact duration. Summary table: desktop table; mobile cards or horizontal scroll; change uses icon + text.
 
 ### 4.8 Settings
 
