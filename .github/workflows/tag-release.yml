@@ -1,0 +1,60 @@
+name: Tag release from pubspec
+
+# When pubspec.yaml on main has version X.Y.Z and no GitHub release vX.Y.Z
+# exists yet, create and push tag vX.Y.Z. The Release workflow then builds
+# artifacts (ADR-021). Dependabot / docs commits that do not bump the version
+# do not cut a release.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag-if-needed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Create tag when pubspec version has no release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not parse version from pubspec.yaml"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          echo "pubspec version=${VERSION} tag=${TAG}"
+
+          if ! grep -q "## \[${VERSION}\]" CHANGELOG.md; then
+            echo "No CHANGELOG section for ${VERSION}; skipping tag."
+            exit 0
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; nothing to do."
+            exit 0
+          fi
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists locally/remotely without a release; leaving it alone."
+            exit 0
+          fi
+
+          # Remote tag check
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            echo "Tag ${TAG} already on origin; nothing to do."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Ayutam ${TAG}"
+          git push origin "$TAG"
+          echo "Pushed ${TAG}; Release workflow will build artifacts."

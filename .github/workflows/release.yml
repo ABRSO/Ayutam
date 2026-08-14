@@ -14,9 +14,12 @@ jobs:
   # Tag must match pubspec.yaml version and have a CHANGELOG section.
   verify:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v7
       - name: Check tag against pubspec and CHANGELOG
+        id: meta
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Releasing version: $VERSION"
@@ -28,6 +31,7 @@ jobs:
             echo "::error::CHANGELOG.md has no '## [${VERSION}]' section"
             exit 1
           fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
   test:
     runs-on: ubuntu-latest
@@ -59,15 +63,25 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      # NOTE: debug-signed for now (see android/app/build.gradle.kts).
-      # Move to a release keystore via GitHub secrets before any store distribution.
-      - run: flutter build apk --release
-      - name: Rename artifact
-        run: cp build/app/outputs/flutter-apk/app-release.apk "ayutam-${GITHUB_REF_NAME}-android.apk"
+      # Release-mode AOT APKs, still debug-signed until a Play upload keystore
+      # is configured (see android/app/build.gradle.kts). Same command as local
+      # `flutter build apk --release --split-per-abi`.
+      - run: flutter build apk --release --split-per-abi
+      - name: Rename artifacts
+        run: |
+          VERSION="${{ needs.verify.outputs.version }}"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+            "dist/ayutam-v${VERSION}-android-armeabi-v7a.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            "dist/ayutam-v${VERSION}-android-arm64-v8a.apk"
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk \
+            "dist/ayutam-v${VERSION}-android-x86_64.apk"
+          ls -la dist
       - uses: actions/upload-artifact@v7
         with:
           name: android
-          path: ayutam-*.apk
+          path: dist/ayutam-*.apk
           if-no-files-found: error
 
   build-linux:
@@ -78,7 +92,8 @@ jobs:
       - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev dpkg-dev
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -87,12 +102,21 @@ jobs:
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build linux --release
-      - name: Package bundle
-        run: tar -czf "ayutam-${GITHUB_REF_NAME}-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
+      - name: Package tarball and .deb
+        run: |
+          VERSION="${{ needs.verify.outputs.version }}"
+          mkdir -p dist/linux
+          tar -czf "dist/linux/ayutam-v${VERSION}-linux-x64.tar.gz" \
+            -C build/linux/x64/release/bundle .
+          chmod +x tool/package_linux_deb.sh
+          tool/package_linux_deb.sh "${VERSION}" build/linux/x64/release/bundle
+          ls -la dist/linux
       - uses: actions/upload-artifact@v7
         with:
           name: linux
-          path: ayutam-*.tar.gz
+          path: |
+            dist/linux/ayutam-*.tar.gz
+            dist/linux/ayutam-*.deb
           if-no-files-found: error
 
   build-windows:
@@ -108,16 +132,40 @@ jobs:
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
       - run: flutter build windows --release
-      - name: Package bundle
-        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath "ayutam-$env:GITHUB_REF_NAME-windows-x64.zip"
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          $version = "${{ needs.verify.outputs.version }}"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path build\windows\x64\runner\Release\* `
+            -DestinationPath "dist\ayutam-v${version}-windows-x64.zip"
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: |
+          $version = "${{ needs.verify.outputs.version }}"
+          $src = (Resolve-Path build\windows\x64\runner\Release).Path
+          New-Item -ItemType Directory -Force -Path dist\windows | Out-Null
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc packaging\windows\ayutam.iss `
+            "/DMyAppVersion=$version" `
+            "/DMyAppSource=$src"
+          Copy-Item "dist\windows\ayutam-v${version}-windows-x64-setup.exe" dist\
+          Get-ChildItem dist
       - uses: actions/upload-artifact@v7
         with:
           name: windows
-          path: ayutam-*.zip
+          path: |
+            dist/ayutam-*-windows-x64.zip
+            dist/ayutam-*-windows-x64-setup.exe
           if-no-files-found: error
 
   release:
-    needs: [build-android, build-linux, build-windows]
+    needs: [verify, build-android, build-linux, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -129,12 +177,23 @@ jobs:
           merge-multiple: true
       - name: Extract CHANGELOG section as release notes
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          awk -v ver="$VERSION" '
-            $0 ~ "^## \\[" ver "\\]" { grab = 1; next }
-            grab && /^## \[/ { exit }
-            grab { print }
-          ' CHANGELOG.md > release-notes.md
+          VERSION="${{ needs.verify.outputs.version }}"
+          {
+            echo "## Install"
+            echo ""
+            echo "- **Android:** install the APK that matches your CPU — \`arm64-v8a\` for nearly all phones, \`armeabi-v7a\` for older 32-bit ARM, \`x86_64\` for most emulators. These are **release-mode** builds (fast); they are still signed with the debug keystore until Play upload signing lands (Phase 8)."
+            echo "- **Windows:** prefer \`ayutam-v${VERSION}-windows-x64-setup.exe\` (Inno Setup). Or unpack the portable \`.zip\` (exe + DLLs + \`data/\`) for no-admin / USB use."
+            echo "- **Linux:** install the \`.deb\` on Debian/Ubuntu, or unpack the \`.tar.gz\` anywhere and run \`./ayutam\`."
+            echo "- **Source:** GitHub attaches source \`.zip\` / \`.tar.gz\` automatically on this release."
+            echo ""
+            echo "## Changes"
+            echo ""
+            awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { grab = 1; next }
+              grab && /^## \[/ { exit }
+              grab { print }
+            ' CHANGELOG.md
+          } > release-notes.md
           echo "--- notes ---"
           cat release-notes.md
       - name: Create GitHub release

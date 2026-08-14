@@ -24,3 +24,4 @@ Index of decisions for Ayutam. Each ADR is a short, immutable-once-accepted reco
 | [018](018-app-lock-and-encryption.md) | App lock & backup encryption phasing | Accepted |
 | [019](019-four-destination-nav.md) | Four-destination navigation | Accepted |
 | [020](020-pomodoro-reuses-pause.md) | Pomodoro reuses pause accounting | Accepted |
+| [021](021-github-releases-distribution.md) | GitHub Releases distribution (sideload) | Accepted |

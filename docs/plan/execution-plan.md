@@ -347,7 +347,7 @@ Defects found during smoke: none in the app. Two harness gotchas: the WSL script
 3. Optional app lock (off by default) per ADR-018.
 4. Optional encrypted backup if security review + Argon2id benchmarks pass; else defer with format fields already reserved.
 5. Diagnostics export; integrity screen.
-6. Packaging: signed APK, Windows installer/ZIP, Linux `.deb`/archive; GitHub Releases workflow.
+6. Packaging: ~~signed APK, Windows installer/ZIP, Linux `.deb`/archive; GitHub Releases workflow~~ — **pulled forward** (see ADR-021 / notes below). Remaining: Play/Microsoft **upload signing**, AAB, MSIX.
 7. Store-readiness scaffolding (icons, metadata placeholders) without submission.
 8. Update `CHANGELOG`; run principal E2E across three platforms.
 9. Optional: GitHub Releases update check behind flag (still no custom backend).
@@ -360,10 +360,12 @@ Defects found during smoke: none in the app. Two harness gotchas: the WSL script
 
 ### Exit criteria
 
-- [ ] GitHub Release produces installable artifacts for Android, Windows, Linux.
+- [x] GitHub Release produces installable artifacts for Android, Windows, Linux. *(Pulled forward with ADR-021: split release APKs, Windows Inno Setup + portable zip, Linux `.deb` + tarball; auto-tag from `pubspec` on `main`. Play/Microsoft upload signing and MSIX remain Phase 8.)*
 - [ ] Principal E2E acceptance (§ testing strategy) passes.
 - [ ] Accessibility checklist signed off.
 - [ ] Docs updated for any shipped deviations (ADRs).
+
+**Phase 8 packaging note (2026-08-15):** GitHub Releases sideload packaging (task 6 core artifacts) shipped early so Phase 4 can cut `v0.4.0`. Still deferred: real release/upload keystore, AAB, MSIX/Store scaffolding, optional in-app update check (F-023).
 
 ---
 
