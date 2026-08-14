@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-15
+
+First public GitHub Release covering Phases 0–4 (ADR-021).
+
 ### Added
 
+- GitHub Releases packaging: split Android release APKs (`--split-per-abi`), Windows Inno Setup installer + portable zip, Linux `.deb` + `.tar.gz`; auto-tag `vX.Y.Z` from `pubspec` on `main` when that version has no release yet.
 - Phase 4 Statistics: scope control (one skill / all skills / compare up to 5), summary card (total active, progress, remaining, sessions, labeled **4-week average**, global streak, soft-language projection), cumulative `fl_chart` line chart (7d/30d/3mo/6mo/1yr/All/custom ranges, automatic daily→weekly→monthly aggregation, milestone and goal lines, tooltips, fullscreen, PNG export, dashed projection run-out on the All range), custom calendar heatmap (rolling 12 months + year selector, fixed buckets none/≤30m/≤1h/≤2h/≤4h/4h+, day popover with **Open in Learning Log**), and a Day/Week/Month/Year summary table with % change (“New” / em dash). Active time is allocated across configured-timezone midnights, so cross-midnight sessions count on both local days.
 - Chart PNG export: desktop save dialog opens in `Documents/Ayutam/export-png`; Android offers that public Documents folder (MediaStore) or a system “Choose location…” save sheet instead of writing only to the private app sandbox.
 - New dependencies: `fl_chart` 1.2.0 (MIT; line chart only, behind an adapter per ADR-013), `file_selector` 1.1.0 (BSD-3; desktop PNG save dialog), and `file_picker` (MIT; Android chart PNG save sheet).

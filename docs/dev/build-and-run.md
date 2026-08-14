@@ -3,7 +3,16 @@
 **Audience:** Humans setting up a machine from scratch and running the app for development or manual UI checks.  
 **Related:** Agents verifying a phase should also follow [`../testing/platform-smoke.md`](../testing/platform-smoke.md).
 
-Ayutam is a Flutter app for **Windows**, **Android**, and **Linux**. There is no store “download and install” flow yet — you build from source (or use a [GitHub Release](https://github.com/ABRSO/Ayutam/releases) artifact when one exists).
+Ayutam is a Flutter app for **Windows**, **Android**, and **Linux**. For day-to-day use, download a [GitHub Release](https://github.com/ABRSO/Ayutam/releases) (ADR-021). For development or manual UI checks, build from source as below.
+
+### Installing from a GitHub Release
+
+| Platform | What to download | Notes |
+|---|---|---|
+| Android | `ayutam-v*-android-arm64-v8a.apk` on nearly all phones | Also `armeabi-v7a` (older 32-bit) and `x86_64` (emulators). These are **release-mode** (fast) APKs; they may still be **debug-keystore signed** until Play upload signing — that is not the same as a debug build. |
+| Windows | `ayutam-v*-windows-x64-setup.exe` | Inno Setup copies exe + DLLs + `data/`. Portable: `*-windows-x64.zip` for no-admin / USB. |
+| Linux (Debian/Ubuntu) | `ayutam-v*-linux-amd64.deb` | Or unpack `*-linux-x64.tar.gz` and run `./ayutam`. |
+| Source | GitHub’s automatic source zip/tarball on the release page | |
 
 This guide is written so someone who has never installed Flutter/Android/Linux desktop toolchains can follow it end-to-end. Paths marked **(reference)** are from the project’s Windows 11 development machine; on your PC, substitute your own locations but keep the same structure.
 
@@ -433,10 +442,12 @@ adb shell am force-stop com.ayutam.ayutam
 adb emu kill          # if using the emulator
 ```
 
-Release APK (still debug-signed until a release keystore is configured for store builds):
+Release APK (AOT / optimized). Until a Play upload keystore is configured, Gradle still **signs** with the debug keystore — that does **not** mean a debug/JIT build:
 
 ```bash
 flutter build apk --release
+# Prefer split-per-abi for devices (same as GitHub Releases):
+flutter build apk --release --split-per-abi
 ```
 
 ### 3.8 Physical phone
