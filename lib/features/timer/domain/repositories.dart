@@ -35,9 +35,11 @@ abstract class SessionRepository {
 
   /// Completed (and optionally soft-deleted) sessions for Learning Log.
   ///
-  /// [startAfterUtc]/[endBeforeUtc] match session start times (month paging);
-  /// [overlapStartUtc]/[overlapEndUtc] match sessions *active* during the
-  /// window (heatmap day link, cross-midnight aware).
+  /// [startAfterUtc]/[endBeforeUtc] match session start times (month paging /
+  /// From–To). [overlapStartUtc]/[overlapEndUtc] match sessions *active*
+  /// during the window (heatmap day link, cross-midnight aware). When overlap
+  /// bounds are set, start-based bounds are ignored so the two modes never
+  /// AND together.
   Future<List<PracticeSession>> listJournalSessions({
     Set<String>? ids,
     Set<String>? skillIds,

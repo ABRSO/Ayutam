@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Android system back and desktop Escape on Learning Log / Statistics / Settings return to Skills; a further back from Skills exits (window close still quits). Nested routes still pop first.
 - Statistics on desktop (≥840 dp) uses a tab bar (Cumulative / Heatmap / Summary Table); compact layouts keep the segmented Progress / Activity / Summary control.
 - Cumulative chart time window is range presets plus a custom date-range picker. Product spec §2.6 now matches that behavior (gesture zoom/pan is not required).
 - Agent/human phase workflow: README status must update each phase; Android/Windows/Linux platform smokes are mandatory before claiming a phase done; phase branches PR into `main` before starting the next phase.
@@ -39,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Heatmap **Open in Learning Log** overlap filters are no longer ANDed with Jump-to-date / From–To start bounds (overlap wins in the repository; the UI clears overlap when setting start-based dates). Heatmap year changes re-scroll to the latest weeks.
 - Statistics review fixes: the heatmap's **Open in Learning Log** now matches sessions *active* on that local day (a cross-midnight session shows on both days, like the heatmap itself) and bypasses month paging so a previous-month start cannot hide it; summary-table session counts follow the same rule with an exclusive end instant (a session ending exactly at midnight counts only on the day that got its seconds); skill target/name edits refresh the summary, goal line, and projection; day-relative metrics (streak, 4-week average) reload on day rollover — including an idle visible screen, via a midnight timer; the fullscreen chart keeps a picked custom range.
 - Windows (and alias-reporting Android) timezones no longer silently degrade to UTC: the IANA database now includes link zones, so ICU ids like `Asia/Calcutta` resolve with the right offset. Before this, the skill editor capped "creation date" at the previous UTC day after local midnight and sessions stored `Etc/UTC` instead of the real zone.
 - Sessions completed outside the completion panel (Stop active and start this, startup force-complete of extra orphans) now get their Learning Log search (FTS) rows; renaming a skill rewrites the indexed skill name on its historical sessions; stop-and-start also refreshes an already-open Learning Log list.

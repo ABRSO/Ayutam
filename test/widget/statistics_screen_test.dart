@@ -216,6 +216,64 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('heatmap year change scrolls to the latest weeks', (
+    tester,
+  ) async {
+    // Narrow so a full year grid overflows horizontally.
+    useViewSize(tester, const Size(400, 800));
+    final bundle = StatsBundle(
+      summary: const StatsSummary(
+        totalActiveSeconds: 7200,
+        sessionCount: 2,
+        streakDays: 0,
+        fourWeekAverageWeeklySeconds: 0,
+      ),
+      dailyTotals: {DateTime(2025, 1, 15): 3600, DateTime(2026, 8, 1): 3600},
+      dailyTotalsBySkill: const {},
+      sessions: const [],
+      firstActivityDay: DateTime(2025, 1, 15),
+      hasAnyCompletedSession: true,
+      generatedForDay: DateTime(2026, 8, 6),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: PracticeHeatmap(
+              bundle: bundle,
+              scope: const StatsScope.all(),
+              skills: const [],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    ScrollPosition horizontalPosition() {
+      final states = tester.stateList<ScrollableState>(find.byType(Scrollable));
+      return states
+          .map((s) => s.position)
+          .firstWhere((p) => p.axis == Axis.horizontal);
+    }
+
+    // Simulate the user scrolling left after the initial jump-to-end.
+    final before = horizontalPosition();
+    expect(before.maxScrollExtent, greaterThan(0));
+    before.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(horizontalPosition().pixels, 0);
+
+    await tester.tap(find.text('Last 12 months'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2025').last);
+    await tester.pumpAndSettle();
+
+    final after = horizontalPosition();
+    expect(after.pixels, after.maxScrollExtent);
+  });
+
   testWidgets('fullscreen keeps the picked custom range', (tester) async {
     final bundle = StatsBundle(
       summary: const StatsSummary(

@@ -52,6 +52,8 @@ Minimum interactive target **48×48** logical pixels.
 
 Timer is nested because it only exists after choosing a skill.
 
+**Shell back root:** Skills is Home. On Android, the system back button / gesture on Learning Log, Statistics, or Settings returns to Skills; a second back from Skills exits the app. Nested routes (Timer, Learning Log detail, sheets, dialogs) still pop first. On Windows/Linux, Escape follows the same shell rule; closing the window still quits immediately.
+
 ---
 
 ## 4. Screens

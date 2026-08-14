@@ -14,3 +14,5 @@ Primary destinations: **Skills**, **Learning Log**, **Statistics**, **Settings**
 ## Consequences
 
 Matches mental model; immersive clock without nav chrome competition.
+
+Skills is the shell **back root**: Android system back / gesture and desktop Escape on Learning Log, Statistics, or Settings return to Skills; a second back from Skills exits. Nested routes still pop first. Window close on desktop is not remapped.

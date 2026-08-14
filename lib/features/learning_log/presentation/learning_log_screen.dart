@@ -49,7 +49,12 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
 
   Future<void> _calendarJump() async {
     final filters = ref.read(learningLogFiltersProvider);
-    final initial = filters.startAfterUtc?.toLocal() ?? DateTime.now();
+    // Prefer the overlap day (heatmap deep link) when choosing the picker
+    // seed; Jump replaces overlap with start-based From/To for that day.
+    final initial =
+        filters.overlapStartUtc?.toLocal() ??
+        filters.startAfterUtc?.toLocal() ??
+        DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -64,6 +69,7 @@ class _LearningLogScreenState extends ConsumerState<LearningLogScreen> {
           (f) => f.copyWith(
             startAfterUtc: inclusiveStartOfLocalDay(picked),
             endBeforeUtc: exclusiveUtcAfterLocalDay(picked),
+            clearOverlap: true,
           ),
         );
     if (_listScrollController.hasClients) {

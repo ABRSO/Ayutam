@@ -40,17 +40,18 @@ class _PracticeHeatmapState extends ConsumerState<PracticeHeatmap> {
   void initState() {
     super.initState();
     // Latest weeks sit at the right edge; start scrolled to them.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLatestWeeks());
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToLatestWeeks() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
   }
 
   DateTime get _today {
@@ -95,7 +96,12 @@ class _PracticeHeatmapState extends ConsumerState<PracticeHeatmap> {
               DropdownButton<int?>(
                 value: _year,
                 underline: const SizedBox.shrink(),
-                onChanged: (value) => setState(() => _year = value),
+                onChanged: (value) {
+                  setState(() => _year = value);
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _scrollToLatestWeeks(),
+                  );
+                },
                 items: [
                   const DropdownMenuItem<int?>(
                     value: null,

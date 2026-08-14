@@ -186,6 +186,31 @@ void main() {
       unorderedEquals({'Piano', 'Guitar'}),
     );
 
+    // Defense in depth: even if start-based bounds are also set (Jump /
+    // filter sheet before clearOverlap), overlap wins so the cross-midnight
+    // Piano session that started on Aug 1 remains visible on Aug 2.
+    final anded = await log.query(
+      LearningLogFilters(
+        overlapStartUtc: aug2Start,
+        overlapEndUtc: aug3Start,
+        startAfterUtc: aug2Start,
+        endBeforeUtc: aug3Start,
+      ),
+    );
+    expect(anded, hasLength(2));
+    expect(
+      anded.map((e) => e.skillName).toSet(),
+      unorderedEquals({'Piano', 'Guitar'}),
+    );
+
+    // After overlap is cleared, start-based From/To for Aug 2 hide the
+    // session that started on Aug 1 (only Guitar remains).
+    final startOnly = await log.query(
+      LearningLogFilters(startAfterUtc: aug2Start, endBeforeUtc: aug3Start),
+    );
+    expect(startOnly, hasLength(1));
+    expect(startOnly.single.skillName, 'Guitar');
+
     // The summary table counts the cross-midnight session on both days.
     final rows = stats.summaryRows(
       bundle: bundle,

@@ -297,19 +297,25 @@ final class DriftSessionRepository implements SessionRepository {
     if (skillIds != null && skillIds.isNotEmpty) {
       query.where((t) => t.skillId.isIn(skillIds.toList()));
     }
-    if (startAfterUtc != null) {
-      query.where(
-        (t) => t.startAtUtc.isBiggerOrEqualValue(
-          startAfterUtc.millisecondsSinceEpoch,
-        ),
-      );
-    }
-    if (endBeforeUtc != null) {
-      query.where(
-        (t) => t.startAtUtc.isSmallerThanValue(
-          endBeforeUtc.millisecondsSinceEpoch,
-        ),
-      );
+    // Overlap and start-based bounds are mutually exclusive. When both are
+    // present (e.g. heatmap deep link + Jump to date before UI clears
+    // overlap), prefer overlap so cross-midnight sessions stay visible.
+    final useOverlap = overlapStartUtc != null || overlapEndUtc != null;
+    if (!useOverlap) {
+      if (startAfterUtc != null) {
+        query.where(
+          (t) => t.startAtUtc.isBiggerOrEqualValue(
+            startAfterUtc.millisecondsSinceEpoch,
+          ),
+        );
+      }
+      if (endBeforeUtc != null) {
+        query.where(
+          (t) => t.startAtUtc.isSmallerThanValue(
+            endBeforeUtc.millisecondsSinceEpoch,
+          ),
+        );
+      }
     }
     if (overlapEndUtc != null) {
       query.where(

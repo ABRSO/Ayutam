@@ -41,7 +41,8 @@ final class LearningLogFilters {
   /// and end after it starts). Used by the statistics heatmap day link so a
   /// cross-midnight session shows on every local day it contributed to —
   /// unlike [startAfterUtc]/[endBeforeUtc], which match start times only and
-  /// also drive month paging.
+  /// also drive month paging. Mutually exclusive with start-based From/To:
+  /// Jump to date and the filter sheet clear overlap when setting those.
   final DateTime? overlapStartUtc;
   final DateTime? overlapEndUtc;
 
