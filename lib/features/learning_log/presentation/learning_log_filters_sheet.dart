@@ -73,13 +73,19 @@ class _LearningLogFiltersSheetState
   Future<void> _pickStart() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _draft.startAfterUtc?.toLocal() ?? DateTime.now(),
+      initialDate:
+          _draft.startAfterUtc?.toLocal() ??
+          _draft.overlapStartUtc?.toLocal() ??
+          DateTime.now(),
       firstDate: DateTime(1970),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked == null) return;
     setState(() {
-      _draft = _draft.copyWith(startAfterUtc: inclusiveStartOfLocalDay(picked));
+      _draft = _draft.copyWith(
+        startAfterUtc: inclusiveStartOfLocalDay(picked),
+        clearOverlap: true,
+      );
     });
   }
 
@@ -87,14 +93,19 @@ class _LearningLogFiltersSheetState
     final picked = await showDatePicker(
       context: context,
       initialDate: _draft.endBeforeUtc == null
-          ? DateTime.now()
+          ? (_draft.overlapEndUtc == null
+                ? DateTime.now()
+                : inclusiveLocalDayForExclusiveEnd(_draft.overlapEndUtc!))
           : inclusiveLocalDayForExclusiveEnd(_draft.endBeforeUtc!),
       firstDate: DateTime(1970),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked == null) return;
     setState(() {
-      _draft = _draft.copyWith(endBeforeUtc: exclusiveUtcAfterLocalDay(picked));
+      _draft = _draft.copyWith(
+        endBeforeUtc: exclusiveUtcAfterLocalDay(picked),
+        clearOverlap: true,
+      );
     });
   }
 
@@ -120,11 +131,14 @@ class _LearningLogFiltersSheetState
     await _commitTypedTag(_typedTag);
     if (!mounted) return;
 
+    final clearOverlap =
+        _draft.startAfterUtc != null || _draft.endBeforeUtc != null;
     final next = _draft.copyWith(
       minActiveSeconds: min == null ? null : min * 60,
       maxActiveSeconds: max == null ? null : max * 60,
       clearMinActive: min == null,
       clearMaxActive: max == null,
+      clearOverlap: clearOverlap,
     );
     ref.read(learningLogFiltersProvider.notifier).setFilters(next);
     Navigator.pop(context);
