@@ -9,7 +9,7 @@ Ayutam is a Flutter app for **Windows**, **Android**, and **Linux**. For day-to-
 
 | Platform | What to download | Notes |
 |---|---|---|
-| Android | `ayutam-v*-android-arm64-v8a.apk` on nearly all phones | Also `armeabi-v7a` (older 32-bit) and `x86_64` (emulators). These are **release-mode** (fast) APKs; they may still be **debug-keystore signed** until Play upload signing — that is not the same as a debug build. |
+| Android | `ayutam-v*-android-arm64-v8a.apk` on nearly all phones | Also `armeabi-v7a` (older 32-bit) and `x86_64` (emulators). **Release-mode** APKs signed with the permanent Ayutam release certificate (ADR-021). |
 | Windows | `ayutam-v*-windows-x64-setup.exe` | Inno Setup copies exe + DLLs + `data/`. Portable: `*-windows-x64.zip` for no-admin / USB. |
 | Linux (Debian/Ubuntu) | `ayutam-v*-linux-amd64.deb` | Or unpack `*-linux-x64.tar.gz` and run `./ayutam`. |
 | Source | GitHub’s automatic source zip/tarball on the release page | |
@@ -442,13 +442,39 @@ adb shell am force-stop com.ayutam.ayutam
 adb emu kill          # if using the emulator
 ```
 
-Release APK (AOT / optimized). Until a Play upload keystore is configured, Gradle still **signs** with the debug keystore — that does **not** mean a debug/JIT build:
+Release APK (AOT / optimized), signed with the **permanent Ayutam release certificate** when `android/key.properties` is present (ADR-021):
 
 ```bash
 flutter build apk --release
 # Prefer split-per-abi for devices (same as GitHub Releases):
 flutter build apk --release --split-per-abi
 ```
+
+Without `key.properties`, Gradle falls back to the debug keystore so casual `flutter run --release` still works — do **not** distribute those APKs.
+
+### 3.10 Android release signing (local + GitHub)
+
+One long-lived keystore signs every sideloaded release APK (local and CI). Changing it later forces users to uninstall (local data loss).
+
+**One-time local setup** (keystore stays outside git):
+
+1. Generate (or reuse) a JKS under e.g. `%USERPROFILE%\.ayutam\ayutam-release.jks` with alias `ayutam`.
+2. Copy the JKS to `android/ayutam-release.jks` (gitignored).
+3. Copy [`android/key.properties.example`](../../android/key.properties.example) → `android/key.properties` and fill store/key passwords + alias. `storeFile` is relative to `android/`.
+4. `flutter build apk --release --split-per-abi` — APKs are release-signed.
+
+**GitHub Actions repository secrets** (same certificate as local):
+
+| Secret | Contents |
+|---|---|
+| `AYUTAM_ANDROID_KEYSTORE_BASE64` | Base64 of the `.jks` file (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('…\ayutam-release.jks'))` on Windows) |
+| `AYUTAM_ANDROID_KEY_ALIAS` | e.g. `ayutam` |
+| `AYUTAM_ANDROID_STORE_PASSWORD` | keystore password |
+| `AYUTAM_ANDROID_KEY_PASSWORD` | key password |
+
+The Release workflow reconstructs `android/key.properties` + the JKS only for the Android job, then deletes them.
+
+**Migration:** APKs previously installed with the debug certificate need a **one-time uninstall/reinstall** before the first release-signed build. After that, upgrades must install over previous release-signed builds without uninstalling.
 
 ### 3.8 Physical phone
 
