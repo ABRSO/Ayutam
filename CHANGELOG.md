@@ -32,6 +32,7 @@ First public GitHub Release covering Phases 0–4 (ADR-021).
 
 ### Changed
 
+- Android release builds require `android/key.properties` (fail closed). Missing release signing no longer silently falls back to the debug certificate; use `-Payutam.allowDebugReleaseSigning=true` only for non-distributable profiling builds (ADR-021).
 - Android system back on Learning Log / Statistics / Settings returns to Skills; a further back from Skills exits. On Windows/Linux, Escape returns to Skills from those destinations but does nothing on Skills (exit only via window close). Nested routes still pop first.
 - Statistics on desktop (≥840 dp) uses a tab bar (Cumulative / Heatmap / Summary Table); compact layouts keep the segmented Progress / Activity / Summary control.
 - Cumulative chart time window is range presets plus a custom date-range picker. Product spec §2.6 now matches that behavior (gesture zoom/pan is not required).
