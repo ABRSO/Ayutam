@@ -442,7 +442,7 @@ adb shell am force-stop com.ayutam.ayutam
 adb emu kill          # if using the emulator
 ```
 
-Release APK (AOT / optimized), signed with the **permanent Ayutam release certificate** when `android/key.properties` is present (ADR-021):
+Release APK (AOT / optimized), signed with the **permanent Ayutam release certificate** (ADR-021). `android/key.properties` is **required** — without it, `flutter build apk --release` fails closed instead of silently using the debug certificate:
 
 ```bash
 flutter build apk --release
@@ -450,11 +450,16 @@ flutter build apk --release
 flutter build apk --release --split-per-abi
 ```
 
-Without `key.properties`, Gradle falls back to the debug keystore so casual `flutter run --release` still works — do **not** distribute those APKs.
+Debug and profile builds do not need `key.properties`. For a non-distributable release-mode run signed with the debug keystore (profiling only), opt in explicitly:
+
+```bash
+flutter build apk --release --android-project-arg=-Payutam.allowDebugReleaseSigning=true
+# or: set AYUTAM_ALLOW_DEBUG_RELEASE_SIGNING=1
+```
 
 ### 3.10 Android release signing (local + GitHub)
 
-One long-lived keystore signs every sideloaded release APK (local and CI). Changing it later forces users to uninstall (local data loss).
+One long-lived keystore signs every sideloaded release APK (local and CI). Changing it later forces users to uninstall (local data loss). Missing `key.properties` must not produce a distributable APK.
 
 **One-time local setup** (keystore stays outside git):
 
