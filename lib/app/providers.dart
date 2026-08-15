@@ -22,6 +22,10 @@ import '../features/skills/application/skill_service.dart';
 import '../features/skills/data/drift_skill_repository.dart';
 import '../features/skills/domain/skill.dart';
 import '../features/skills/domain/skill_repository.dart';
+import '../features/statistics/application/statistics_service.dart';
+import '../features/statistics/data/drift_statistics_source.dart';
+import '../features/statistics/domain/statistics_models.dart';
+import '../features/statistics/domain/statistics_source.dart';
 import '../features/timer/application/stopwatch_timer_service.dart';
 import '../features/timer/data/drift_session_repository.dart';
 import '../features/timer/data/drift_timer_runtime_repository.dart';
@@ -173,6 +177,52 @@ final learningLogServiceProvider = Provider<LearningLogService>((ref) {
     indexer: ref.watch(sessionSearchIndexerProvider),
   );
 });
+
+final statisticsSourceProvider = Provider<StatisticsSource>((ref) {
+  return DriftStatisticsSource(ref.watch(appDatabaseProvider));
+});
+
+final statisticsServiceProvider = Provider<StatisticsService>((ref) {
+  return StatisticsService(
+    source: ref.watch(statisticsSourceProvider),
+    skills: ref.watch(skillRepositoryProvider),
+    clock: ref.watch(clockServiceProvider),
+    timezones: ref.watch(timezoneServiceProvider),
+  );
+});
+
+final class StatsScopeNotifier extends Notifier<StatsScope> {
+  @override
+  StatsScope build() => const StatsScope.all();
+
+  void set(StatsScope scope) => state = scope;
+}
+
+final statsScopeProvider = NotifierProvider<StatsScopeNotifier, StatsScope>(
+  StatsScopeNotifier.new,
+);
+
+final class StatsBundleNotifier extends AsyncNotifier<StatsBundle> {
+  @override
+  Future<StatsBundle> build() {
+    final scope = ref.watch(statsScopeProvider);
+    final service = ref.watch(statisticsServiceProvider);
+    // Drift watches emit once on subscribe; only later emissions mean the
+    // sessions table actually changed.
+    final changes = ref
+        .watch(statisticsSourceProvider)
+        .watchChanges()
+        .skip(1)
+        .listen((_) => ref.invalidateSelf());
+    ref.onDispose(changes.cancel);
+    return service.load(scope);
+  }
+}
+
+final statsBundleProvider =
+    AsyncNotifierProvider<StatsBundleNotifier, StatsBundle>(
+      StatsBundleNotifier.new,
+    );
 
 final activeSkillsProvider = StreamProvider<List<Skill>>((ref) {
   return ref.watch(skillServiceProvider).watchActive();

@@ -43,10 +43,15 @@ No accounts, authentication, backend, automatic cloud sync, ads, analytics, tele
 | Platform | Minimum | Distribution (v1) |
 |---|---|---|
 | Android | API 29 (Android 10) | Sideloaded APK; Play Store later |
-| Windows | 64-bit Windows 10/11 | ZIP/installer via GitHub Releases; Store later |
-| Linux | Ubuntu 20.04–24.04 LTS, Debian 10–13, x64 | `.deb` and/or archive/AppImage via GitHub Releases |
+| Windows | 64-bit Windows 10/11 | Inno Setup installer + portable ZIP via GitHub Releases; Store later |
+| Linux | Ubuntu 20.04–24.04 LTS, Debian 10–13, x64 | `.deb` and archive via GitHub Releases |
 
 License: **MIT**. No network required for core features. Optional GitHub Releases update check is Phase 2 / opt-in only (no custom backend).
+
+**Shell navigation / back:** Skills is the Home destination.
+
+- **Android:** system back (or gesture) on Learning Log, Statistics, or Settings returns to Skills; a further back from Skills exits. Nested immersive routes and sheets pop before the shell rule applies.
+- **Windows / Linux:** Escape on Learning Log, Statistics, or Settings returns to Skills; Escape while already on Skills does nothing. Exit only via the window close control (title-bar X), not Escape.
 
 ### 1.8 Capacity target
 
@@ -146,7 +151,7 @@ Scope: selected skill, all skills, or multi-skill comparison (recommend max 5 li
 
 **Views:** Cumulative chart (default) / Calendar heatmap / Summary table — desktop tabs, mobile segmented control.
 
-**Cumulative chart:** Ranges 7d / 30d / 3mo / 6mo / 1yr / all / custom (mobile simplifies). Auto aggregation (daily ≤31d; weekly to 6mo; monthly beyond). Hover/tap tooltips; zoom/pan; milestones 10/100/500/1k/5k/goal; goal line; fullscreen; PNG export; projection from 4-week average.
+**Cumulative chart:** Ranges 7d / 30d / 3mo / 6mo / 1yr / all / custom (mobile simplifies). The selected preset or custom date range is the time window — there is no gesture pinch/zoom or chart pan. Auto aggregation (daily ≤31d; weekly to 6mo; monthly beyond). Hover/tap tooltips; milestones 10/100/500/1k/5k/goal; goal line; fullscreen; PNG export; projection from 4-week average.
 
 **Heatmap:** Previous 12 months default + year selector. Fixed buckets: none / 1–30m / 31–60m / 1–2h / 2–4h / 4h+. Day tap → total time + Open in Learning Log. Colour not sole indicator (focus/selection exposes duration). Advanced Settings may override bucket thresholds.
 
@@ -218,7 +223,7 @@ Three steps: track skills → local-only / no accounts → manual backup respons
 | F-008 | Portable backup export | P0 | Verified `.skilltracker`; counts/totals match |
 | F-009 | Replace + Merge import | P0 | Preview, snapshot, LWW, principal E2E round-trip |
 | F-010 | Statistics summary | P0 | Totals, progress, 4-week avg, streak, projection |
-| F-011 | Cumulative chart | P0 | Ranges, milestones, overlay, export PNG |
+| F-011 | Cumulative chart | P0 | Range presets + custom date range, milestones, overlay, export PNG |
 | F-012 | Heatmap | P0 | Fixed buckets; day → total + open log |
 | F-013 | Summary table | P1 | Switchable granularity + change column |
 | F-014 | Pomodoro | P1 | Work-only totals; phase recovery |

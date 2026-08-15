@@ -50,7 +50,7 @@ Drift/SQLite   File/backup I/O   Platform services
 | State / DI | **Riverpod 3.x** (`flutter_riverpod`) | Modern `Notifier` / `AsyncNotifier` — **not** legacy `StateNotifierProvider` (see ADR-007) |
 | Database | Drift + native SQLite | Typed queries, migrations, `.watch()`, desktop support |
 | Navigation | Standard `Navigator` + typed route builders | No `go_router` in v1 (ADR-008) |
-| Charts | `fl_chart` behind a thin adapter | Heatmap is custom |
+| Charts | `fl_chart` behind a thin adapter | Heatmap is custom; cumulative chart window is range presets + custom picker (no pinch/pan) |
 | Flip clock | Custom widgets | No novelty package |
 | Markdown | **`flutter_markdown_plus`** | Successor to discontinued `flutter_markdown` (ADR-015) |
 | Archive / hash | `archive`, `crypto` | ZIP + SHA-256 |
@@ -183,7 +183,8 @@ Controller asks injectable clock for `now`, combines with persisted anchors — 
 | TrayService | Windows/Linux tray icon/menu |
 | OrientationService / ScreenAwakeService | Timer chrome |
 | FileDialogService | Pick/save/share |
-| SettingsService | Typed KV over `app_settings` (Reduced Motion landed; other keys Phase 4–8) |
+| SettingsService | Typed KV over `app_settings` (Reduced Motion landed; other keys Phase 5–8) |
+| StatisticsService | Daily allocation from work segments (configured-timezone splits), streak, 4-week average, projection, series/table aggregation — pure Dart over `StatisticsSource` |
 | UpdateCheckService | Opt-in GitHub Releases (Phase 2); never blocks startup |
 | AppLockService | Optional PIN / platform auth (Phase 8) |
 
@@ -234,7 +235,14 @@ Local structured rolling logs. No note content by default. No PIN/passphrase. Ex
 
 ## 11. Packaging and release architecture
 
-Support: debug/release APK (AAB later), Windows installer/ZIP, Linux x64 `.deb`/archive/AppImage, GitHub Actions matrix, semver, changelog, lockfile, store metadata outside core app code.
+Sideload channel: **GitHub Releases** (ADR-021). Artifacts per `vX.Y.Z`:
+
+- Android: release-mode split APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) signed with the permanent Ayutam release certificate (local `key.properties` / CI secrets)
+- Windows: Inno Setup installer + portable zip of the Flutter `Release\` folder
+- Linux: amd64 `.deb` + `.tar.gz` of the GTK bundle
+- Source: GitHub’s automatic source archives
+
+Publish path: version bump on `main` → **Publish release** workflow ensures the tag → **calls** reusable **Release** workflow (`workflow_call`; not a `GITHUB_TOKEN` tag-push chain). Store AAB/MSIX and Play upload signing remain Phase 8.
 
 ---
 
@@ -256,7 +264,7 @@ Conceptual routes (typed builders, not stringly named routes):
 
 **Startup:** corrupt DB → recovery; completion_pending → completion; active/paused → timer or recovery review; no skills → onboarding; else Skills.
 
-**Back:** Timer back does not stop session. Completion back keeps pending draft. No duplicate Timer routes for same session. Cold start with an active/paused session still places Skills under the Timer route (same stack shape as Play → Start) so Back remains available.
+**Back:** Skills is the shell back root. Nested routes pop first (Timer, Learning Log detail, sheets). On Android, system back on another primary destination selects Skills; from Skills, back may exit. On Windows/Linux, Escape on another primary destination selects Skills; Escape on Skills is a no-op — application exit is only via window close (not remapped). Timer back does not stop session. Completion back keeps pending draft. No duplicate Timer routes for same session. Cold start with an active/paused session still places Skills under the Timer route (same stack shape as Play → Start) so Back remains available.
 
 **Returning to a running session:** Leaving the Timer route shows a reminder that the session is still running. The pre-session sheet is the in-app way back: with a session in progress it offers *Open active timer* / *Stop active and start this* / *Cancel* instead of Start (see [product-spec §2.3](../product/product-spec.md)). Platform notification and tray entry points arrive in Phase 6.
 

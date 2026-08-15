@@ -60,6 +60,34 @@ final class LearningLogService {
       );
     }
 
+    // An overlap window (heatmap day link) is at most a day, so everything
+    // fits one page. Month paging bounds match session *starts* and would
+    // hide a cross-midnight session that started in the previous month.
+    if (filters.overlapStartUtc != null || filters.overlapEndUtc != null) {
+      final overlapArgs = _JournalArgs.fromFilters(filters, ids);
+      final overlapSessions = _sort(
+        await _sessions.listJournalSessions(
+          ids: overlapArgs.ids,
+          skillIds: overlapArgs.skillIds,
+          startAfterUtc: filters.startAfterUtc,
+          endBeforeUtc: filters.endBeforeUtc,
+          overlapStartUtc: filters.overlapStartUtc,
+          overlapEndUtc: filters.overlapEndUtc,
+          minActiveSeconds: overlapArgs.minActiveSeconds,
+          maxActiveSeconds: overlapArgs.maxActiveSeconds,
+          hasNote: overlapArgs.hasNote,
+          sourceEquals: overlapArgs.sourceEquals,
+          excludeManual: overlapArgs.excludeManual,
+        ),
+        filters.sort,
+      );
+      return LearningLogPage(
+        entries: await _toEntries(overlapSessions),
+        hasMoreOlder: false,
+        hasMoreNewer: false,
+      );
+    }
+
     final windowStart = _later(startAfterUtc, filters.startAfterUtc);
     final windowEnd = _earlier(endBeforeUtc, filters.endBeforeUtc);
     if (windowStart != null &&
@@ -78,6 +106,8 @@ final class LearningLogService {
       skillIds: args.skillIds,
       startAfterUtc: windowStart,
       endBeforeUtc: windowEnd,
+      overlapStartUtc: filters.overlapStartUtc,
+      overlapEndUtc: filters.overlapEndUtc,
       minActiveSeconds: args.minActiveSeconds,
       maxActiveSeconds: args.maxActiveSeconds,
       hasNote: args.hasNote,
@@ -91,6 +121,8 @@ final class LearningLogService {
       skillIds: args.skillIds,
       startAfterUtc: filters.startAfterUtc,
       endBeforeUtc: windowStart,
+      overlapStartUtc: filters.overlapStartUtc,
+      overlapEndUtc: filters.overlapEndUtc,
       minActiveSeconds: args.minActiveSeconds,
       maxActiveSeconds: args.maxActiveSeconds,
       hasNote: args.hasNote,
@@ -103,6 +135,8 @@ final class LearningLogService {
       skillIds: args.skillIds,
       startAfterUtc: windowEnd,
       endBeforeUtc: filters.endBeforeUtc,
+      overlapStartUtc: filters.overlapStartUtc,
+      overlapEndUtc: filters.overlapEndUtc,
       minActiveSeconds: args.minActiveSeconds,
       maxActiveSeconds: args.maxActiveSeconds,
       hasNote: args.hasNote,
@@ -248,6 +282,8 @@ final class LearningLogService {
       skillIds: args.skillIds,
       startAfterUtc: filters.startAfterUtc,
       endBeforeUtc: filters.endBeforeUtc,
+      overlapStartUtc: filters.overlapStartUtc,
+      overlapEndUtc: filters.overlapEndUtc,
       minActiveSeconds: args.minActiveSeconds,
       maxActiveSeconds: args.maxActiveSeconds,
       hasNote: args.hasNote,

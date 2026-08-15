@@ -223,7 +223,7 @@ Defects found / fixes applied: none on this re-run. Gradle warned that `flutter_
 
 1. Aggregation services: daily allocation from work segments; streak; 4-week average; projection.
 2. Summary card above views.
-3. Cumulative chart (`fl_chart` adapter): ranges, milestones, overlay, tooltips, zoom/pan, PNG export.
+3. Cumulative chart (`fl_chart` adapter): range presets + custom date range, milestones, overlay, tooltips, PNG export.
 4. Custom heatmap: fixed buckets; day popover + Open in Learning Log.
 5. Summary table: day/week/month/year + % change.
 6. Scope: skill / all / compare (max ~5).
@@ -237,9 +237,27 @@ Defects found / fixes applied: none on this re-run. Gradle warned that `flutter_
 
 ### Exit criteria
 
-- [ ] Stats match Learning Log totals for fixtures.
-- [ ] Heatmap day opens filtered Log.
-- [ ] Projection/streak labeled correctly in UI.
+- [x] Stats match Learning Log totals for fixtures.
+- [x] Heatmap day opens filtered Log.
+- [x] Projection/streak labeled correctly in UI.
+
+Platform smoke (2026-08-14, see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
+
+| Check | Result |
+|---|---|
+| `flutter analyze` | ✅ No issues |
+| `flutter test` | ✅ All 136 tests passed |
+| **Windows** build + launch | ✅ `tool\win_build.bat --debug` → `ayutam.exe`; alive after 7 s (`WIN_SMOKE_OK`) |
+| **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → install + `am start` → `pidof` returned `7382` (`ANDROID_SMOKE_OK`) |
+| **Linux** build + launch (WSL) | ✅ `tool/wsl_build_linux.sh` via `tr -d '\r' \| bash` → `LINUX_SMOKE_OK` |
+
+Defects found during smoke: none in the app. Two harness gotchas: the WSL script needs CRLF stripping when the checkout is Windows-line-ended, and a WSL `flutter pub get` rewrites `.dart_tool/package_config.json` with Linux paths — re-run `flutter pub get` on Windows before building the APK (both recorded in the smoke doc).
+
+**Phase 4 notes (2026-08-14):** Implemented on `phase/4-statistics`. `StatisticsSource` (Drift) feeds a pure `StatisticsService`: work segments split across configured-timezone midnights (`allocateDailySeconds`, DST-refined, per [database.md §4](../architecture/database.md) — computed on demand, no cache table yet), global streak (120 s default threshold, today-grace frozen in tests), previous-28-complete-days **4-week average**, soft-language projection (unavailable when target reached / zero average / <7 days history). UI: scope control (single / all / compare ≤5, archived selectable), summary card, `fl_chart` **1.2.0** cumulative line chart behind an adapter (ADR-013) with range presets + custom picker, auto daily/weekly/monthly aggregation, milestone/goal lines, tooltips, fullscreen, and PNG export (`file_selector` **1.1.0** save dialog on desktop; Android writes to app documents — no save-dialog support there), custom heatmap (rolling 12 months/year windows, fixed buckets, day popover → filtered Learning Log via existing filters), summary table Day/Week/Month/Year (Monday weeks until the week-start setting ships) with % change / “New” / em dash. The chart time window is range presets + a custom date-range picker (no gesture pinch/zoom or pan — that is the specified product behavior). The projection run-out renders on the **All** range where the axis can extend past today. Statistics-related Settings (default range, heatmap bucket overrides, streak minimum UI, week start, configured-timezone override) remain Settings-phase work; the service already parameterizes the streak threshold.
+
+**Phase 4 review follow-up (2026-08-14):** Heatmap **Open in Learning Log** uses new overlap-window filters (`LearningLogFilters.overlapStartUtc/overlapEndUtc`, matching sessions *active* in the window) so cross-midnight sessions appear on every local day they contributed to; start-based `startAfterUtc`/`endBeforeUtc` stay reserved for month paging and the user From/To filters. Summary-table session counts follow the same rule: a session counts once in every period its local-day span touches, so allocated time never appears with zero sessions. The stats change trigger also watches `skills` (target/name edits refresh progress, goal line, projection), and the screen reloads day-relative metrics (streak, grace, 4-week window) when the configured local day rolls over — via app resume, rebuild, or an armed midnight timer, so an idle visible screen also rolls. Overlap day links bypass month paging entirely (the window is ≤ one day; a paged first load would hide a session that started in the previous month), and session day-spans treat the end instant as exclusive so a session ending exactly at local midnight counts only on the day that received its seconds. Fullscreen chart keeps a picked custom range. Full-history aggregation baseline on the 10k-session fixture: **`STATS_LATENCY load_ms≈180`** — fast enough on the UI isolate; isolate offload/caching deferred until profiling shows need (consistent with [database.md §4](../architecture/database.md)).
+
+**Phase 4 follow-up (2026-08-15):** Desktop Statistics (≥840 dp) uses a `TabBar` (Cumulative / Heatmap / Summary Table); compact layouts keep `SegmentedButton` (Progress / Activity / Summary). Product spec §2.6 records range presets + custom date range as the chart time-window control (gesture zoom/pan is not a requirement). Heatmap overlap and start-based From/To are mutually exclusive (repository ignores start bounds when overlap is set; Jump/filter sheet clear overlap). Heatmap year changes re-scroll to the latest weeks. Skills is the shell back root (Android back → Skills then exit; desktop Escape → Skills from secondary tabs, no-op on Skills — exit only via window close). Chart PNG export: desktop save dialog defaults to `Documents/Ayutam/export-png`; Android offers that Documents folder (MediaStore) or a system save sheet — never the private app sandbox alone.
 
 ---
 
@@ -329,7 +347,7 @@ Defects found / fixes applied: none on this re-run. Gradle warned that `flutter_
 3. Optional app lock (off by default) per ADR-018.
 4. Optional encrypted backup if security review + Argon2id benchmarks pass; else defer with format fields already reserved.
 5. Diagnostics export; integrity screen.
-6. Packaging: signed APK, Windows installer/ZIP, Linux `.deb`/archive; GitHub Releases workflow.
+6. Packaging: GitHub Releases sideload path pulled forward (ADR-021: split release APKs with permanent release signing, Windows Inno Setup + zip, Linux `.deb`/archive, `workflow_call` publish). Remaining Phase 8: Play/Microsoft **upload** signing, AAB, MSIX, store metadata; exit criterion stays open until install/upgrade proof.
 7. Store-readiness scaffolding (icons, metadata placeholders) without submission.
 8. Update `CHANGELOG`; run principal E2E across three platforms.
 9. Optional: GitHub Releases update check behind flag (still no custom backend).
@@ -342,10 +360,12 @@ Defects found / fixes applied: none on this re-run. Gradle warned that `flutter_
 
 ### Exit criteria
 
-- [ ] GitHub Release produces installable artifacts for Android, Windows, Linux.
+- [ ] GitHub Release produces installable artifacts for Android, Windows, Linux — **and** proven end-to-end: Android clean install, **Android upgrade preserving app data** (same release signing certificate), Windows installer + portable zip launch, Linux `.deb` + archive launch, Release assets present. Leave unchecked until the first real `v*` Publish/Release pipeline succeeds (ADR-021).
 - [ ] Principal E2E acceptance (§ testing strategy) passes.
 - [ ] Accessibility checklist signed off.
 - [ ] Docs updated for any shipped deviations (ADRs).
+
+**Phase 8 packaging note (2026-08-15):** Sideload packaging workflows and permanent Android release signing are implemented early (ADR-021: split APKs, Inno Setup + zip, `.deb` + tarball, `workflow_call` publish path). The exit criterion above stays **open** until install/upgrade evidence is recorded. Still deferred: Play/Microsoft upload signing & AAB/MSIX, store metadata, optional in-app update check (F-023).
 
 ---
 

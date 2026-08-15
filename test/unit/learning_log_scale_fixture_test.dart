@@ -11,6 +11,9 @@ import 'package:ayutam/features/learning_log/data/session_search_indexer.dart';
 import 'package:ayutam/features/learning_log/domain/learning_log_models.dart';
 import 'package:ayutam/features/skills/application/skill_service.dart';
 import 'package:ayutam/features/skills/data/drift_skill_repository.dart';
+import 'package:ayutam/features/statistics/application/statistics_service.dart';
+import 'package:ayutam/features/statistics/data/drift_statistics_source.dart';
+import 'package:ayutam/features/statistics/domain/statistics_models.dart';
 import 'package:ayutam/features/timer/data/drift_session_repository.dart';
 import 'package:ayutam/features/timer/data/drift_unit_of_work.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,6 +102,28 @@ void main() {
         'search_ms=${searchSw.elapsedMilliseconds} sessions=$total '
         'month_rows=${page.entries.length}',
       );
+
+      // Statistics over the same fixture: full-history load stays fast enough
+      // to run on the UI isolate ([database.md] §4 — cache/isolate offload
+      // only after profiling says otherwise).
+      final stats = StatisticsService(
+        source: DriftStatisticsSource(db),
+        skills: skillRepo,
+        clock: clock,
+        timezones: const FakeTimezoneService(),
+      );
+      final statsSw = Stopwatch()..start();
+      final bundle = await stats.load(const StatsScope.all());
+      statsSw.stop();
+      expect(bundle.summary.sessionCount, total);
+      final allocated = bundle.dailyTotals.values.fold<int>(0, (a, b) => a + b);
+      expect(allocated, bundle.summary.totalActiveSeconds);
+      // ignore: avoid_print
+      print(
+        'STATS_LATENCY load_ms=${statsSw.elapsedMilliseconds} '
+        'sessions=$total days=${bundle.dailyTotals.length}',
+      );
+      expect(statsSw.elapsedMilliseconds, lessThan(2000));
 
       await db.close();
     },
