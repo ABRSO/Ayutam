@@ -257,7 +257,7 @@ Conceptual routes (typed builders, not stringly named routes):
 
 **Startup:** corrupt DB → recovery; completion_pending → completion; active/paused → timer or recovery review; no skills → onboarding; else Skills.
 
-**Back:** Skills is the shell back root: system back / Escape on another primary destination selects Skills; from Skills, back may exit. Nested routes pop first (Timer, Learning Log detail, sheets). Timer back does not stop session. Completion back keeps pending draft. No duplicate Timer routes for same session. Cold start with an active/paused session still places Skills under the Timer route (same stack shape as Play → Start) so Back remains available. Desktop window close is not intercepted.
+**Back:** Skills is the shell back root. Nested routes pop first (Timer, Learning Log detail, sheets). On Android, system back on another primary destination selects Skills; from Skills, back may exit. On Windows/Linux, Escape on another primary destination selects Skills; Escape on Skills is a no-op — application exit is only via window close (not remapped). Timer back does not stop session. Completion back keeps pending draft. No duplicate Timer routes for same session. Cold start with an active/paused session still places Skills under the Timer route (same stack shape as Play → Start) so Back remains available.
 
 **Returning to a running session:** Leaving the Timer route shows a reminder that the session is still running. The pre-session sheet is the in-app way back: with a session in progress it offers *Open active timer* / *Stop active and start this* / *Cancel* instead of Start (see [product-spec §2.3](../product/product-spec.md)). Platform notification and tray entry points arrive in Phase 6.
 

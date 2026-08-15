@@ -104,4 +104,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(appShellIndexProvider), 0);
   });
+
+  testWidgets('Escape from Statistics and Learning Log returns to Skills', (
+    tester,
+  ) async {
+    useViewSize(tester, const Size(1400, 900));
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Statistics'));
+    await tester.pumpAndSettle();
+    expect(container.read(appShellIndexProvider), 2);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(container.read(appShellIndexProvider), 0);
+
+    await tester.tap(find.text('Learning Log'));
+    await tester.pumpAndSettle();
+    expect(container.read(appShellIndexProvider), 1);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(container.read(appShellIndexProvider), 0);
+  });
+
+  testWidgets('Escape on Skills does nothing', (tester) async {
+    useViewSize(tester, const Size(1400, 900));
+    await pumpApp(tester);
+    expect(container.read(appShellIndexProvider), 0);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(container.read(appShellIndexProvider), 0);
+    expect(find.textContaining('Create your first skill'), findsOneWidget);
+  });
 }

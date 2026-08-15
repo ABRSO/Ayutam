@@ -201,6 +201,7 @@ class _CumulativeChartViewState extends ConsumerState<CumulativeChartView> {
     final path = await exportChartPng(
       _exportKey,
       suggestedName: 'ayutam-progress-$stamp.png',
+      context: context,
     );
     if (!mounted) return;
     messenger.showSnackBar(

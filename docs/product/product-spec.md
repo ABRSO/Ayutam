@@ -48,7 +48,10 @@ No accounts, authentication, backend, automatic cloud sync, ads, analytics, tele
 
 License: **MIT**. No network required for core features. Optional GitHub Releases update check is Phase 2 / opt-in only (no custom backend).
 
-**Shell navigation / back:** Skills is the Home destination. Android system back (or gesture) and desktop Escape on Learning Log, Statistics, or Settings return to Skills; a further back from Skills exits (window close on desktop still quits). Nested immersive routes and sheets pop before the shell rule applies.
+**Shell navigation / back:** Skills is the Home destination.
+
+- **Android:** system back (or gesture) on Learning Log, Statistics, or Settings returns to Skills; a further back from Skills exits. Nested immersive routes and sheets pop before the shell rule applies.
+- **Windows / Linux:** Escape on Learning Log, Statistics, or Settings returns to Skills; Escape while already on Skills does nothing. Exit only via the window close control (title-bar X), not Escape.
 
 ### 1.8 Capacity target
 
