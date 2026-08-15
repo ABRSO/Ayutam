@@ -347,7 +347,7 @@ Defects found during smoke: none in the app. Two harness gotchas: the WSL script
 3. Optional app lock (off by default) per ADR-018.
 4. Optional encrypted backup if security review + Argon2id benchmarks pass; else defer with format fields already reserved.
 5. Diagnostics export; integrity screen.
-6. Packaging: ~~signed APK, Windows installer/ZIP, Linux `.deb`/archive; GitHub Releases workflow~~ — **pulled forward** (see ADR-021 / notes below). Remaining: Play/Microsoft **upload signing**, AAB, MSIX.
+6. Packaging: GitHub Releases sideload path pulled forward (ADR-021: split release APKs with permanent release signing, Windows Inno Setup + zip, Linux `.deb`/archive, `workflow_call` publish). Remaining Phase 8: Play/Microsoft **upload** signing, AAB, MSIX, store metadata; exit criterion stays open until install/upgrade proof.
 7. Store-readiness scaffolding (icons, metadata placeholders) without submission.
 8. Update `CHANGELOG`; run principal E2E across three platforms.
 9. Optional: GitHub Releases update check behind flag (still no custom backend).
@@ -360,12 +360,12 @@ Defects found during smoke: none in the app. Two harness gotchas: the WSL script
 
 ### Exit criteria
 
-- [x] GitHub Release produces installable artifacts for Android, Windows, Linux. *(Pulled forward with ADR-021: split release APKs, Windows Inno Setup + portable zip, Linux `.deb` + tarball; auto-tag from `pubspec` on `main`. Play/Microsoft upload signing and MSIX remain Phase 8.)*
+- [ ] GitHub Release produces installable artifacts for Android, Windows, Linux — **and** proven end-to-end: Android clean install, **Android upgrade preserving app data** (same release signing certificate), Windows installer + portable zip launch, Linux `.deb` + archive launch, Release assets present. Leave unchecked until the first real `v*` Publish/Release pipeline succeeds (ADR-021).
 - [ ] Principal E2E acceptance (§ testing strategy) passes.
 - [ ] Accessibility checklist signed off.
 - [ ] Docs updated for any shipped deviations (ADRs).
 
-**Phase 8 packaging note (2026-08-15):** GitHub Releases sideload packaging (task 6 core artifacts) shipped early so Phase 4 can cut `v0.4.0`. Still deferred: real release/upload keystore, AAB, MSIX/Store scaffolding, optional in-app update check (F-023).
+**Phase 8 packaging note (2026-08-15):** Sideload packaging workflows and permanent Android release signing are implemented early (ADR-021: split APKs, Inno Setup + zip, `.deb` + tarball, `workflow_call` publish path). The exit criterion above stays **open** until install/upgrade evidence is recorded. Still deferred: Play/Microsoft upload signing & AAB/MSIX, store metadata, optional in-app update check (F-023).
 
 ---
 
