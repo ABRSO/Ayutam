@@ -15,7 +15,7 @@ jobs:
   # Reports only vulnerabilities newly introduced by the PR (reads pubspec.lock).
   osv-scan-pr:
     if: github.event_name == 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.3.8
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.5.1
     permissions:
       actions: read
       contents: read
