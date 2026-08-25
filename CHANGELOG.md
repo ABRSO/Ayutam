@@ -13,9 +13,10 @@ First public GitHub Release covering Phases 0–4 (ADR-021).
 
 ### Added
 
-- GitHub Releases packaging (ADR-021): split Android release APKs (`--split-per-abi`) signed with the permanent Ayutam release certificate; Windows Inno Setup installer + portable zip; Linux `.deb` + `.tar.gz`. **Publish release** on `main` ensures `vX.Y.Z` then calls the reusable Release workflow (`workflow_call` — not a suppressed `GITHUB_TOKEN` tag-push chain); retries work when the tag exists but the Release is missing.
+- GitHub Releases packaging (ADR-021): split Android release APKs (`--split-per-abi`) signed with the permanent Ayutam release certificate; Windows Inno Setup installer + portable zip; Linux `.deb` + `.tar.gz`. **Publish release** on `main` ensures `vX.Y.Z` then calls the reusable Release workflow (`workflow_call` — not a suppressed `GITHUB_TOKEN` tag-push chain); retries work when the tag exists but the Release is missing or incomplete.
 - Phase 4 Statistics: scope control (one skill / all skills / compare up to 5), summary card (total active, progress, remaining, sessions, labeled **4-week average**, global streak, soft-language projection), cumulative `fl_chart` line chart (7d/30d/3mo/6mo/1yr/All/custom ranges, automatic daily→weekly→monthly aggregation, milestone and goal lines, tooltips, fullscreen, PNG export, dashed projection run-out on the All range), custom calendar heatmap (rolling 12 months + year selector, fixed buckets none/≤30m/≤1h/≤2h/≤4h/4h+, day popover with **Open in Learning Log**), and a Day/Week/Month/Year summary table with % change (“New” / em dash). Active time is allocated across configured-timezone midnights, so cross-midnight sessions count on both local days.
 - Chart PNG export: desktop save dialog opens in `Documents/Ayutam/export-png`; Android offers that public Documents folder (MediaStore) or a system “Choose location…” save sheet instead of writing only to the private app sandbox.
+- Launcher icon: `branding/ayutam-logo.png` is the source artwork for Android mipmaps, the Windows `.ico` / Inno Setup icon, and the Linux window + `.deb` hicolor icon.
 - New dependencies: `fl_chart` 1.2.0 (MIT; line chart only, behind an adapter per ADR-013), `file_selector` 1.1.0 (BSD-3; desktop PNG save dialog), and `file_picker` (MIT; Android chart PNG save sheet).
 - Home In Progress / Completed / Archived filters, skill search, Restore from Archived, expandable last-five sessions, and accent-colour picker on create/edit. In Progress and Completed are derived from target progress without changing the active lifecycle or stopping further tracking.
 - Desktop Skills Home layout per UX spec: centered list (max width ~1000) and **New Skill** in the toolbar at the 840 dp rail breakpoint; the FAB remains on mobile.
@@ -32,7 +33,7 @@ First public GitHub Release covering Phases 0–4 (ADR-021).
 
 ### Changed
 
-- Android release builds require `android/key.properties` (fail closed). Missing release signing no longer silently falls back to the debug certificate; use `-Payutam.allowDebugReleaseSigning=true` only for non-distributable profiling builds (ADR-021).
+- Android release builds require a complete `android/key.properties` and the JKS it points at (fail closed). Missing or incomplete release signing no longer silently falls back to the debug certificate; use `-Payutam.allowDebugReleaseSigning=true` only for non-distributable profiling builds (ADR-021).
 - Android system back on Learning Log / Statistics / Settings returns to Skills; a further back from Skills exits. On Windows/Linux, Escape returns to Skills from those destinations but does nothing on Skills (exit only via window close). Nested routes still pop first.
 - Statistics on desktop (≥840 dp) uses a tab bar (Cumulative / Heatmap / Summary Table); compact layouts keep the segmented Progress / Activity / Summary control.
 - Cumulative chart time window is range presets plus a custom date-range picker. Product spec §2.6 now matches that behavior (gesture zoom/pan is not required).
@@ -47,9 +48,12 @@ First public GitHub Release covering Phases 0–4 (ADR-021).
 
 ### Fixed
 
+- Release workflow uploads Linux `.deb` / `.tar.gz` from `dist/` (not a nested folder that `dist/*` skipped) and fails if any expected platform asset is missing.
+- Publish release rebuilds when an existing GitHub Release is missing Android, Windows, or Linux assets; manual `workflow_dispatch` always rebuilds.
 - Compare-scope cumulative chart keeps a selected skill with no completed practice as a zero line instead of dropping it from the legend.
 - Desktop Escape returns to Skills even when Learning Log search (or another shell text field) has focus; nested routes and modal sheets still pop first.
 - Chart PNG export encodes the chart before showing Android’s location sheet, and checks `context.mounted` in the same function after that encode so the analyzer can prove the context is still valid.
+- Linux `.deb` installs the Ayutam icon at `/usr/share/icons/hicolor/256x256/apps/ayutam.png` (matching `Icon=ayutam`) and no longer claims `.skilltracker` backups before Phase 5.
 - Heatmap **Open in Learning Log** overlap filters are no longer ANDed with Jump-to-date / From–To start bounds (overlap wins in the repository; the UI clears overlap when setting start-based dates). Heatmap year changes re-scroll to the latest weeks.
 - Statistics review fixes: the heatmap's **Open in Learning Log** now matches sessions *active* on that local day (a cross-midnight session shows on both days, like the heatmap itself) and bypasses month paging so a previous-month start cannot hide it; summary-table session counts follow the same rule with an exclusive end instant (a session ending exactly at midnight counts only on the day that got its seconds); skill target/name edits refresh the summary, goal line, and projection; day-relative metrics (streak, 4-week average) reload on day rollover — including an idle visible screen, via a midnight timer; the fullscreen chart keeps a picked custom range.
 - Windows (and alias-reporting Android) timezones no longer silently degrade to UTC: the IANA database now includes link zones, so ICU ids like `Asia/Calcutta` resolve with the right offset. Before this, the skill editor capped "creation date" at the previous UTC day after local midnight and sessions stored `Etc/UTC` instead of the real zone.

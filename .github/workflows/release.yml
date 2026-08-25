@@ -171,18 +171,19 @@ jobs:
       - name: Package tarball and .deb
         run: |
           VERSION="${{ needs.verify.outputs.version }}"
-          mkdir -p dist/linux
-          tar -czf "dist/linux/ayutam-v${VERSION}-linux-x64.tar.gz" \
+          mkdir -p dist
+          tar -czf "dist/ayutam-v${VERSION}-linux-x64.tar.gz" \
             -C build/linux/x64/release/bundle .
           chmod +x tool/package_linux_deb.sh
           tool/package_linux_deb.sh "${VERSION}" build/linux/x64/release/bundle
-          ls -la dist/linux
+          cp "dist/linux/ayutam-v${VERSION}-linux-amd64.deb" dist/
+          ls -la dist
       - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: |
-            dist/linux/ayutam-*.tar.gz
-            dist/linux/ayutam-*.deb
+            dist/ayutam-*-linux-x64.tar.gz
+            dist/ayutam-*-linux-amd64.deb
           if-no-files-found: error
 
   build-windows:
@@ -272,12 +273,46 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ needs.verify.outputs.tag }}"
+          VERSION="${{ needs.verify.outputs.version }}"
+          mapfile -t files < <(find dist -type f \( \
+            -name 'ayutam-*.apk' -o \
+            -name 'ayutam-*.zip' -o \
+            -name 'ayutam-*.exe' -o \
+            -name 'ayutam-*.tar.gz' -o \
+            -name 'ayutam-*.deb' \
+          \) | sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No Ayutam artifacts under dist/"
+            exit 1
+          fi
+          echo "Found artifacts:"
+          printf '  %s\n' "${files[@]}"
+          basenames="$(printf '%s\n' "${files[@]}" | awk -F/ '{print $NF}' | sort)"
+          expected=(
+            "ayutam-v${VERSION}-android-armeabi-v7a.apk"
+            "ayutam-v${VERSION}-android-arm64-v8a.apk"
+            "ayutam-v${VERSION}-android-x86_64.apk"
+            "ayutam-v${VERSION}-windows-x64.zip"
+            "ayutam-v${VERSION}-windows-x64-setup.exe"
+            "ayutam-v${VERSION}-linux-x64.tar.gz"
+            "ayutam-v${VERSION}-linux-amd64.deb"
+          )
+          missing=0
+          for name in "${expected[@]}"; do
+            if ! grep -Fxq "$name" <<<"$basenames"; then
+              echo "::error::Missing release asset ${name}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release ${TAG} exists; uploading/replacing assets."
-            gh release upload "$TAG" dist/* --clobber
+            gh release upload "$TAG" "${files[@]}" --clobber
             gh release edit "$TAG" --notes-file release-notes.md --title "Ayutam $TAG"
           else
-            gh release create "$TAG" dist/* \
+            gh release create "$TAG" "${files[@]}" \
               --title "Ayutam $TAG" \
               --notes-file release-notes.md \
               --verify-tag

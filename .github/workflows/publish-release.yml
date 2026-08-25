@@ -4,9 +4,9 @@ name: Publish release
 # then call the reusable Release workflow. Does not rely on GITHUB_TOKEN tag
 # pushes to trigger another workflow (GitHub suppresses that chaining).
 #
-# Retry: if the tag already exists but the GitHub Release is missing or was
-# incomplete, a later main push or workflow_dispatch rebuilds/publishes without
-# recreating the tag.
+# Retry: if the tag already exists but the GitHub Release is missing or is
+# missing platform assets, a later main push rebuilds/publishes without
+# recreating the tag. workflow_dispatch always rebuilds (manual retry).
 
 on:
   push:
@@ -61,10 +61,36 @@ jobs:
             exit 0
           fi
 
+          expected=(
+            "ayutam-v${VERSION}-android-armeabi-v7a.apk"
+            "ayutam-v${VERSION}-android-arm64-v8a.apk"
+            "ayutam-v${VERSION}-android-x86_64.apk"
+            "ayutam-v${VERSION}-windows-x64.zip"
+            "ayutam-v${VERSION}-windows-x64-setup.exe"
+            "ayutam-v${VERSION}-linux-x64.tar.gz"
+            "ayutam-v${VERSION}-linux-amd64.deb"
+          )
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release ${TAG} already exists; nothing to do."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            assets="$(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)"
+            incomplete=0
+            for name in "${expected[@]}"; do
+              if ! grep -Fxq "$name" <<<"$assets"; then
+                echo "Release ${TAG} is missing ${name}."
+                incomplete=1
+              fi
+            done
+            if [ "$incomplete" -eq 0 ] && [ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]; then
+              echo "Release ${TAG} already has a full asset set; skipping."
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$incomplete" -eq 0 ]; then
+              echo "Release ${TAG} is complete; workflow_dispatch requested a rebuild."
+            else
+              echo "Release ${TAG} is incomplete; will rebuild and upsert assets."
+            fi
+          else
+            echo "No GitHub Release for ${TAG} yet."
           fi
 
           git config user.name "github-actions[bot]"

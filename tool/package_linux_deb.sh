@@ -25,7 +25,14 @@ mkdir -p \
   "${STAGE}/usr/bin" \
   "${STAGE}/usr/lib/ayutam" \
   "${STAGE}/usr/share/applications" \
-  "${STAGE}/usr/share/doc/ayutam"
+  "${STAGE}/usr/share/doc/ayutam" \
+  "${STAGE}/usr/share/icons/hicolor/256x256/apps"
+
+ICON_SRC="${ROOT}/linux/runner/resources/ayutam.png"
+if [[ ! -f "${ICON_SRC}" ]]; then
+  echo "error: missing application icon ${ICON_SRC}" >&2
+  exit 1
+fi
 
 # App bundle lives under /usr/lib/ayutam; PATH entry is a tiny wrapper.
 cp -a "${BUNDLE}/." "${STAGE}/usr/lib/ayutam/"
@@ -35,6 +42,8 @@ exec /usr/lib/ayutam/ayutam "$@"
 EOF
 chmod 755 "${STAGE}/usr/bin/ayutam"
 chmod 755 "${STAGE}/usr/lib/ayutam/ayutam"
+
+cp "${ICON_SRC}" "${STAGE}/usr/share/icons/hicolor/256x256/apps/ayutam.png"
 
 cat > "${STAGE}/usr/share/applications/ayutam.desktop" <<EOF
 [Desktop Entry]
@@ -68,13 +77,32 @@ Priority: optional
 Architecture: amd64
 Maintainer: Ayutam maintainers <noreply@users.noreply.github.com>
 Installed-Size: ${SIZE_KB}
-Depends: libgtk-3-0, liblzma5, libstdc++6
+Depends: libgtk-3-0, liblzma5, libstdc++6, hicolor-icon-theme
 Homepage: https://github.com/ABRSO/Ayutam
 Description: Local-first skill practice tracker
- Ayutam tracks deliberate practice with a flip-clock timer, Learning Log,
- and statistics. Data stays on device; backups are explicit .skilltracker
- files. No accounts or automatic cloud sync.
+ Ayutam tracks deliberate practice with a timer, Learning Log and statistics.
+ Data stays on device; no accounts or automatic cloud sync.
 EOF
+
+cat > "${STAGE}/DEBIAN/postinst" <<'EOF'
+#!/bin/sh
+set -e
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+fi
+EOF
+chmod 755 "${STAGE}/DEBIAN/postinst"
+
+cat > "${STAGE}/DEBIAN/postrm" <<'EOF'
+#!/bin/sh
+set -e
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor >/dev/null 2>&1 || true
+  fi
+fi
+EOF
+chmod 755 "${STAGE}/DEBIAN/postrm"
 
 mkdir -p "${OUT_DIR}"
 dpkg-deb --root-owner-group --build "${STAGE}" "${OUT_DIR}/ayutam-v${VERSION}-linux-amd64.deb"

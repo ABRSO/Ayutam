@@ -459,7 +459,7 @@ flutter build apk --release --android-project-arg=-Payutam.allowDebugReleaseSign
 
 ### 3.10 Android release signing (local + GitHub)
 
-One long-lived keystore signs every sideloaded release APK (local and CI). Changing it later forces users to uninstall (local data loss). Missing `key.properties` must not produce a distributable APK.
+One long-lived keystore signs every sideloaded release APK (local and CI). Changing it later forces users to uninstall (local data loss). Missing or incomplete `key.properties`, or a missing JKS `storeFile`, must not produce a distributable APK.
 
 **One-time local setup** (keystore stays outside git):
 
@@ -755,6 +755,9 @@ Checklist:
 6. Second skill gets a different accent when possible.
 7. Statistics tab: summary card (total, 4-week average, streak) above the cumulative chart; switch views to the heatmap and summary table.
 8. Tap a heatmap day → popover shows the exact duration; **Open in Learning Log** jumps to that day's filtered sessions.
+9. After installing a GitHub Release (or a local package):
+   - **Android / Windows:** the launcher / Start Menu shortcut uses the Ayutam “A” logo, not the Flutter placeholder.
+   - **Linux `.deb`:** `dpkg-deb -c ayutam-v*-linux-amd64.deb` lists `/usr/share/icons/hicolor/256x256/apps/ayutam.png`; the app menu shows that icon. `dpkg-deb -f … Description` must not mention `.skilltracker` until Phase 5.
 
 ---
 
