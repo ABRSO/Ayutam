@@ -1,0 +1,118 @@
+name: Publish release
+
+# On main (or manual dispatch): read pubspec version, ensure tag vX.Y.Z exists,
+# then call the reusable Release workflow. Does not rely on GITHUB_TOKEN tag
+# pushes to trigger another workflow (GitHub suppresses that chaining).
+#
+# Retry: if the tag already exists but the GitHub Release is missing or is
+# missing platform assets, a later main push rebuilds/publishes without
+# recreating the tag. workflow_dispatch always rebuilds (manual retry).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional semver override without leading v (default: pubspec). Tag must match pubspec/CHANGELOG."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      should_release: ${{ steps.meta.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Resolve version, ensure tag, decide whether to release
+        id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_VERSION:-}" ]; then
+            VERSION="${INPUT_VERSION#v}"
+          else
+            VERSION="$(grep -E '^version:' pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          fi
+          if [[ -z "$VERSION" || ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Could not parse version (got '${VERSION:-}')"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          echo "pubspec/input version=${VERSION} tag=${TAG}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+          if ! grep -Eq "^version: ${VERSION}(\+[0-9]+)?$" pubspec.yaml; then
+            echo "::error::pubspec.yaml does not contain version ${VERSION}"
+            exit 1
+          fi
+          if ! grep -q "## \[${VERSION}\]" CHANGELOG.md; then
+            echo "No CHANGELOG section for ${VERSION}; skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          expected=(
+            "ayutam-v${VERSION}-android-armeabi-v7a.apk"
+            "ayutam-v${VERSION}-android-arm64-v8a.apk"
+            "ayutam-v${VERSION}-android-x86_64.apk"
+            "ayutam-v${VERSION}-windows-x64.zip"
+            "ayutam-v${VERSION}-windows-x64-setup.exe"
+            "ayutam-v${VERSION}-linux-x64.tar.gz"
+            "ayutam-v${VERSION}-linux-amd64.deb"
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            assets="$(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)"
+            incomplete=0
+            for name in "${expected[@]}"; do
+              if ! grep -Fxq "$name" <<<"$assets"; then
+                echo "Release ${TAG} is missing ${name}."
+                incomplete=1
+              fi
+            done
+            if [ "$incomplete" -eq 0 ] && [ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]; then
+              echo "Release ${TAG} already has a full asset set; skipping."
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$incomplete" -eq 0 ]; then
+              echo "Release ${TAG} is complete; workflow_dispatch requested a rebuild."
+            else
+              echo "Release ${TAG} is incomplete; will rebuild and upsert assets."
+            fi
+          else
+            echo "No GitHub Release for ${TAG} yet."
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            echo "Tag ${TAG} already on origin; will publish release for existing tag."
+          elif git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag ${TAG} exists locally; pushing to origin."
+            git push origin "$TAG"
+          else
+            echo "Creating annotated tag ${TAG}."
+            git tag -a "$TAG" -m "Ayutam ${TAG}"
+            git push origin "$TAG"
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets: inherit

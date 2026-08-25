@@ -235,7 +235,14 @@ Local structured rolling logs. No note content by default. No PIN/passphrase. Ex
 
 ## 11. Packaging and release architecture
 
-Support: debug/release APK (AAB later), Windows installer/ZIP, Linux x64 `.deb`/archive/AppImage, GitHub Actions matrix, semver, changelog, lockfile, store metadata outside core app code.
+Sideload channel: **GitHub Releases** (ADR-021). Artifacts per `vX.Y.Z`:
+
+- Android: release-mode split APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) signed with the permanent Ayutam release certificate (local `key.properties` / CI secrets)
+- Windows: Inno Setup installer + portable zip of the Flutter `Release\` folder
+- Linux: amd64 `.deb` + `.tar.gz` of the GTK bundle
+- Source: GitHub’s automatic source archives
+
+Publish path: version bump on `main` → **Publish release** workflow ensures the tag → **calls** reusable **Release** workflow (`workflow_call`; not a `GITHUB_TOKEN` tag-push chain). Store AAB/MSIX and Play upload signing remain Phase 8.
 
 ---
 

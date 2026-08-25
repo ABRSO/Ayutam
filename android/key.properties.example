@@ -1,0 +1,14 @@
+# Copy to android/key.properties (gitignored) and fill in real values.
+# storeFile is relative to the android/ directory.
+#
+# storePassword=<password>
+# keyPassword=<password>
+# keyAlias=ayutam
+# storeFile=ayutam-release.jks
+#
+# Generate a keystore once (outside git) and keep it forever for sideload
+# upgrades — see docs/dev/build-and-run.md §3.10 and ADR-021.
+storePassword=
+keyPassword=
+keyAlias=ayutam
+storeFile=ayutam-release.jks

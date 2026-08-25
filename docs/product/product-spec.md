@@ -43,8 +43,8 @@ No accounts, authentication, backend, automatic cloud sync, ads, analytics, tele
 | Platform | Minimum | Distribution (v1) |
 |---|---|---|
 | Android | API 29 (Android 10) | Sideloaded APK; Play Store later |
-| Windows | 64-bit Windows 10/11 | ZIP/installer via GitHub Releases; Store later |
-| Linux | Ubuntu 20.04–24.04 LTS, Debian 10–13, x64 | `.deb` and/or archive/AppImage via GitHub Releases |
+| Windows | 64-bit Windows 10/11 | Inno Setup installer + portable ZIP via GitHub Releases; Store later |
+| Linux | Ubuntu 20.04–24.04 LTS, Debian 10–13, x64 | `.deb` and archive via GitHub Releases |
 
 License: **MIT**. No network required for core features. Optional GitHub Releases update check is Phase 2 / opt-in only (no custom backend).
 

@@ -14,6 +14,7 @@
 |---|---|
 | Docs (product / UX / architecture) | Authoritative baseline |
 | Application code | **Phase 4 complete** — statistics: summary, cumulative chart, heatmap, summary table |
+| Distribution | GitHub Releases (ADR-021): split Android APKs, Windows installer + zip, Linux `.deb` + tarball — cut `v0.4.0` after this lands on `main` |
 | Next | Phase 5 — Backup, restore, migration ([execution plan](docs/plan/execution-plan.md)) |
 | Platforms verified | Android emulator, Windows, Linux (WSLg) — see [platform smoke](docs/testing/platform-smoke.md) |
 

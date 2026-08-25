@@ -3,7 +3,16 @@
 **Audience:** Humans setting up a machine from scratch and running the app for development or manual UI checks.  
 **Related:** Agents verifying a phase should also follow [`../testing/platform-smoke.md`](../testing/platform-smoke.md).
 
-Ayutam is a Flutter app for **Windows**, **Android**, and **Linux**. There is no store “download and install” flow yet — you build from source (or use a [GitHub Release](https://github.com/ABRSO/Ayutam/releases) artifact when one exists).
+Ayutam is a Flutter app for **Windows**, **Android**, and **Linux**. For day-to-day use, download a [GitHub Release](https://github.com/ABRSO/Ayutam/releases) (ADR-021). For development or manual UI checks, build from source as below.
+
+### Installing from a GitHub Release
+
+| Platform | What to download | Notes |
+|---|---|---|
+| Android | `ayutam-v*-android-arm64-v8a.apk` on nearly all phones | Also `armeabi-v7a` (older 32-bit) and `x86_64` (emulators). **Release-mode** APKs signed with the permanent Ayutam release certificate (ADR-021). |
+| Windows | `ayutam-v*-windows-x64-setup.exe` | Inno Setup copies exe + DLLs + `data/`. Portable: `*-windows-x64.zip` for no-admin / USB. |
+| Linux (Debian/Ubuntu) | `ayutam-v*-linux-amd64.deb` | Or unpack `*-linux-x64.tar.gz` and run `./ayutam`. |
+| Source | GitHub’s automatic source zip/tarball on the release page | |
 
 This guide is written so someone who has never installed Flutter/Android/Linux desktop toolchains can follow it end-to-end. Paths marked **(reference)** are from the project’s Windows 11 development machine; on your PC, substitute your own locations but keep the same structure.
 
@@ -433,11 +442,44 @@ adb shell am force-stop com.ayutam.ayutam
 adb emu kill          # if using the emulator
 ```
 
-Release APK (still debug-signed until a release keystore is configured for store builds):
+Release APK (AOT / optimized), signed with the **permanent Ayutam release certificate** (ADR-021). `android/key.properties` is **required** — without it, `flutter build apk --release` fails closed instead of silently using the debug certificate:
 
 ```bash
 flutter build apk --release
+# Prefer split-per-abi for devices (same as GitHub Releases):
+flutter build apk --release --split-per-abi
 ```
+
+Debug and profile builds do not need `key.properties`. For a non-distributable release-mode run signed with the debug keystore (profiling only), opt in explicitly:
+
+```bash
+flutter build apk --release --android-project-arg=-Payutam.allowDebugReleaseSigning=true
+# or: set AYUTAM_ALLOW_DEBUG_RELEASE_SIGNING=1
+```
+
+### 3.10 Android release signing (local + GitHub)
+
+One long-lived keystore signs every sideloaded release APK (local and CI). Changing it later forces users to uninstall (local data loss). Missing or incomplete `key.properties`, or a missing JKS `storeFile`, must not produce a distributable APK.
+
+**One-time local setup** (keystore stays outside git):
+
+1. Generate (or reuse) a JKS under e.g. `%USERPROFILE%\.ayutam\ayutam-release.jks` with alias `ayutam`.
+2. Copy the JKS to `android/ayutam-release.jks` (gitignored).
+3. Copy [`android/key.properties.example`](../../android/key.properties.example) → `android/key.properties` and fill store/key passwords + alias. `storeFile` is relative to `android/`.
+4. `flutter build apk --release --split-per-abi` — APKs are release-signed.
+
+**GitHub Actions repository secrets** (same certificate as local):
+
+| Secret | Contents |
+|---|---|
+| `AYUTAM_ANDROID_KEYSTORE_BASE64` | Base64 of the `.jks` file (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('…\ayutam-release.jks'))` on Windows) |
+| `AYUTAM_ANDROID_KEY_ALIAS` | e.g. `ayutam` |
+| `AYUTAM_ANDROID_STORE_PASSWORD` | keystore password |
+| `AYUTAM_ANDROID_KEY_PASSWORD` | key password |
+
+The Release workflow reconstructs `android/key.properties` + the JKS only for the Android job, then deletes them.
+
+**Migration:** APKs previously installed with the debug certificate need a **one-time uninstall/reinstall** before the first release-signed build. After that, upgrades must install over previous release-signed builds without uninstalling.
 
 ### 3.8 Physical phone
 
@@ -713,6 +755,9 @@ Checklist:
 6. Second skill gets a different accent when possible.
 7. Statistics tab: summary card (total, 4-week average, streak) above the cumulative chart; switch views to the heatmap and summary table.
 8. Tap a heatmap day → popover shows the exact duration; **Open in Learning Log** jumps to that day's filtered sessions.
+9. After installing a GitHub Release (or a local package):
+   - **Android / Windows:** the launcher / Start Menu shortcut uses the Ayutam “A” logo, not the Flutter placeholder.
+   - **Linux `.deb`:** `dpkg-deb -c ayutam-v*-linux-amd64.deb` lists `/usr/share/icons/hicolor/256x256/apps/ayutam.png`; the app menu shows that icon. `dpkg-deb -f … Description` must not mention `.skilltracker` until Phase 5.
 
 ---
 
