@@ -30,7 +30,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  drift_dev: ^2.32.0
+  drift_dev: ^2.34.5
   build_runner: ^2.10.5
 
 flutter:
