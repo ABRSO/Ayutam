@@ -52,6 +52,11 @@ Minimum interactive target **48×48** logical pixels.
 
 Timer is nested because it only exists after choosing a skill.
 
+**Shell back root:** Skills is Home.
+
+- **Android back / gesture:** Learning Log, Statistics, or Settings → Skills; a second back from Skills exits the app (system back). Nested routes (Timer, Learning Log detail, sheets, dialogs) still pop first.
+- **Windows / Linux Escape:** Learning Log, Statistics, or Settings → Skills; Escape on Skills does **nothing**. Exit only via the window close control (or an explicit Exit action if one is added later). Do not map Escape on Skills to quit.
+
 ---
 
 ## 4. Screens
@@ -167,7 +172,7 @@ Primary label: **Save Session**. Autosave status: Saving… / Saved locally / Sa
 
 Skill scope control + compact summary above views. Mobile: horizontally scrollable summary or 2-col grid; segmented Progress / Activity / Summary. Desktop: tabs Cumulative / Heatmap / Summary Table.
 
-Chart min height ~280 mobile / ~420 desktop. Range controls collapse on narrow layouts. Comparison: colour **and** dash/marker differences. Heatmap: weekly columns, weekday rows, legend, focus/tap shows exact duration. Summary table: desktop table; mobile cards or horizontal scroll; change uses icon + text.
+Chart min height ~280 mobile / ~420 desktop. Range controls collapse on narrow layouts. The selected preset or custom date range is the time window; the chart does not pinch-zoom or pan. Comparison: colour **and** dash/marker differences. Heatmap: weekly columns, weekday rows, legend, focus/tap shows exact duration. Summary table: desktop table; mobile cards or horizontal scroll; change uses icon + text.
 
 ### 4.8 Settings
 

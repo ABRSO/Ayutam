@@ -28,6 +28,21 @@ String formatLocalDay(DateTime day) {
       '${day.day.toString().padLeft(2, '0')}';
 }
 
+/// UTC instant when the configured-timezone day [day] (date-only) begins.
+///
+/// Inverse of [configuredLocalDayAt] for day-window queries (heatmap →
+/// Learning Log). One offset refinement covers DST-shifted midnights.
+DateTime utcStartOfConfiguredDay(DateTime day, TimezoneService timezones) {
+  final wallMidnight = DateTime.utc(day.year, day.month, day.day);
+  final offset = timezones.offsetMinutesAt(wallMidnight);
+  var candidate = wallMidnight.subtract(Duration(minutes: offset));
+  final refined = timezones.offsetMinutesAt(candidate);
+  if (refined != offset) {
+    candidate = wallMidnight.subtract(Duration(minutes: refined));
+  }
+  return candidate;
+}
+
 /// Deterministic zone for tests (no IANA database, no native plugins).
 final class FakeTimezoneService implements TimezoneService {
   const FakeTimezoneService({this.ianaId = 'UTC', this.offsetMinutes = 0});

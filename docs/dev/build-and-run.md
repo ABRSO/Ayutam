@@ -711,6 +711,8 @@ Checklist:
    - Also follows the OS flag when it is on: Windows 11 Settings → Accessibility → Visual effects → **Animation effects** Off; Android Settings → Accessibility → Remove animations (wording varies); Linux desktop Accessibility when available.
 5. Save session → Home total increases.
 6. Second skill gets a different accent when possible.
+7. Statistics tab: summary card (total, 4-week average, streak) above the cumulative chart; switch views to the heatmap and summary table.
+8. Tap a heatmap day → popover shows the exact duration; **Open in Learning Log** jumps to that day's filtered sessions.
 
 ---
 

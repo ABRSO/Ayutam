@@ -21,6 +21,8 @@ final class LearningLogFilters {
     this.tagIds = const {},
     this.startAfterUtc,
     this.endBeforeUtc,
+    this.overlapStartUtc,
+    this.overlapEndUtc,
     this.minActiveSeconds,
     this.maxActiveSeconds,
     this.notePresence = NotePresenceFilter.any,
@@ -34,6 +36,16 @@ final class LearningLogFilters {
   final Set<String> tagIds;
   final DateTime? startAfterUtc;
   final DateTime? endBeforeUtc;
+
+  /// Sessions *active* during this UTC window (start before the window ends
+  /// and end after it starts). Used by the statistics heatmap day link so a
+  /// cross-midnight session shows on every local day it contributed to —
+  /// unlike [startAfterUtc]/[endBeforeUtc], which match start times only and
+  /// also drive month paging. Mutually exclusive with start-based From/To:
+  /// Jump to date and the filter sheet clear overlap when setting those.
+  final DateTime? overlapStartUtc;
+  final DateTime? overlapEndUtc;
+
   final int? minActiveSeconds;
   final int? maxActiveSeconds;
   final NotePresenceFilter notePresence;
@@ -47,6 +59,8 @@ final class LearningLogFilters {
       tagIds.isNotEmpty ||
       startAfterUtc != null ||
       endBeforeUtc != null ||
+      overlapStartUtc != null ||
+      overlapEndUtc != null ||
       minActiveSeconds != null ||
       maxActiveSeconds != null ||
       notePresence != NotePresenceFilter.any ||
@@ -58,6 +72,7 @@ final class LearningLogFilters {
     if (skillIds.isNotEmpty) n++;
     if (tagIds.isNotEmpty) n++;
     if (startAfterUtc != null || endBeforeUtc != null) n++;
+    if (overlapStartUtc != null || overlapEndUtc != null) n++;
     if (minActiveSeconds != null || maxActiveSeconds != null) n++;
     if (notePresence != NotePresenceFilter.any) n++;
     if (sourceFilter != SessionSourceFilter.any) n++;
@@ -78,6 +93,7 @@ final class LearningLogFilters {
     LearningLogGroupBy? groupBy,
     bool clearStartAfter = false,
     bool clearEndBefore = false,
+    bool clearOverlap = false,
     bool clearMinActive = false,
     bool clearMaxActive = false,
   }) {
@@ -89,6 +105,8 @@ final class LearningLogFilters {
           ? null
           : (startAfterUtc ?? this.startAfterUtc),
       endBeforeUtc: clearEndBefore ? null : (endBeforeUtc ?? this.endBeforeUtc),
+      overlapStartUtc: clearOverlap ? null : overlapStartUtc,
+      overlapEndUtc: clearOverlap ? null : overlapEndUtc,
       minActiveSeconds: clearMinActive
           ? null
           : (minActiveSeconds ?? this.minActiveSeconds),
