@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Compare-scope cumulative chart keeps a selected skill with no completed practice as a zero line instead of dropping it from the legend.
+- Desktop Escape returns to Skills even when Learning Log search (or another shell text field) has focus; nested routes and modal sheets still pop first.
+- Chart PNG export encodes the chart before showing Android’s location sheet, and checks `context.mounted` in the same function after that encode so the analyzer can prove the context is still valid.
 - Heatmap **Open in Learning Log** overlap filters are no longer ANDed with Jump-to-date / From–To start bounds (overlap wins in the repository; the UI clears overlap when setting start-based dates). Heatmap year changes re-scroll to the latest weeks.
 - Statistics review fixes: the heatmap's **Open in Learning Log** now matches sessions *active* on that local day (a cross-midnight session shows on both days, like the heatmap itself) and bypasses month paging so a previous-month start cannot hide it; summary-table session counts follow the same rule with an exclusive end instant (a session ending exactly at midnight counts only on the day that got its seconds); skill target/name edits refresh the summary, goal line, and projection; day-relative metrics (streak, 4-week average) reload on day rollover — including an idle visible screen, via a midnight timer; the fullscreen chart keeps a picked custom range.
 - Windows (and alias-reporting Android) timezones no longer silently degrade to UTC: the IANA database now includes link zones, so ICU ids like `Asia/Calcutta` resolve with the right offset. Before this, the skill editor capped "creation date" at the previous UTC day after local midnight and sessions stored `Etc/UTC` instead of the real zone.
