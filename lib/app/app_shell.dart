@@ -6,6 +6,7 @@ import '../features/learning_log/presentation/learning_log_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/skills/presentation/skills_screen.dart';
 import '../features/statistics/presentation/statistics_screen.dart';
+import 'ayutam_app.dart';
 import 'providers.dart';
 
 /// Primary destinations: Skills, Learning Log, Statistics, Settings.
@@ -45,6 +46,35 @@ class _AppShellState extends ConsumerState<AppShell> {
   ];
 
   void _goHome() => ref.read(appShellIndexProvider.notifier).setIndex(0);
+
+  /// Handles Escape before focused [TextField]s consume it. Nested routes and
+  /// modal sheets still win: we only remap when this shell route is current.
+  bool _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.escape) return false;
+    if (!mounted) return false;
+
+    final nav = ayutamNavigatorKey.currentState;
+    if (nav != null && nav.canPop()) return false;
+
+    if (ref.read(appShellIndexProvider) != 0) {
+      _goHome();
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKeyEvent);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKeyEvent);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,23 +132,12 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
           );
 
-    // Escape mirrors Android back for shell tabs; window close still quits.
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () {
-          if (index != 0) _goHome();
-        },
+    return PopScope(
+      canPop: index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && index != 0) _goHome();
       },
-      child: Focus(
-        autofocus: true,
-        child: PopScope(
-          canPop: index == 0,
-          onPopInvokedWithResult: (didPop, _) {
-            if (!didPop && index != 0) _goHome();
-          },
-          child: shell,
-        ),
-      ),
+      child: shell,
     );
   }
 }

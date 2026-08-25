@@ -4,6 +4,7 @@ import 'package:ayutam/core/id/id_generator.dart';
 import 'package:ayutam/core/time/clock_service.dart';
 import 'package:ayutam/core/time/timezone_service.dart';
 import 'package:ayutam/database/app_database.dart';
+import 'package:ayutam/features/skills/domain/skill.dart';
 import 'package:ayutam/features/statistics/domain/statistics_models.dart';
 import 'package:ayutam/features/statistics/presentation/cumulative_chart.dart';
 import 'package:ayutam/features/statistics/presentation/practice_heatmap.dart';
@@ -319,6 +320,59 @@ void main() {
     // custom window's first axis label; the old bug silently fell back to
     // the last 30 days, which has no 1 Aug label.
     expect(find.text('1 Aug'), findsOneWidget);
+  });
+
+  testWidgets('compare chart legends include a skill with no practice', (
+    tester,
+  ) async {
+    Skill fakeSkill(String id, String name) => Skill(
+      id: id,
+      name: name,
+      targetSeconds: 36000,
+      createdLocalDate: '2026-01-01',
+      status: SkillStatus.active,
+      sortOrder: 0,
+      createdAtUtc: DateTime.utc(2026, 1, 1),
+      updatedAtUtc: DateTime.utc(2026, 1, 1),
+      sourceDeviceId: 'test',
+    );
+    final piano = fakeSkill('piano', 'Piano');
+    final guitar = fakeSkill('guitar', 'Guitar');
+    final bundle = StatsBundle(
+      summary: const StatsSummary(
+        totalActiveSeconds: 3600,
+        sessionCount: 1,
+        streakDays: 0,
+        fourWeekAverageWeeklySeconds: 0,
+      ),
+      dailyTotals: {DateTime(2026, 8, 1): 3600},
+      dailyTotalsBySkill: {
+        'piano': {DateTime(2026, 8, 1): 3600},
+      },
+      sessions: const [],
+      firstActivityDay: DateTime(2026, 8, 1),
+      hasAnyCompletedSession: true,
+      generatedForDay: DateTime(2026, 8, 6),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: CumulativeChartView(
+              bundle: bundle,
+              scope: StatsScope.compare({'piano', 'guitar'}),
+              skills: [piano, guitar],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Piano'), findsOneWidget);
+    expect(find.text('Guitar'), findsOneWidget);
+    expect(find.byType(LineChart), findsOneWidget);
   });
 
   testWidgets('single-skill scope shows progress and projection line', (

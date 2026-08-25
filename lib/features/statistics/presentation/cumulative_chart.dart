@@ -219,15 +219,15 @@ class _CumulativeChartViewState extends ConsumerState<CumulativeChartView> {
     final skillById = {for (final s in widget.skills) s.id: s};
     if (widget.scope.kind == StatsScopeKind.compare) {
       final lines = <CumulativeLine>[];
-      for (final entry in widget.bundle.dailyTotalsBySkill.entries) {
-        final skill = skillById[entry.key];
+      for (final skillId in widget.scope.skillIds) {
+        final skill = skillById[skillId];
         lines.add(
           CumulativeLine(
-            skillId: entry.key,
+            skillId: skillId,
             label: skill?.name ?? 'Skill',
             accentArgb: skill?.accentArgb,
             points: StatisticsService.cumulativeSeries(
-              daily: entry.value,
+              daily: widget.bundle.dailyTotalsBySkill[skillId] ?? const {},
               windowStart: windowStart,
               windowEnd: windowEnd,
               aggregation: aggregation,

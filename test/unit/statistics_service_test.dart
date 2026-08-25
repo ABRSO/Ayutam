@@ -290,6 +290,16 @@ void main() {
       expect(points.last.day, DateTime(2026, 8, 13));
     });
 
+    test('empty daily map still emits a zero series for the window', () {
+      final points = StatisticsService.cumulativeSeries(
+        daily: const {},
+        windowStart: DateTime(2026, 8, 1),
+        windowEnd: DateTime(2026, 8, 3),
+        aggregation: ChartAggregation.daily,
+      );
+      expect(points.map((p) => p.cumulativeSeconds), [0, 0, 0]);
+    });
+
     test('weekly buckets close on Sundays and at the window end', () {
       final daily = {
         DateTime(2026, 8, 3): 3600, // Monday

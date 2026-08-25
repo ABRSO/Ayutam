@@ -16,23 +16,16 @@ const _androidChannel = MethodChannel('com.ayutam.ayutam/chart_export');
 
 /// Renders the widget under [boundaryKey] to a PNG and saves it.
 ///
-/// Desktop opens a native save dialog (`file_selector`) starting in
+/// Encodes the chart first so Android's location sheet cannot cover it.
+/// Desktop then opens a native save dialog (`file_selector`) starting in
 /// `Documents/Ayutam/export-png`. Android asks whether to save to that same
-/// Documents folder (MediaStore) or pick another location (system save sheet)
-/// before rendering, so [context] is not used across image encode awaits.
-/// Returns null when cancelled.
+/// Documents folder (MediaStore) or pick another location. Returns null when
+/// cancelled.
 Future<String?> exportChartPng(
   GlobalKey boundaryKey, {
   required String suggestedName,
   BuildContext? context,
 }) async {
-  final _AndroidExportChoice? androidChoice = Platform.isAndroid
-      ? await _promptAndroidExportChoice(context)
-      : null;
-  if (Platform.isAndroid && androidChoice == null) {
-    return null;
-  }
-
   final boundary =
       boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
   if (boundary == null) {
@@ -46,8 +39,18 @@ Future<String?> exportChartPng(
   }
   final bytes = byteData.buffer.asUint8List();
 
-  if (androidChoice != null) {
-    return switch (androidChoice) {
+  if (Platform.isAndroid) {
+    _AndroidExportChoice? choice;
+    if (context == null || !context.mounted) {
+      choice = _AndroidExportChoice.chooseLocation;
+    } else {
+      choice = await showModalBottomSheet<_AndroidExportChoice>(
+        context: context,
+        showDragHandle: true,
+        builder: (_) => const _AndroidExportSheet(),
+      );
+    }
+    return switch (choice) {
       _AndroidExportChoice.documentsDefault => _saveAndroidDocumentsDefault(
         bytes,
         suggestedName,
@@ -56,6 +59,7 @@ Future<String?> exportChartPng(
         bytes,
         suggestedName,
       ),
+      null => null,
     };
   }
 
@@ -66,55 +70,45 @@ Future<String?> exportChartPng(
   return null;
 }
 
-Future<_AndroidExportChoice?> _promptAndroidExportChoice(
-  BuildContext? context,
-) async {
-  if (context == null || !context.mounted) {
-    return _AndroidExportChoice.chooseLocation;
+class _AndroidExportSheet extends StatelessWidget {
+  const _AndroidExportSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+            child: Text(
+              'Export chart PNG',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.folder_special_outlined),
+            title: const Text('Documents/Ayutam/export-png'),
+            subtitle: const Text('Default location'),
+            onTap: () =>
+                Navigator.pop(context, _AndroidExportChoice.documentsDefault),
+          ),
+          ListTile(
+            leading: const Icon(Icons.folder_open),
+            title: const Text('Choose location…'),
+            onTap: () =>
+                Navigator.pop(context, _AndroidExportChoice.chooseLocation),
+          ),
+          ListTile(
+            leading: const Icon(Icons.close),
+            title: const Text('Cancel'),
+            onTap: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
   }
-  return showModalBottomSheet<_AndroidExportChoice>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheetContext) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-              child: Text(
-                'Export chart PNG',
-                style: Theme.of(sheetContext).textTheme.titleMedium,
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_special_outlined),
-              title: const Text('Documents/Ayutam/export-png'),
-              subtitle: const Text('Default location'),
-              onTap: () => Navigator.pop(
-                sheetContext,
-                _AndroidExportChoice.documentsDefault,
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('Choose location…'),
-              onTap: () => Navigator.pop(
-                sheetContext,
-                _AndroidExportChoice.chooseLocation,
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.close),
-              title: const Text('Cancel'),
-              onTap: () => Navigator.pop(sheetContext),
-            ),
-          ],
-        ),
-      );
-    },
-  );
 }
 
 Future<String?> _exportDesktop(Uint8List bytes, String suggestedName) async {

@@ -136,4 +136,23 @@ void main() {
     expect(container.read(appShellIndexProvider), 0);
     expect(find.textContaining('Create your first skill'), findsOneWidget);
   });
+
+  testWidgets(
+    'Escape from focused Learning Log search still returns to Skills',
+    (tester) async {
+      useViewSize(tester, const Size(1400, 900));
+      await pumpApp(tester);
+
+      await tester.tap(find.text('Learning Log'));
+      await tester.pumpAndSettle();
+      expect(container.read(appShellIndexProvider), 1);
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(container.read(appShellIndexProvider), 0);
+    },
+  );
 }

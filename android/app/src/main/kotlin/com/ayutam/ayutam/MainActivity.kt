@@ -51,10 +51,12 @@ class MainActivity : FlutterActivity() {
         relativeDir: String,
         bytes: ByteArray,
     ): String {
+        val safeName = sanitizeExportFileName(fileName)
+        val safeDir = sanitizeExportRelativeDir(relativeDir)
         val relativePath =
-            "${Environment.DIRECTORY_DOCUMENTS.trimEnd('/')}/${relativeDir.trim('/')}"
+            "${Environment.DIRECTORY_DOCUMENTS.trimEnd('/')}/$safeDir"
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
@@ -73,18 +75,39 @@ class MainActivity : FlutterActivity() {
         val item = resolver.insert(collection, values)
             ?: throw IOException("MediaStore insert returned null")
 
-        resolver.openOutputStream(item)?.use { out ->
-            out.write(bytes)
-            out.flush()
-        } ?: throw IOException("Could not open output stream for $item")
+        try {
+            resolver.openOutputStream(item)?.use { out ->
+                out.write(bytes)
+                out.flush()
+            } ?: throw IOException("Could not open output stream for $item")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            values.clear()
-            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-            resolver.update(item, values, null, null)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.clear()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(item, values, null, null)
+            }
+        } catch (e: Exception) {
+            resolver.delete(item, null, null)
+            throw e
         }
 
-        return "$relativePath/$fileName"
+        return "$relativePath/$safeName"
+    }
+
+    private fun sanitizeExportFileName(fileName: String): String {
+        val base = fileName.substringAfterLast('/').substringAfterLast('\\')
+        val cleaned = base.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            .trimStart('.')
+            .ifBlank { "chart.png" }
+        return if (cleaned.endsWith(".png", ignoreCase = true)) cleaned else "$cleaned.png"
+    }
+
+    private fun sanitizeExportRelativeDir(relativeDir: String): String {
+        val joined = relativeDir
+            .split('/', '\\')
+            .filter { part -> part.isNotEmpty() && part != "." && part != ".." }
+            .joinToString("/")
+        return joined.ifEmpty { "Ayutam/export-png" }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
