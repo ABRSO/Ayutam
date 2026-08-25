@@ -42,7 +42,7 @@ This folder is the **single source of truth** for building and maintaining Ayuta
 | Area | Status |
 |---|---|
 | Product / UX / architecture docs | Authoritative baseline |
-| Flutter application code | Phase 4 complete (statistics: summary, chart, heatmap, table); next is Phase 5 |
+| Flutter application code | Phase 5 complete (portable backup/restore); next is Phase 6 |
 | Package versions cited in docs | Re-verify on pub.dev when adding/upgrading deps |
 
 ## Related root files

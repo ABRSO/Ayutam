@@ -60,6 +60,15 @@ final class DriftSessionRepository implements SessionRepository {
   }
 
   @override
+  Future<List<String>> listIdsForSkill(String skillId) async {
+    final query = _db.selectOnly(_db.sessions)
+      ..addColumns([_db.sessions.id])
+      ..where(_db.sessions.skillId.equals(skillId));
+    final rows = await query.get();
+    return rows.map((row) => row.read(_db.sessions.id)!).toList();
+  }
+
+  @override
   Future<void> insertSession(domain.PracticeSession session) async {
     await _db.into(_db.sessions).insert(_sessionCompanion(session));
   }

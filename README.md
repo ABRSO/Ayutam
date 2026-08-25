@@ -13,9 +13,9 @@
 | Area | Status |
 |---|---|
 | Docs (product / UX / architecture) | Authoritative baseline |
-| Application code | **Phase 4 complete** — statistics: summary, cumulative chart, heatmap, summary table |
-| Distribution | GitHub Releases (ADR-021): split Android APKs, Windows installer + zip, Linux `.deb` + tarball — cut `v0.4.0` after this lands on `main` |
-| Next | Phase 5 — Backup, restore, migration ([execution plan](docs/plan/execution-plan.md)) |
+| Application code | **Phase 5 complete** — portable `.skilltracker` backup/restore, merge/replace, safety snapshots |
+| Distribution | GitHub Releases (ADR-021): split Android APKs, Windows installer + zip, Linux `.deb` + tarball |
+| Next | Phase 6 — Platform integrations ([execution plan](docs/plan/execution-plan.md)) |
 | Platforms verified | Android emulator, Windows, Linux (WSLg) — see [platform smoke](docs/testing/platform-smoke.md) |
 
 ## Documentation map

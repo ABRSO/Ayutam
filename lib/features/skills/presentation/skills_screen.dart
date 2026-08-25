@@ -41,9 +41,33 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
     }
   }
 
+  Future<void> _exportBackup() async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Exporting…')));
+    final result = await ref.read(backupServiceProvider).exportSkilltracker();
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    ref.invalidate(backupStatusProvider);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          result.when(
+            success: (path) => 'Backup saved: $path',
+            failure: (f) => f.message,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final skillsAsync = ref.watch(allSkillsProvider);
+    final backupStatus = ref.watch(backupStatusProvider).asData?.value;
+    final showBackupBanner =
+        backupStatus != null &&
+        backupStatus.due &&
+        backupStatus.reminderEnabled;
     // Matches the AppShell rail breakpoint; ux-spec §4.2 puts Create in the
     // toolbar and centers the list on desktop instead of using a FAB.
     final desktop = MediaQuery.sizeOf(context).width >= 840;
@@ -90,7 +114,13 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
         error: (e, _) => Center(child: Text('Failed to load skills: $e')),
         data: (all) {
           if (all.isEmpty) {
-            return const _EmptySkillsState();
+            return Column(
+              children: [
+                if (showBackupBanner)
+                  _BackupRecommendedBanner(onExport: _exportBackup),
+                const Expanded(child: _EmptySkillsState()),
+              ],
+            );
           }
           final query = _searchController.text;
           final filtered = skillsMatchingQuery(
@@ -103,6 +133,8 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
               constraints: const BoxConstraints(maxWidth: _desktopListMaxWidth),
               child: Column(
                 children: [
+                  if (showBackupBanner)
+                    _BackupRecommendedBanner(onExport: _exportBackup),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                     child: Align(
@@ -156,6 +188,22 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
     SkillHomeFilter.completed => 'Completed',
     SkillHomeFilter.archived => 'Archived',
   };
+}
+
+class _BackupRecommendedBanner extends StatelessWidget {
+  const _BackupRecommendedBanner({required this.onExport});
+
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialBanner(
+      content: const Text('Backup recommended'),
+      leading: const Icon(Icons.backup_outlined),
+      padding: const EdgeInsetsDirectional.only(start: 16, end: 8),
+      actions: [TextButton(onPressed: onExport, child: const Text('Export'))],
+    );
+  }
 }
 
 class _EmptySkillsState extends StatelessWidget {
@@ -272,6 +320,10 @@ class _SkillCardState extends ConsumerState<_SkillCard> {
                             PopupMenuItem(
                               value: archived ? 'restore' : 'archive',
                               child: Text(archived ? 'Restore' : 'Archive'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'export_md',
+                              child: Text('Export Markdown'),
                             ),
                             const PopupMenuItem(
                               value: 'delete',
@@ -414,27 +466,91 @@ class _SkillCardState extends ConsumerState<_SkillCard> {
       case 'restore':
         await _restore(skill);
         return;
+      case 'export_md':
+        await _exportMarkdown(skill);
+        return;
       case 'delete':
-        if (!mounted) return;
-        await showDialog<void>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Permanent deletion'),
-            content: const Text(
-              'Permanent skill deletion lands with backups in Phase 5, '
-              'because it must create a safety snapshot first. Archive the '
-              'skill to hide it from Home until then.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
+        await _confirmPermanentDelete(skill);
         return;
     }
+  }
+
+  Future<void> _exportMarkdown(Skill skill) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Exporting…')));
+    final result = await ref
+        .read(auxiliaryExportServiceProvider)
+        .exportSkillMarkdown(skill.id);
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          result.when(
+            success: (path) => 'Markdown saved: $path',
+            failure: (f) => f.message,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmPermanentDelete(Skill skill) async {
+    final impact = await ref
+        .read(permanentSkillDeletionProvider)
+        .impact(skill.id);
+    if (!mounted) return;
+    final typed = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => _PermanentDeleteDialog(
+        skillName: skill.name,
+        sessionCount: impact.sessionCount,
+        totalActiveSeconds: impact.totalActiveSeconds,
+        onExportBackup: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          messenger.showSnackBar(const SnackBar(content: Text('Exporting…')));
+          final result = await ref
+              .read(backupServiceProvider)
+              .exportSkilltracker();
+          if (!context.mounted) return;
+          messenger.hideCurrentSnackBar();
+          ref.invalidate(backupStatusProvider);
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                result.when(
+                  success: (path) => 'Backup saved: $path',
+                  failure: (f) => f.message,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (typed == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Deleting…')));
+    final result = await ref
+        .read(permanentSkillDeletionProvider)
+        .deletePermanently(skillId: skill.id, typedName: typed);
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    result.when(
+      success: (_) {
+        ref.invalidate(activeSkillsProvider);
+        ref.invalidate(allSkillsProvider);
+        ref.invalidate(learningLogListProvider);
+        ref.invalidate(statsBundleProvider);
+        ref.invalidate(backupStatusProvider);
+        messenger.showSnackBar(
+          SnackBar(content: Text('Deleted "${skill.name}" permanently.')),
+        );
+      },
+      failure: (f) =>
+          messenger.showSnackBar(SnackBar(content: Text(f.message))),
+    );
   }
 
   Future<void> _restore(Skill skill) async {
@@ -498,4 +614,87 @@ Color _skillAccent(Skill skill) {
   }
   final index = skill.id.hashCode.abs() % SkillAccentPalette.colors.length;
   return SkillAccentPalette.colors[index];
+}
+
+class _PermanentDeleteDialog extends StatefulWidget {
+  const _PermanentDeleteDialog({
+    required this.skillName,
+    required this.sessionCount,
+    required this.totalActiveSeconds,
+    required this.onExportBackup,
+  });
+
+  final String skillName;
+  final int sessionCount;
+  final int totalActiveSeconds;
+  final Future<void> Function() onExportBackup;
+
+  @override
+  State<_PermanentDeleteDialog> createState() => _PermanentDeleteDialogState();
+}
+
+class _PermanentDeleteDialogState extends State<_PermanentDeleteDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = _controller.text == widget.skillName;
+    return AlertDialog(
+      title: const Text('Delete permanently?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'This permanently deletes "${widget.skillName}" and its '
+              '${widget.sessionCount} session(s) '
+              '(${formatHoursMinutes(widget.totalActiveSeconds)} tracked). '
+              'A safety snapshot is created first. Export a backup first if '
+              'you may need this data later.',
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: widget.onExportBackup,
+                icon: const Icon(Icons.backup_outlined),
+                label: const Text('Export backup first'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Type "${widget.skillName}" to confirm',
+              ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: matches
+                  ? (_) => Navigator.pop(context, _controller.text)
+                  : null,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: matches
+              ? () => Navigator.pop(context, _controller.text)
+              : null,
+          child: const Text('Delete permanently'),
+        ),
+      ],
+    );
+  }
 }
