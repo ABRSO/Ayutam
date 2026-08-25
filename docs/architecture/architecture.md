@@ -237,7 +237,7 @@ Local structured rolling logs. No note content by default. No PIN/passphrase. Ex
 
 Sideload channel: **GitHub Releases** (ADR-021). Artifacts per `vX.Y.Z`:
 
-- Android: release-mode split APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) signed with the permanent Ayutam release certificate (local `key.properties` / CI secrets)
+- Android: release-mode split APKs (`arm64-v8a`, `armeabi-v7a`, `x86_64`) signed with the permanent Ayutam release certificate (local `key.properties` / CI secrets). CI checks `apksigner` SHA-256 against the pinned [`android/release-cert.sha256`](../../android/release-cert.sha256).
 - Windows: Inno Setup installer + portable zip of the Flutter `Release\` folder
 - Linux: amd64 `.deb` + `.tar.gz` of the GTK bundle
 - Source: GitHub’s automatic source archives

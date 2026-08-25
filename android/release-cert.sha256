@@ -1,0 +1,12 @@
+# Permanent Ayutam Android release signing certificate (SHA-256).
+#
+# This is a public certificate identity, not a secret. CI compares
+# `apksigner verify --print-certs` from built APKs against this value so a
+# rotated or wrong keystore in GitHub Secrets cannot silently ship.
+#
+# Confirmed 2026-08-26: local `android/ayutam-release.jks` matches all three
+# GitHub Release v0.4.0 split APKs.
+#
+# Colon-separated uppercase hex. Changing this value is a sideload-breaking
+# certificate rotation (users must uninstall).
+19:7C:E3:83:A6:38:79:E9:8C:D1:C7:2F:DA:5E:83:EF:CF:39:FE:EC:A0:4D:17:76:2F:73:13:AD:B8:F9:22:49

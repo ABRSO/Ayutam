@@ -138,6 +138,19 @@ jobs:
           cp build/app/outputs/flutter-apk/app-x86_64-release.apk \
             "dist/ayutam-v${VERSION}-android-x86_64.apk"
           ls -la dist
+      - name: Verify pinned release certificate
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.verify.outputs.version }}"
+          shopt -s nullglob
+          apks=(dist/ayutam-v${VERSION}-android-*.apk)
+          if [[ "${#apks[@]}" -ne 3 ]]; then
+            echo "::error::Expected 3 split APKs to verify, found ${#apks[@]}"
+            ls -la dist || true
+            exit 1
+          fi
+          chmod +x tool/verify_android_release_apks.sh
+          tool/verify_android_release_apks.sh "${apks[@]}"
       - name: Scrub signing materials
         if: always()
         run: |
