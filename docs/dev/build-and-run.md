@@ -477,7 +477,7 @@ One long-lived keystore signs every sideloaded release APK (local and CI). Chang
 | `AYUTAM_ANDROID_STORE_PASSWORD` | keystore password |
 | `AYUTAM_ANDROID_KEY_PASSWORD` | key password |
 
-The Release workflow reconstructs `android/key.properties` + the JKS only for the Android job, then deletes them.
+The Release workflow reconstructs `android/key.properties` + the JKS only for the Android job, then deletes them. It then runs `apksigner verify --print-certs` on every split APK and fails if the signer SHA-256 does not match the pinned value in [`android/release-cert.sha256`](../../android/release-cert.sha256) (public identity of the permanent certificate; not read from the JKS).
 
 **Migration:** APKs previously installed with the debug certificate need a **one-time uninstall/reinstall** before the first release-signed build. After that, upgrades must install over previous release-signed builds without uninstalling.
 

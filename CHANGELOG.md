@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Release CI verifies every split APK’s signer SHA-256 against the pinned permanent Ayutam certificate in `android/release-cert.sha256` (v0.4.0 GitHub Release APKs match the local keystore).
+
 ## [0.4.0] - 2026-08-15
 
 First public GitHub Release covering Phases 0–4 (ADR-021).
