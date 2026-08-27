@@ -356,6 +356,13 @@ final class DriftBackupStore implements BackupStore {
   Future<Uint8List> readFileBytes(String path) => File(path).readAsBytes();
 
   @override
+  Future<void> writeFileBytes(String path, Uint8List bytes) async {
+    final file = File(path);
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
+  @override
   Future<void> deleteFileIfExists(String path) async {
     final file = File(path);
     if (await file.exists()) {

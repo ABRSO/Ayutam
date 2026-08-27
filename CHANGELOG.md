@@ -13,8 +13,10 @@ Phase 5 — portable backup, restore, and migration harness.
 
 ### Added
 
-- Portable `.skilltracker` export/import (ADR-004): ZIP with `manifest.json`, `payload/data.json`, and `checksums.sha256`. Export marks `backup_history` successful only after re-parse/verify.
-- Import preview with Merge (UUID LWW, ADR-012) or Replace; safety snapshot first; active timer restore requires confirmation.
+- Portable `.skilltracker` export/import (ADR-004): ZIP with `manifest.json`, `payload/data.json`, and `checksums.sha256`. Export marks `backup_history` successful only after re-reading and verifying the **saved** destination file.
+- Standalone human-readable JSON export/import and SQLite snapshot export/import (Replace-oriented).
+- Import preview with Merge (UUID LWW, ADR-012) or Replace; equal-timestamp conflict UI (Keep Current / Prefer Imported); active-session collisions require keep current / prefer imported / complete other with reviewed end / cancel.
+- Winning merge sessions take segments and session-tags wholesale (no union with the losing side).
 - Local safety snapshots (retain 3) before import/destructive ops; restore from Settings.
 - Permanent skill delete: type the skill name, show session count/duration, recommend backup, snapshot, then cascade sessions.
 - CSV session export, per-skill Markdown export, and consistent SQLite snapshot export (`VACUUM INTO`).

@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 final class _MemFiles implements BackupFileIo {
   Uint8List? lastSaved;
+  final Map<String, Uint8List> _byPath = {};
 
   @override
   Future<OpenedBackupFile?> openBackupFile() async => null;
@@ -34,7 +35,18 @@ final class _MemFiles implements BackupFileIo {
     String? relativeDocumentsSubdir,
   }) async {
     lastSaved = bytes;
-    return 'memory://$suggestedName';
+    final path = 'memory://$suggestedName';
+    _byPath[path] = bytes;
+    return path;
+  }
+
+  @override
+  Future<Uint8List> readBytes(String path) async {
+    final bytes = _byPath[path] ?? lastSaved;
+    if (bytes == null) {
+      throw StateError('No bytes saved for $path');
+    }
+    return bytes;
   }
 }
 
@@ -56,6 +68,11 @@ final class _CancelFiles implements BackupFileIo {
     required String mimeType,
     String? relativeDocumentsSubdir,
   }) async => null;
+
+  @override
+  Future<Uint8List> readBytes(String path) async {
+    throw StateError('Cancelled');
+  }
 }
 
 void main() {

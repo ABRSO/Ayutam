@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/result/result.dart';
 import '../../backup/domain/backup_models.dart';
 import '../../backup/presentation/import_preview_sheet.dart';
 
@@ -93,9 +94,32 @@ class SettingsScreen extends ConsumerWidget {
             }, invalidateStatus: true),
           ),
           ListTile(
+            title: const Text('Export JSON'),
+            subtitle: const Text('Human-readable portable backup'),
+            onTap: () => _runBackupAction(context, ref, () async {
+              final result = await ref.read(backupServiceProvider).exportJson();
+              return result.when(
+                success: (path) => 'JSON saved: $path',
+                failure: (f) => f.message,
+              );
+            }, invalidateStatus: true),
+          ),
+          ListTile(
             title: const Text('Import backup'),
-            subtitle: const Text('Merge or replace from a backup file'),
+            subtitle: const Text(
+              'Merge or replace from .skilltracker or .json',
+            ),
             onTap: () => _importBackup(context, ref),
+          ),
+          ListTile(
+            title: const Text('Import JSON'),
+            subtitle: const Text('Restore from a portable JSON backup'),
+            onTap: () => _importBackup(context, ref),
+          ),
+          ListTile(
+            title: const Text('Import SQLite snapshot'),
+            subtitle: const Text('Replace (or merge) from a .sqlite file'),
+            onTap: () => _importSqlite(context, ref),
           ),
           ListTile(
             title: const Text('Export CSV'),
@@ -197,6 +221,35 @@ class SettingsScreen extends ConsumerWidget {
   static Future<void> _importBackup(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     final previewResult = await ref.read(backupServiceProvider).previewImport();
+    if (!context.mounted) return;
+    await _finishImport(
+      context: context,
+      ref: ref,
+      messenger: messenger,
+      previewResult: previewResult,
+    );
+  }
+
+  static Future<void> _importSqlite(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final previewResult = await ref
+        .read(backupServiceProvider)
+        .previewSqliteImport();
+    if (!context.mounted) return;
+    await _finishImport(
+      context: context,
+      ref: ref,
+      messenger: messenger,
+      previewResult: previewResult,
+    );
+  }
+
+  static Future<void> _finishImport({
+    required BuildContext context,
+    required WidgetRef ref,
+    required ScaffoldMessengerState messenger,
+    required Result<ImportPreview> previewResult,
+  }) async {
     final preview = previewResult.valueOrNull;
     if (preview == null) {
       if (!context.mounted) return;
@@ -215,6 +268,13 @@ class SettingsScreen extends ConsumerWidget {
     if (!context.mounted) return;
     final choice = await showImportPreviewSheet(context, preview: preview);
     if (choice == null || !context.mounted) return;
+
+    if (choice.activeDecision == ActiveSessionDecision.cancel) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Import cancelled.')),
+      );
+      return;
+    }
 
     if (choice.mode == ImportMode.replace) {
       final confirmed = await showDialog<bool>(
@@ -246,6 +306,10 @@ class SettingsScreen extends ConsumerWidget {
         .applyImport(
           preview: preview,
           mode: choice.mode,
+          conflictResolution: choice.conflictResolution,
+          perItem: choice.perItem,
+          activeDecision: choice.activeDecision,
+          reviewedEndUtc: choice.reviewedEndUtc,
           restoreActiveTimer: choice.restoreActiveTimer,
         );
     ref.invalidate(backupStatusProvider);

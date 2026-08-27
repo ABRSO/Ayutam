@@ -123,12 +123,30 @@ final class BackupService {
         );
       }
 
-      // Verify-before-success using the bytes we just produced (and any
-      // readable on-disk copy). Never update verified_at from the JKS/signing
-      // path — only from archive re-parse.
-      final written = await _store.liveDatabasePath() == null
-          ? zip
-          : await _readIfPossible(savedPath) ?? zip;
+      // Verify-before-success: re-read the saved file only (never fall back to
+      // the in-memory zip). exportSkilltrackerBytes() is the test path.
+      final Uint8List written;
+      try {
+        written = await _files.readBytes(savedPath);
+      } catch (e) {
+        await _store.recordBackupAttempt(
+          id: attemptId,
+          backupType: 'skilltracker',
+          status: 'failed',
+          createdAtUtc: now,
+          destinationDisplay: savedPath,
+          fileSha256: sha256Hex(zip),
+          errorCode: 'BACKUP-VERIFY-READ',
+        );
+        return Failure(
+          AppFailure(
+            code: 'BACKUP-VERIFY-READ',
+            message: 'Could not re-read the saved backup for verification.',
+            cause: e,
+          ),
+        );
+      }
+
       final verified = _codec.decode(written, fileName: suggested);
       if (verified is Failure<DecodedSkilltracker>) {
         await _store.recordBackupAttempt(
@@ -168,7 +186,7 @@ final class BackupService {
         skillsCount: summary.skills,
         sessionsCount: summary.sessions,
         totalActiveSeconds: summary.completedActiveSeconds,
-        fileSha256: sha256Hex(zip),
+        fileSha256: sha256Hex(written),
       );
       return Success(savedPath);
     } catch (e) {
@@ -258,11 +276,134 @@ final class BackupService {
     return Success(zip);
   }
 
-  Future<Uint8List?> _readIfPossible(String path) async {
+  /// Standalone JSON export (same logical payload; hash exact payload bytes).
+  Future<Result<String>> exportJson() async {
+    final attemptId = _newId();
+    final now = _clock.nowUtc();
     try {
-      return await _store.readFileBytes(path);
-    } catch (_) {
-      return null;
+      final payload = await _store.readPayload();
+      final summary = payload.computeSummary();
+      final payloadBytes = encodePayloadBytes(payload);
+      final device = await _deviceId();
+      final appVersion = await _applicationVersion();
+      final dataJson = jsonDecode(utf8.decode(payloadBytes)) as Object?;
+      final envelope = <String, Object?>{
+        'format': portableJsonFormat,
+        'formatVersion': portableJsonFormatVersion,
+        'applicationVersion': appVersion,
+        'databaseSchemaVersion': AppConstants.schemaVersion,
+        'createdAtUtc': now.toUtc().toIso8601String(),
+        'sourcePlatform': _platform,
+        'sourceDeviceId': device,
+        'timezone': _timezones.ianaId,
+        'data': dataJson,
+        'dataSha256': sha256Hex(payloadBytes),
+      };
+      final fileBytes = Uint8List.fromList(
+        utf8.encode(const JsonEncoder.withIndent('  ').convert(envelope)),
+      );
+      final suggested =
+          'ayutam-backup-${_fileStamp.format(now.toLocal())}.json';
+      final savedPath = await _files.saveBytes(
+        bytes: fileBytes,
+        suggestedName: suggested,
+        extension: 'json',
+        mimeType: 'application/json',
+        relativeDocumentsSubdir: 'Ayutam/backups',
+      );
+      if (savedPath == null) {
+        await _store.recordBackupAttempt(
+          id: attemptId,
+          backupType: 'json',
+          status: 'cancelled',
+          createdAtUtc: now,
+          errorCode: 'CANCELLED',
+        );
+        return const Failure(
+          AppFailure(code: 'BACKUP-CANCEL', message: 'Export cancelled.'),
+        );
+      }
+
+      final Uint8List written;
+      try {
+        written = await _files.readBytes(savedPath);
+      } catch (e) {
+        await _store.recordBackupAttempt(
+          id: attemptId,
+          backupType: 'json',
+          status: 'failed',
+          createdAtUtc: now,
+          destinationDisplay: savedPath,
+          fileSha256: sha256Hex(fileBytes),
+          errorCode: 'BACKUP-VERIFY-READ',
+        );
+        return Failure(
+          AppFailure(
+            code: 'BACKUP-VERIFY-READ',
+            message: 'Could not re-read the saved backup for verification.',
+            cause: e,
+          ),
+        );
+      }
+
+      final decoded = _decodePortableJson(written, fileName: suggested);
+      if (decoded is Failure<(BackupManifest, BackupPayload)>) {
+        await _store.recordBackupAttempt(
+          id: attemptId,
+          backupType: 'json',
+          status: 'failed',
+          createdAtUtc: now,
+          destinationDisplay: savedPath,
+          fileSha256: sha256Hex(fileBytes),
+          errorCode: decoded.error.code,
+        );
+        return Failure(decoded.error);
+      }
+      final semantic = validateBackupPayload(
+        (decoded as Success<(BackupManifest, BackupPayload)>).value.$2,
+      );
+      if (semantic is Failure<void>) {
+        await _store.recordBackupAttempt(
+          id: attemptId,
+          backupType: 'json',
+          status: 'failed',
+          createdAtUtc: now,
+          destinationDisplay: savedPath,
+          fileSha256: sha256Hex(fileBytes),
+          errorCode: semantic.error.code,
+        );
+        return Failure(semantic.error);
+      }
+
+      await _store.recordBackupAttempt(
+        id: attemptId,
+        backupType: 'json',
+        status: 'success',
+        createdAtUtc: now,
+        destinationDisplay: savedPath,
+        verifiedAtUtc: _clock.nowUtc(),
+        sessionHighWatermarkUtc: now,
+        skillsCount: summary.skills,
+        sessionsCount: summary.sessions,
+        totalActiveSeconds: summary.completedActiveSeconds,
+        fileSha256: sha256Hex(written),
+      );
+      return Success(savedPath);
+    } catch (e) {
+      await _store.recordBackupAttempt(
+        id: attemptId,
+        backupType: 'json',
+        status: 'failed',
+        createdAtUtc: now,
+        errorCode: 'BACKUP-EXPORT',
+      );
+      return Failure(
+        AppFailure(
+          code: 'BACKUP-EXPORT',
+          message: 'JSON export failed.',
+          cause: e,
+        ),
+      );
     }
   }
 
@@ -273,33 +414,145 @@ final class BackupService {
         AppFailure(code: 'BACKUP-CANCEL', message: 'Import cancelled.'),
       );
     }
+    final lower = opened.fileName.toLowerCase();
+    if (lower.endsWith('.sqlite') || lower.endsWith('.db')) {
+      return previewSqliteImportBytes(
+        bytes: opened.bytes,
+        fileName: opened.fileName,
+      );
+    }
     return previewImportBytes(bytes: opened.bytes, fileName: opened.fileName);
   }
 
+  /// Import preview for a standalone JSON or `.skilltracker` archive.
   @visibleForTesting
   Future<Result<ImportPreview>> previewImportBytes({
     required Uint8List bytes,
     required String fileName,
   }) async {
-    final decoded = _codec.decode(bytes, fileName: fileName);
-    if (decoded is Failure<DecodedSkilltracker>) {
-      return Failure(decoded.error);
+    final lower = fileName.toLowerCase();
+    final BackupManifest manifest;
+    final BackupPayload payload;
+    final BackupSourceKind sourceKind;
+
+    if (lower.endsWith('.json') || _looksLikeJson(bytes)) {
+      final decoded = _decodePortableJson(bytes, fileName: fileName);
+      if (decoded is Failure<(BackupManifest, BackupPayload)>) {
+        return Failure(decoded.error);
+      }
+      final value = (decoded as Success<(BackupManifest, BackupPayload)>).value;
+      manifest = value.$1;
+      payload = value.$2;
+      sourceKind = BackupSourceKind.json;
+    } else {
+      final decoded = _codec.decode(bytes, fileName: fileName);
+      if (decoded is Failure<DecodedSkilltracker>) {
+        return Failure(decoded.error);
+      }
+      final value = (decoded as Success<DecodedSkilltracker>).value;
+      manifest = value.manifest;
+      payload = value.payload;
+      sourceKind = BackupSourceKind.skilltracker;
     }
-    final value = (decoded as Success<DecodedSkilltracker>).value;
-    final semantic = validateBackupPayload(value.payload);
+
+    final semantic = validateBackupPayload(payload);
     if (semantic is Failure<void>) {
       return Failure(semantic.error);
     }
+    return _buildPreview(
+      fileName: fileName,
+      manifest: manifest,
+      payload: payload,
+      sourceKind: sourceKind,
+    );
+  }
+
+  /// Open a `.sqlite` snapshot via the file picker and preview it.
+  Future<Result<ImportPreview>> previewSqliteImport() async {
+    final opened = await _files.openBackupFile();
+    if (opened == null) {
+      return const Failure(
+        AppFailure(code: 'BACKUP-CANCEL', message: 'Import cancelled.'),
+      );
+    }
+    return previewSqliteImportBytes(
+      bytes: opened.bytes,
+      fileName: opened.fileName,
+    );
+  }
+
+  @visibleForTesting
+  Future<Result<ImportPreview>> previewSqliteImportBytes({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final dir = await _snapshotsDirectory();
+    final tempPath = '$dir${PlatformPath.sep}import-${_newId()}.sqlite';
+    try {
+      await _store.writeFileBytes(tempPath, bytes);
+      final payload = await _store.readPayloadFromSnapshotFile(tempPath);
+      final semantic = validateBackupPayload(payload);
+      if (semantic is Failure<void>) {
+        return Failure(semantic.error);
+      }
+      final summary = payload.computeSummary();
+      final device = await _deviceId();
+      final appVersion = await _applicationVersion();
+      final now = _clock.nowUtc();
+      final manifest = BackupManifest(
+        format: 'ayutam-sqlite-snapshot',
+        formatVersion: 1,
+        createdAtUtc: now.toUtc().toIso8601String(),
+        applicationVersion: appVersion,
+        databaseSchemaVersion: AppConstants.schemaVersion,
+        sourcePlatform: _platform,
+        sourceDeviceId: device,
+        timezone: _timezones.ianaId,
+        encrypted: false,
+        compression: 'none',
+        payloadPath: fileName,
+        payloadMediaType: 'application/x-sqlite3',
+        payloadSha256: sha256Hex(bytes),
+        payloadUncompressedBytes: bytes.length,
+        summary: summary,
+      );
+      return _buildPreview(
+        fileName: fileName,
+        manifest: manifest,
+        payload: payload,
+        sourceKind: BackupSourceKind.sqlite,
+      );
+    } catch (e) {
+      return Failure(
+        AppFailure(
+          code: 'BACKUP-SQLITE',
+          message: 'Could not read the SQLite snapshot.',
+          cause: e,
+        ),
+      );
+    } finally {
+      await _store.deleteFileIfExists(tempPath);
+    }
+  }
+
+  Future<Result<ImportPreview>> _buildPreview({
+    required String fileName,
+    required BackupManifest manifest,
+    required BackupPayload payload,
+    required BackupSourceKind sourceKind,
+  }) async {
     final local = await _store.readPayload();
-    final merged = _mergeEngine.merge(local: local, incoming: value.payload);
+    final dryRun = _mergeEngine.merge(local: local, incoming: payload);
     return Success(
       ImportPreview(
         fileName: fileName,
-        manifest: value.manifest,
-        payload: value.payload,
+        manifest: manifest,
+        payload: payload,
         checksumOk: true,
-        conflicts: merged.conflicts,
+        conflicts: dryRun.conflicts,
         localHasActiveOrPending: await _store.hasActiveOrPendingSession(),
+        activeSessionCollision: dryRun.activeSessionCollision,
+        sourceKind: sourceKind,
       ),
     );
   }
@@ -309,8 +562,41 @@ final class BackupService {
     required ImportMode mode,
     ConflictResolution conflictResolution = ConflictResolution.keepCurrent,
     Map<String, ConflictResolution> perItem = const {},
+    ActiveSessionDecision? activeDecision,
+    DateTime? reviewedEndUtc,
     bool restoreActiveTimer = false,
   }) async {
+    if (activeDecision == ActiveSessionDecision.cancel) {
+      return const Failure(
+        AppFailure(code: 'BACKUP-CANCEL', message: 'Import cancelled.'),
+      );
+    }
+
+    if (mode == ImportMode.merge &&
+        preview.requiresActiveSessionDecision &&
+        activeDecision == null) {
+      return const Failure(
+        AppFailure(
+          code: 'BACKUP-ACTIVE-DECISION',
+          message:
+              'Both this device and the backup have an in-progress session. '
+              'Choose how to resolve it before merging.',
+        ),
+      );
+    }
+
+    if (activeDecision == ActiveSessionDecision.completeOtherWithEnd &&
+        reviewedEndUtc == null) {
+      return const Failure(
+        AppFailure(
+          code: 'BACKUP-ACTIVE-DECISION',
+          message:
+              'A reviewed end time is required to complete the '
+              'imported session.',
+        ),
+      );
+    }
+
     final snap = await createSafetySnapshot(
       reason: mode == ImportMode.replace ? 'pre_replace' : 'pre_merge',
     );
@@ -328,10 +614,22 @@ final class BackupService {
         incoming: preview.payload,
         defaultResolution: conflictResolution,
         perItem: perItem,
+        activeDecision: activeDecision,
+        reviewedEndAtUtc: reviewedEndUtc?.toUtc().millisecondsSinceEpoch,
       );
+      if (merged.cancelled) {
+        return const Failure(
+          AppFailure(code: 'BACKUP-CANCEL', message: 'Import cancelled.'),
+        );
+      }
       toApply = merged.payload;
     }
-    if (!restoreActiveTimer) {
+
+    final decisionResolvedLive =
+        mode == ImportMode.merge &&
+        activeDecision != null &&
+        activeDecision != ActiveSessionDecision.cancel;
+    if (!restoreActiveTimer && !decisionResolvedLive) {
       toApply = _forceIdleSessions(toApply);
     }
 
@@ -353,6 +651,162 @@ final class BackupService {
         ),
       );
     }
+  }
+
+  Result<(BackupManifest, BackupPayload)> _decodePortableJson(
+    Uint8List bytes, {
+    required String fileName,
+  }) {
+    if (bytes.length > maxSkilltrackerBytes) {
+      return const Failure(
+        AppFailure(
+          code: 'BACKUP-SIZE',
+          message: 'Backup file exceeds the maximum allowed size.',
+        ),
+      );
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map) {
+        return const Failure(
+          AppFailure(
+            code: 'BACKUP-JSON',
+            message: 'JSON backup root must be an object.',
+          ),
+        );
+      }
+      final root = decoded.cast<String, Object?>();
+
+      // Canonical envelope: format + data + dataSha256.
+      if (root.containsKey('data')) {
+        final format = root['format'] as String? ?? '';
+        if (format.isNotEmpty &&
+            format != portableJsonFormat &&
+            format != skilltrackerFormat) {
+          return Failure(
+            AppFailure(
+              code: 'BACKUP-FORMAT',
+              message: 'Unsupported JSON backup format "$format".',
+            ),
+          );
+        }
+        final formatVersion =
+            (root['formatVersion'] as num?)?.toInt() ??
+            portableJsonFormatVersion;
+        if (formatVersion > portableJsonFormatVersion) {
+          return const Failure(
+            AppFailure(
+              code: 'BACKUP-FORMAT-VERSION',
+              message: 'This JSON backup was made by a newer Ayutam version.',
+            ),
+          );
+        }
+        final dataRaw = root['data'];
+        if (dataRaw is! Map) {
+          return const Failure(
+            AppFailure(
+              code: 'BACKUP-JSON',
+              message: 'JSON backup is missing a data object.',
+            ),
+          );
+        }
+        final dataMap = dataRaw.map((k, v) => MapEntry(k.toString(), v));
+        final payload = BackupPayload.fromJson(dataMap.cast<String, Object?>());
+        final expectedSha = normalizeSha256(
+          root['dataSha256'] as String? ?? '',
+        );
+        if (expectedSha.isNotEmpty) {
+          final canonical = encodePayloadBytes(payload);
+          if (sha256Hex(canonical) != expectedSha) {
+            return const Failure(
+              AppFailure(
+                code: 'BACKUP-HASH',
+                message: 'JSON backup data hash does not match.',
+              ),
+            );
+          }
+        }
+        final summary = payload.computeSummary();
+        final manifest = BackupManifest(
+          format: format.isEmpty ? portableJsonFormat : format,
+          formatVersion: formatVersion,
+          createdAtUtc:
+              root['createdAtUtc'] as String? ??
+              root['exportedAtUtc'] as String? ??
+              payload.exportedAtUtc,
+          applicationVersion: root['applicationVersion'] as String? ?? '',
+          databaseSchemaVersion:
+              (root['databaseSchemaVersion'] as num?)?.toInt() ??
+              AppConstants.schemaVersion,
+          sourcePlatform: root['sourcePlatform'] as String? ?? '',
+          sourceDeviceId: root['sourceDeviceId'] as String? ?? '',
+          timezone: root['timezone'] as String? ?? 'UTC',
+          encrypted: false,
+          compression: 'none',
+          payloadPath: 'data',
+          payloadMediaType: 'application/json',
+          payloadSha256: expectedSha,
+          payloadUncompressedBytes: encodePayloadBytes(payload).length,
+          summary: summary,
+        );
+        return Success((manifest, payload));
+      }
+
+      // Legacy-looking: bare BackupPayload (or payload nested under "payload").
+      final Map<String, Object?> payloadMap;
+      if (root.containsKey('skills') || root.containsKey('dataVersion')) {
+        payloadMap = root;
+      } else if (root['payload'] is Map) {
+        payloadMap = (root['payload'] as Map).map(
+          (k, v) => MapEntry(k.toString(), v),
+        );
+      } else {
+        return const Failure(
+          AppFailure(
+            code: 'BACKUP-JSON',
+            message: 'Unrecognized JSON backup structure.',
+          ),
+        );
+      }
+      final payload = BackupPayload.fromJson(payloadMap);
+      final summary = payload.computeSummary();
+      final manifest = BackupManifest(
+        format: portableJsonFormat,
+        formatVersion: portableJsonFormatVersion,
+        createdAtUtc: payload.exportedAtUtc,
+        applicationVersion: root['applicationVersion'] as String? ?? '',
+        databaseSchemaVersion:
+            (root['databaseSchemaVersion'] as num?)?.toInt() ??
+            AppConstants.schemaVersion,
+        sourcePlatform: root['sourcePlatform'] as String? ?? '',
+        sourceDeviceId: root['sourceDeviceId'] as String? ?? '',
+        timezone: root['timezone'] as String? ?? 'UTC',
+        encrypted: false,
+        compression: 'none',
+        payloadPath: fileName,
+        payloadMediaType: 'application/json',
+        payloadSha256: '',
+        payloadUncompressedBytes: bytes.length,
+        summary: summary,
+      );
+      return Success((manifest, payload));
+    } catch (e) {
+      return Failure(
+        AppFailure(
+          code: 'BACKUP-JSON',
+          message: 'Could not parse JSON backup.',
+          cause: e,
+        ),
+      );
+    }
+  }
+
+  static bool _looksLikeJson(Uint8List bytes) {
+    for (final b in bytes) {
+      if (b == 0x20 || b == 0x0a || b == 0x0d || b == 0x09) continue;
+      return b == 0x7b; // '{'
+    }
+    return false;
   }
 
   BackupPayload _forceIdleSessions(BackupPayload payload) {

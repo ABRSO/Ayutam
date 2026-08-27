@@ -3,13 +3,15 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../domain/backup_store.dart';
 
 /// Platform file dialogs for backup export / import.
 ///
-/// Desktop uses `file_selector`; Android uses `file_picker` with bytes.
-/// The PNG MediaStore channel is not used for backups.
+/// Desktop uses `file_selector`; Android always persists under application
+/// documents first so verify-before-success can re-read the file. The PNG
+/// MediaStore channel is not used for backups.
 final class PlatformBackupFileIo implements BackupFileIo {
   const PlatformBackupFileIo();
 
@@ -26,20 +28,34 @@ final class PlatformBackupFileIo implements BackupFileIo {
     required String mimeType,
     String? relativeDocumentsSubdir,
   }) async {
-    // relativeDocumentsSubdir is documentary only (e.g. "Ayutam/backups").
-    // Never create that path or use the PNG MediaStore channel for backups.
     final fileName = _ensureExtension(suggestedName, extension);
 
     if (Platform.isAndroid) {
-      final uri = await FilePicker.saveFile(
-        dialogTitle: 'Save backup',
-        fileName: fileName,
-        bytes: bytes,
-        mimeType: mimeType,
-        type: FileType.custom,
-        allowedExtensions: [extension],
-      );
-      return uri?.toString();
+      final docs = await getApplicationDocumentsDirectory();
+      final sub =
+          (relativeDocumentsSubdir == null ||
+              relativeDocumentsSubdir.trim().isEmpty)
+          ? 'Ayutam/backups'
+          : relativeDocumentsSubdir.replaceAll('\\', '/');
+      final dir = Directory('${docs.path}/$sub');
+      await dir.create(recursive: true);
+      final verifiedPath = '${dir.path}/$fileName';
+      await File(verifiedPath).writeAsBytes(bytes, flush: true);
+
+      // Optional user-facing copy via the system save sheet.
+      try {
+        await FilePicker.saveFile(
+          dialogTitle: 'Save backup',
+          fileName: fileName,
+          bytes: bytes,
+          mimeType: mimeType,
+          type: FileType.custom,
+          allowedExtensions: [extension],
+        );
+      } catch (_) {
+        // Verified documents path is authoritative; picker failure is non-fatal.
+      }
+      return verifiedPath;
     }
 
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -55,6 +71,11 @@ final class PlatformBackupFileIo implements BackupFileIo {
     }
 
     return null;
+  }
+
+  @override
+  Future<Uint8List> readBytes(String path) async {
+    return Uint8List.fromList(await File(path).readAsBytes());
   }
 
   @override

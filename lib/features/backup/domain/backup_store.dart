@@ -57,6 +57,8 @@ abstract class BackupStore {
 
   Future<Uint8List> readFileBytes(String path);
 
+  Future<void> writeFileBytes(String path, Uint8List bytes);
+
   Future<void> deleteFileIfExists(String path);
 
   /// Open a safety-snapshot SQLite file and read it as a portable payload.
@@ -72,6 +74,9 @@ abstract class BackupFileIo {
     required String mimeType,
     String? relativeDocumentsSubdir,
   });
+
+  /// Re-open bytes previously returned by [saveBytes]. Must succeed for verify-before-success.
+  Future<Uint8List> readBytes(String path);
 
   Future<OpenedBackupFile?> openBackupFile();
 

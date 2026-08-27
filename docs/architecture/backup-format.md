@@ -118,9 +118,9 @@ Manifest payload hash must agree. Validate before parsing full data into the liv
 
 ## 3. Other exports
 
-**Standalone JSON:** Same logical payload + format/version/app version; hash exact bytes.
+**Standalone JSON:** Same logical payload + format/version/app version; hash exact bytes. Restorable via Settings (format `ayutam-portable-json`).
 
-**SQLite snapshot:** Use `VACUUM INTO` or Online Backup API — never copy live DB while WAL is active. Integrity-check snapshot, hash, then hand to save dialog. Schema-tied; newer app migrates after replace; forward-incompatible rejected.
+**SQLite snapshot:** Use `VACUUM INTO` or Online Backup API — never copy live DB while WAL is active. Integrity-check snapshot, hash, then hand to save dialog. Schema-tied; newer app migrates after replace; forward-incompatible rejected. Restorable via Settings (mainly Replace).
 
 **CSV:** UTF-8 header row; columns include session_id, skill_name, title, start/end, timezone, active/paused seconds, mode, source, tags, note_markdown. RFC 4180 quoting. Prefix formula-like cells (`=`, `+`, `-`, `@`) for spreadsheet safety; document behavior. Not importable in v1.
 
@@ -161,9 +161,9 @@ Identity is **UUID** only — never time overlap, title, or note similarity.
 |---|---|
 | Incoming only | Insert |
 | Same content hash | Skip |
-| Incoming `updated_at` newer | Take incoming wholesale |
-| Local newer | Keep local |
-| Equal `updated_at`, different hash | Conflict item; default **Keep Current**; user may Prefer Imported (all or per item) |
+| Incoming `updated_at` newer | Take incoming **wholesale** (for sessions: replace the entire child set of segments and session-tags — never union with the losing side) |
+| Local newer | Keep local wholesale (same child rule) |
+| Equal `updated_at`, different hash | Conflict item; default **Keep Current**; user may Prefer Imported (all or per item) via import preview |
 | Soft-delete vs present | Newest state wins (including deletion) |
 
 **Order:** devices/metadata → skills → tags → sessions → segments → session_tags → mergeable settings → timer runtime (rules below).
@@ -178,7 +178,7 @@ Identity is **UUID** only — never time overlap, title, or note similarity.
 
 **Deletions:** v1 does not keep permanent tombstones forever — a deleted record may reappear if an older backup is merged; preview must state this. Prefer Replace for authoritative restore.
 
-**Active session conflicts:** If both sides have active/paused/pending, do not silently pick — offer keep current / prefer imported / import other as completed with reviewed end / cancel. Maintain one-active invariant.
+**Active session conflicts:** If both sides have active/paused/pending, do not silently pick — offer keep current / prefer imported / import other as completed with reviewed end / cancel. Maintain one-active invariant. Never fabricate a zero-length completion (`endAtUtc = startAtUtc`) automatically.
 
 ---
 

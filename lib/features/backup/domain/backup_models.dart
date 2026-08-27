@@ -3,6 +3,8 @@
 const skilltrackerFormat = 'ayutam-portable-backup';
 const skilltrackerFormatVersion = 1;
 const skilltrackerDataVersion = 1;
+const portableJsonFormat = 'ayutam-portable-json';
+const portableJsonFormatVersion = 1;
 
 /// Maximum accepted `.skilltracker` file size (bytes).
 const maxSkilltrackerBytes = 200 * 1024 * 1024;
@@ -628,6 +630,38 @@ enum ImportMode { merge, replace }
 
 enum ConflictResolution { keepCurrent, preferImported }
 
+/// User choice when both local and imported payloads have a live session.
+enum ActiveSessionDecision {
+  /// Keep the local active/paused/pending session.
+  keepCurrent,
+
+  /// Prefer the imported active/paused/pending session.
+  preferImported,
+
+  /// Keep local live; import the other live session as completed with a
+  /// user-reviewed end time ([reviewedEndAtUtc] required).
+  completeOtherWithEnd,
+
+  /// Abort the merge.
+  cancel,
+}
+
+final class ActiveSessionCollision {
+  const ActiveSessionCollision({
+    required this.localLive,
+    required this.incomingLive,
+    this.localLiveCount = 1,
+    this.incomingLiveCount = 1,
+  });
+
+  final BackupSessionRecord localLive;
+  final BackupSessionRecord incomingLive;
+  final int localLiveCount;
+  final int incomingLiveCount;
+
+  bool get sameSessionId => localLive.id == incomingLive.id;
+}
+
 final class ImportConflict {
   const ImportConflict({
     required this.entityType,
@@ -652,6 +686,8 @@ final class ImportPreview {
     required this.checksumOk,
     required this.conflicts,
     required this.localHasActiveOrPending,
+    this.activeSessionCollision,
+    this.sourceKind = BackupSourceKind.skilltracker,
   });
 
   final String fileName;
@@ -660,7 +696,14 @@ final class ImportPreview {
   final bool checksumOk;
   final List<ImportConflict> conflicts;
   final bool localHasActiveOrPending;
+  final ActiveSessionCollision? activeSessionCollision;
+  final BackupSourceKind sourceKind;
+
+  bool get requiresActiveSessionDecision => activeSessionCollision != null;
 }
+
+/// Which restorable format was opened for import.
+enum BackupSourceKind { skilltracker, json, sqlite }
 
 final class BackupStatus {
   const BackupStatus({

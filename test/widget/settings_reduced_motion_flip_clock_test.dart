@@ -61,9 +61,7 @@ void main() {
       expect(flipTransforms, findsOneWidget);
       await tester.pumpAndSettle();
 
-      await tester.tap(
-        find.widgetWithText(SwitchListTile, 'Reduced motion'),
-      );
+      await tester.tap(find.widgetWithText(SwitchListTile, 'Reduced motion'));
       await tester.pumpAndSettle();
 
       expect(

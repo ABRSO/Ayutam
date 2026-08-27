@@ -1,19 +1,55 @@
 import '../domain/backup_models.dart';
 
+enum _MergeSide { local, incoming }
+
 /// Last-write-wins merge of two portable payloads (ADR-012).
 ///
 /// Identity is UUID only. Equal `updatedAt` with different content yields
 /// [ImportConflict] items; [ConflictResolution] selects the winner.
+///
+/// When both sides have a live (active/paused/completion_pending) session,
+/// merge does **not** auto-resolve — [MergedPayload.activeSessionCollision]
+/// is set and [activeDecision] is required before a safe apply.
 final class MergeEngine {
   const MergeEngine();
+
+  /// Detects whether both local and incoming payloads contain a live session.
+  ActiveSessionCollision? detectActiveCollision({
+    required BackupPayload local,
+    required BackupPayload incoming,
+  }) {
+    final localLive = _liveSessions(local.sessions);
+    final incomingLive = _liveSessions(incoming.sessions);
+    if (localLive.isEmpty || incomingLive.isEmpty) return null;
+    return ActiveSessionCollision(
+      localLive: localLive.first,
+      incomingLive: incomingLive.first,
+      localLiveCount: localLive.length,
+      incomingLiveCount: incomingLive.length,
+    );
+  }
 
   MergedPayload merge({
     required BackupPayload local,
     required BackupPayload incoming,
     ConflictResolution defaultResolution = ConflictResolution.keepCurrent,
     Map<String, ConflictResolution> perItem = const {},
+    ActiveSessionDecision? activeDecision,
+    int? reviewedEndAtUtc,
   }) {
     final conflicts = <ImportConflict>[];
+    final collision = detectActiveCollision(local: local, incoming: incoming);
+
+    if (collision != null && activeDecision == ActiveSessionDecision.cancel) {
+      return MergedPayload(
+        payload: local,
+        conflicts: const [],
+        activeSessionCollision: collision,
+        cancelled: true,
+      );
+    }
+
+    final needsDecision = collision != null && activeDecision == null;
 
     final skills = _mergeById(
       local: local.skills,
@@ -41,7 +77,7 @@ final class MergeEngine {
       perItem: perItem,
     );
 
-    final sessions = _mergeById(
+    final sessionMerge = _mergeByIdWithSide(
       local: local.sessions,
       incoming: incoming.sessions,
       idOf: (s) => s.id,
@@ -53,40 +89,39 @@ final class MergeEngine {
       defaultResolution: defaultResolution,
       perItem: perItem,
     );
+    var sessions = List<BackupSessionRecord>.from(sessionMerge.items);
+    final sessionSources = Map<String, _MergeSide>.from(sessionMerge.sides);
 
-    // Segments: prefer the version belonging to the winning session wholesale.
-    final sessionIds = sessions.map((s) => s.id).toSet();
-    final localSegs = {
-      for (final s in local.sessionSegments)
-        if (sessionIds.contains(s.sessionId)) s.id: s,
-    };
-    final incomingSegs = {
-      for (final s in incoming.sessionSegments)
-        if (sessionIds.contains(s.sessionId)) s.id: s,
-    };
-    final winningSessionUpdated = {
-      for (final s in sessions) s.id: s.updatedAtUtc,
-    };
-    final localSessionUpdated = {
-      for (final s in local.sessions) s.id: s.updatedAtUtc,
-    };
+    if (!needsDecision && collision != null && activeDecision != null) {
+      sessions = _applyActiveDecision(
+        sessions: sessions,
+        sessionSources: sessionSources,
+        local: local,
+        incoming: incoming,
+        collision: collision,
+        decision: activeDecision,
+        reviewedEndAtUtc: reviewedEndAtUtc,
+      );
+    }
+
+    // Child data follows the winning session wholesale — never union losers.
+    final tagIdSet = tags.map((t) => t.id).toSet();
     final segments = <BackupSegmentRecord>[];
-    final allSegIds = {...localSegs.keys, ...incomingSegs.keys};
-    for (final id in allSegIds) {
-      final loc = localSegs[id];
-      final inc = incomingSegs[id];
-      if (loc == null) {
-        segments.add(inc!);
-        continue;
+    final sessionTags = <BackupSessionTagRecord>[];
+    for (final session in sessions) {
+      final side = sessionSources[session.id] ?? _MergeSide.local;
+      final sourceSegs = side == _MergeSide.incoming
+          ? incoming.sessionSegments
+          : local.sessionSegments;
+      final sourceLinks = side == _MergeSide.incoming
+          ? incoming.sessionTags
+          : local.sessionTags;
+      segments.addAll(sourceSegs.where((s) => s.sessionId == session.id));
+      for (final link in sourceLinks.where((l) => l.sessionId == session.id)) {
+        if (tagIdSet.contains(link.tagId)) {
+          sessionTags.add(link);
+        }
       }
-      if (inc == null) {
-        segments.add(loc);
-        continue;
-      }
-      final sessionId = loc.sessionId;
-      final winUpdated = winningSessionUpdated[sessionId] ?? 0;
-      final localUpdated = localSessionUpdated[sessionId] ?? 0;
-      segments.add(winUpdated > localUpdated ? inc : loc);
     }
 
     final settings = _mergeSettings(
@@ -102,97 +137,162 @@ final class MergeEngine {
       incoming.deviceMetadata,
     );
 
-    final sessionTagKeys = <String>{};
-    final sessionTags = <BackupSessionTagRecord>[];
-    final tagIdSet = tags.map((t) => t.id).toSet();
-    for (final link in [...local.sessionTags, ...incoming.sessionTags]) {
-      if (!sessionIds.contains(link.sessionId) ||
-          !tagIdSet.contains(link.tagId)) {
-        continue;
-      }
-      final key = '${link.sessionId}|${link.tagId}';
-      if (sessionTagKeys.add(key)) {
-        sessionTags.add(link);
-      }
-    }
-
-    // Active-session invariant: at most one live session after merge.
-    final live = sessions
-        .where(
-          (s) =>
-              s.deletedAtUtc == null &&
-              (s.status == 'active' ||
-                  s.status == 'paused' ||
-                  s.status == 'completion_pending'),
-        )
-        .toList();
-    var resolvedSessions = sessions;
-    if (live.length > 1) {
-      // Prefer local live session; demote others to completed.
-      final localLiveIds = local.sessions
-          .where(
-            (s) =>
-                s.deletedAtUtc == null &&
-                (s.status == 'active' ||
-                    s.status == 'paused' ||
-                    s.status == 'completion_pending'),
-          )
-          .map((s) => s.id)
-          .toSet();
-      final keepId = live
-          .firstWhere(
-            (s) => localLiveIds.contains(s.id),
-            orElse: () => live.first,
-          )
-          .id;
-      resolvedSessions = sessions.map((s) {
-        if (s.id == keepId) return s;
-        if (s.deletedAtUtc == null &&
-            (s.status == 'active' ||
-                s.status == 'paused' ||
-                s.status == 'completion_pending')) {
-          return BackupSessionRecord(
-            id: s.id,
-            skillId: s.skillId,
-            title: s.title,
-            noteMarkdown: s.noteMarkdown,
-            mode: s.mode,
-            status: 'completed',
-            source: s.source,
-            startAtUtc: s.startAtUtc,
-            endAtUtc: s.endAtUtc ?? s.startAtUtc,
-            activeSeconds: s.activeSeconds,
-            pausedSeconds: s.pausedSeconds,
-            timezoneIdAtCreation: s.timezoneIdAtCreation,
-            offsetMinutesAtStart: s.offsetMinutesAtStart,
-            createdAtUtc: s.createdAtUtc,
-            updatedAtUtc: s.updatedAtUtc,
-            sourceDeviceId: s.sourceDeviceId,
-            deletedAtUtc: s.deletedAtUtc,
-          );
-        }
-        return s;
-      }).toList();
-    }
-
     final merged = BackupPayload(
       dataVersion: skilltrackerDataVersion,
       exportedAtUtc: incoming.exportedAtUtc,
       skills: skills,
-      sessions: resolvedSessions,
+      sessions: sessions,
       sessionSegments: segments,
       tags: tags,
       sessionTags: sessionTags,
       settings: settings,
       deviceMetadata: devices,
-      timerRuntime: null, // rebuilt by store after apply
+      timerRuntime: null,
       backupMetadata: incoming.backupMetadata ?? local.backupMetadata,
     );
 
-    return MergedPayload(payload: merged, conflicts: conflicts);
+    return MergedPayload(
+      payload: merged,
+      conflicts: conflicts,
+      activeSessionCollision: collision,
+      cancelled: false,
+    );
   }
 
+  List<BackupSessionRecord> _applyActiveDecision({
+    required List<BackupSessionRecord> sessions,
+    required Map<String, _MergeSide> sessionSources,
+    required BackupPayload local,
+    required BackupPayload incoming,
+    required ActiveSessionCollision collision,
+    required ActiveSessionDecision decision,
+    required int? reviewedEndAtUtc,
+  }) {
+    final localId = collision.localLive.id;
+    final incomingId = collision.incomingLive.id;
+    final byId = {for (final s in sessions) s.id: s};
+
+    void put(BackupSessionRecord session, _MergeSide side) {
+      byId[session.id] = session;
+      sessionSources[session.id] = side;
+    }
+
+    BackupSessionRecord asCompleted(
+      BackupSessionRecord s, {
+      required int endAtUtc,
+    }) {
+      if (endAtUtc < s.startAtUtc) {
+        throw ArgumentError(
+          'Reviewed end must be on or after the session start.',
+        );
+      }
+      return BackupSessionRecord(
+        id: s.id,
+        skillId: s.skillId,
+        title: s.title,
+        noteMarkdown: s.noteMarkdown,
+        mode: s.mode,
+        status: 'completed',
+        source: s.source,
+        startAtUtc: s.startAtUtc,
+        endAtUtc: endAtUtc,
+        activeSeconds: s.activeSeconds,
+        pausedSeconds: s.pausedSeconds,
+        timezoneIdAtCreation: s.timezoneIdAtCreation,
+        offsetMinutesAtStart: s.offsetMinutesAtStart,
+        createdAtUtc: s.createdAtUtc,
+        updatedAtUtc: s.updatedAtUtc,
+        sourceDeviceId: s.sourceDeviceId,
+        deletedAtUtc: s.deletedAtUtc,
+      );
+    }
+
+    switch (decision) {
+      case ActiveSessionDecision.keepCurrent:
+        put(collision.localLive, _MergeSide.local);
+        if (localId != incomingId) {
+          byId.remove(incomingId);
+          for (final s in incoming.sessions) {
+            if (s.id == incomingId && !_isLive(s)) {
+              put(s, _MergeSide.incoming);
+            }
+          }
+        }
+        break;
+      case ActiveSessionDecision.preferImported:
+        put(collision.incomingLive, _MergeSide.incoming);
+        if (localId != incomingId) {
+          byId.remove(localId);
+          for (final s in local.sessions) {
+            if (s.id == localId && !_isLive(s)) {
+              put(s, _MergeSide.local);
+            }
+          }
+        }
+        break;
+      case ActiveSessionDecision.completeOtherWithEnd:
+        if (reviewedEndAtUtc == null) {
+          throw ArgumentError(
+            'reviewedEndAtUtc is required for completeOtherWithEnd',
+          );
+        }
+        put(collision.localLive, _MergeSide.local);
+        put(
+          asCompleted(collision.incomingLive, endAtUtc: reviewedEndAtUtc),
+          _MergeSide.incoming,
+        );
+        break;
+      case ActiveSessionDecision.cancel:
+        break;
+    }
+
+    final list = byId.values.toList();
+    final live = list.where(_isLive).toList();
+    if (live.length > 1) {
+      throw StateError(
+        'Active-session decision left ${live.length} live sessions',
+      );
+    }
+    return list;
+  }
+
+  static bool _isLive(BackupSessionRecord s) =>
+      s.deletedAtUtc == null &&
+      (s.status == 'active' ||
+          s.status == 'paused' ||
+          s.status == 'completion_pending');
+
+  static List<BackupSessionRecord> _liveSessions(
+    List<BackupSessionRecord> sessions,
+  ) => sessions.where(_isLive).toList();
+
   List<T> _mergeById<T>({
+    required List<T> local,
+    required List<T> incoming,
+    required String Function(T) idOf,
+    required int Function(T) updatedOf,
+    required String Function(T) hashOf,
+    required String Function(T) labelOf,
+    required String entityType,
+    required List<ImportConflict> conflicts,
+    required ConflictResolution defaultResolution,
+    required Map<String, ConflictResolution> perItem,
+  }) {
+    return _mergeByIdWithSide(
+      local: local,
+      incoming: incoming,
+      idOf: idOf,
+      updatedOf: updatedOf,
+      hashOf: hashOf,
+      labelOf: labelOf,
+      entityType: entityType,
+      conflicts: conflicts,
+      defaultResolution: defaultResolution,
+      perItem: perItem,
+    ).items;
+  }
+
+  ({List<T> items, Map<String, _MergeSide> sides}) _mergeByIdWithSide<T>({
     required List<T> local,
     required List<T> incoming,
     required String Function(T) idOf,
@@ -208,27 +308,33 @@ final class MergeEngine {
     final incomingMap = {for (final item in incoming) idOf(item): item};
     final ids = {...localMap.keys, ...incomingMap.keys};
     final out = <T>[];
+    final sides = <String, _MergeSide>{};
     for (final id in ids) {
       final loc = localMap[id];
       final inc = incomingMap[id];
       if (loc == null) {
         out.add(inc as T);
+        sides[id] = _MergeSide.incoming;
         continue;
       }
       if (inc == null) {
         out.add(loc);
+        sides[id] = _MergeSide.local;
         continue;
       }
       if (hashOf(loc) == hashOf(inc)) {
         out.add(loc);
+        sides[id] = _MergeSide.local;
         continue;
       }
       final locUpdated = updatedOf(loc);
       final incUpdated = updatedOf(inc);
       if (incUpdated > locUpdated) {
         out.add(inc);
+        sides[id] = _MergeSide.incoming;
       } else if (locUpdated > incUpdated) {
         out.add(loc);
+        sides[id] = _MergeSide.local;
       } else {
         conflicts.add(
           ImportConflict(
@@ -240,10 +346,16 @@ final class MergeEngine {
           ),
         );
         final resolution = perItem['$entityType:$id'] ?? defaultResolution;
-        out.add(resolution == ConflictResolution.preferImported ? inc : loc);
+        if (resolution == ConflictResolution.preferImported) {
+          out.add(inc);
+          sides[id] = _MergeSide.incoming;
+        } else {
+          out.add(loc);
+          sides[id] = _MergeSide.local;
+        }
       }
     }
-    return out;
+    return (items: out, sides: sides);
   }
 
   List<BackupSettingRecord> _mergeSettings({
@@ -261,7 +373,6 @@ final class MergeEngine {
       for (final s in incoming)
         if (mergeableSettingsKeys.contains(s.key)) s.key: s,
     };
-    // Preserve non-mergeable local settings untouched by adding them later in store.
     final keys = {...localMap.keys, ...incomingMap.keys};
     final out = <BackupSettingRecord>[];
     for (final key in keys) {
@@ -313,8 +424,18 @@ final class MergeEngine {
 }
 
 final class MergedPayload {
-  const MergedPayload({required this.payload, required this.conflicts});
+  const MergedPayload({
+    required this.payload,
+    required this.conflicts,
+    this.activeSessionCollision,
+    this.cancelled = false,
+  });
 
   final BackupPayload payload;
   final List<ImportConflict> conflicts;
+  final ActiveSessionCollision? activeSessionCollision;
+  final bool cancelled;
+
+  bool get requiresActiveSessionDecision =>
+      activeSessionCollision != null && !cancelled;
 }
