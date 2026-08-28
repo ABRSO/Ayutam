@@ -586,6 +586,19 @@ final class BackupService {
     }
 
     if (activeDecision == ActiveSessionDecision.completeOtherWithEnd &&
+        preview.activeSessionCollision?.sameSessionId == true) {
+      return const Failure(
+        AppFailure(
+          code: 'BACKUP-ACTIVE-DECISION',
+          message:
+              'Cannot complete the imported session separately when both sides '
+              'share the same live session id. Choose Keep current or Prefer '
+              'imported.',
+        ),
+      );
+    }
+
+    if (activeDecision == ActiveSessionDecision.completeOtherWithEnd &&
         reviewedEndUtc == null) {
       return const Failure(
         AppFailure(

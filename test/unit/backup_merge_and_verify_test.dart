@@ -309,6 +309,169 @@ void main() {
     });
   });
 
+  group('same-uuid active-session collision', () {
+    const sharedLiveId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+    late BackupPayload local;
+    late BackupPayload incoming;
+
+    setUp(() {
+      final skill = _skill(skillId, 'Guitar', 1);
+      local = _emptyPayload(
+        skills: [skill],
+        sessions: [
+          _liveSession(
+            id: sharedLiveId,
+            skillId: skillId,
+            start: 1000,
+            updated: 2000,
+            title: 'local live',
+          ),
+        ],
+      );
+      incoming = _emptyPayload(
+        skills: [skill],
+        sessions: [
+          _liveSession(
+            id: sharedLiveId,
+            skillId: skillId,
+            start: 1000,
+            updated: 3000,
+            title: 'incoming live',
+          ),
+        ],
+      );
+    });
+
+    test('collision is flagged for same session id', () {
+      final collision = engine.detectActiveCollision(
+        local: local,
+        incoming: incoming,
+      );
+      expect(collision, isNotNull);
+      expect(collision!.sameSessionId, isTrue);
+    });
+
+    test('keepCurrent keeps local live copy', () {
+      final merged = engine.merge(
+        local: local,
+        incoming: incoming,
+        activeDecision: ActiveSessionDecision.keepCurrent,
+      );
+      final live = merged.payload.sessions.where((s) => s.status == 'active');
+      expect(live, hasLength(1));
+      expect(live.single.title, 'local live');
+    });
+
+    test('preferImported keeps incoming live copy', () {
+      final merged = engine.merge(
+        local: local,
+        incoming: incoming,
+        activeDecision: ActiveSessionDecision.preferImported,
+      );
+      final live = merged.payload.sessions.where((s) => s.status == 'active');
+      expect(live, hasLength(1));
+      expect(live.single.title, 'incoming live');
+    });
+
+    test('completeOtherWithEnd is rejected for same session id', () {
+      expect(
+        () => engine.merge(
+          local: local,
+          incoming: incoming,
+          activeDecision: ActiveSessionDecision.completeOtherWithEnd,
+          reviewedEndAtUtc: 5000,
+          nowUtcMs: 6000,
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('reviewed completion segment integrity', () {
+    const incomingLiveId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const localLiveId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const workId = '11111111-1111-4111-8111-111111111111';
+    const pauseId = '22222222-2222-4222-8222-222222222222';
+    const openId = '33333333-3333-4333-8333-333333333333';
+
+    test('backward reviewed end clips trailing segments before validation', () {
+      const engine = MergeEngine();
+      final skill = _skill(skillId, 'Guitar', 1);
+      final local = _emptyPayload(
+        skills: [skill],
+        sessions: [
+          _liveSession(id: localLiveId, skillId: skillId, start: 0, updated: 1),
+        ],
+      );
+      final incoming = _emptyPayload(
+        skills: [skill],
+        sessions: [
+          _liveSession(
+            id: incomingLiveId,
+            skillId: skillId,
+            start: 0,
+            updated: 2,
+          ),
+        ],
+        segments: [
+          const BackupSegmentRecord(
+            id: workId,
+            sessionId: incomingLiveId,
+            segmentType: 'work',
+            startAtUtc: 0,
+            endAtUtc: 30 * 60 * 1000,
+            durationSeconds: 30 * 60,
+            createdAtUtc: 0,
+            updatedAtUtc: 0,
+          ),
+          const BackupSegmentRecord(
+            id: pauseId,
+            sessionId: incomingLiveId,
+            segmentType: 'pause',
+            startAtUtc: 30 * 60 * 1000,
+            endAtUtc: 40 * 60 * 1000,
+            durationSeconds: 10 * 60,
+            createdAtUtc: 0,
+            updatedAtUtc: 0,
+          ),
+          const BackupSegmentRecord(
+            id: openId,
+            sessionId: incomingLiveId,
+            segmentType: 'work',
+            startAtUtc: 40 * 60 * 1000,
+            endAtUtc: null,
+            durationSeconds: 0,
+            createdAtUtc: 0,
+            updatedAtUtc: 0,
+          ),
+        ],
+      );
+
+      final merged = engine.merge(
+        local: local,
+        incoming: incoming,
+        activeDecision: ActiveSessionDecision.completeOtherWithEnd,
+        reviewedEndAtUtc: 20 * 60 * 1000,
+        nowUtcMs: 60 * 60 * 1000,
+      );
+
+      final completed = merged.payload.sessions.singleWhere(
+        (s) => s.id == incomingLiveId,
+      );
+      expect(completed.status, 'completed');
+      expect(completed.endAtUtc, 20 * 60 * 1000);
+      expect(
+        merged.payload.sessionSegments.where(
+          (s) => s.sessionId == incomingLiveId,
+        ),
+        hasLength(1),
+      );
+      expect(merged.payload.sessionSegments.single.id, workId);
+      expect(merged.payload.sessionSegments.single.endAtUtc, 20 * 60 * 1000);
+    });
+  });
+
   group('winning session children wholesale', () {
     test('incoming newer session drops local-only segment and tag', () {
       final skill = _skill(skillId, 'Guitar', 1);

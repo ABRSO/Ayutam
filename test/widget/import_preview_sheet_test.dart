@@ -178,6 +178,61 @@ void main() {
     expect(enabled.onPressed, isNotNull);
   });
 
+  testWidgets('hides complete-imported option for same-session collision', (
+    tester,
+  ) async {
+    const sharedId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const skillId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const collision = ActiveSessionCollision(
+      localLive: BackupSessionRecord(
+        id: sharedId,
+        skillId: skillId,
+        mode: 'stopwatch',
+        status: 'active',
+        source: 'timer',
+        startAtUtc: 1000,
+        activeSeconds: 10,
+        pausedSeconds: 0,
+        timezoneIdAtCreation: 'UTC',
+        offsetMinutesAtStart: 0,
+        createdAtUtc: 1000,
+        updatedAtUtc: 2000,
+        sourceDeviceId: 'd',
+      ),
+      incomingLive: BackupSessionRecord(
+        id: sharedId,
+        skillId: skillId,
+        mode: 'stopwatch',
+        status: 'active',
+        source: 'timer',
+        startAtUtc: 1000,
+        activeSeconds: 20,
+        pausedSeconds: 0,
+        timezoneIdAtCreation: 'UTC',
+        offsetMinutesAtStart: 0,
+        createdAtUtc: 1000,
+        updatedAtUtc: 3000,
+        sourceDeviceId: 'd',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ImportPreviewSheet(
+            preview: _preview(collision: collision, localHasActive: true),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Complete imported with reviewed end'), findsNothing);
+    expect(
+      find.textContaining('share the same in-progress session'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('per-item conflict resolution populates choice map', (
     tester,
   ) async {

@@ -58,11 +58,15 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
 
   bool get _hasCollision => preview.activeSessionCollision != null;
 
+  bool get _sameSessionCollision =>
+      preview.activeSessionCollision?.sameSessionId ?? false;
+
   bool get _canMerge {
     if (!_hasCollision) return true;
     if (_activeDecision == null) return false;
     if (_activeDecision == ActiveSessionDecision.cancel) return true;
     if (_activeDecision == ActiveSessionDecision.completeOtherWithEnd) {
+      if (_sameSessionCollision) return false;
       return _reviewedEndUtc != null && !_reviewedEndIsFuture;
     }
     return true;
@@ -229,8 +233,12 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Both this device and the backup have an in-progress session. '
-                'Choose how to resolve before merging.',
+                _sameSessionCollision
+                    ? 'This device and the backup share the same in-progress '
+                          'session (same id) with different state. Choose which '
+                          'copy to keep.'
+                    : 'Both this device and the backup have an in-progress session. '
+                          'Choose how to resolve before merging.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -238,29 +246,30 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
               RadioGroup<ActiveSessionDecision>(
                 groupValue: _activeDecision,
                 onChanged: (v) => setState(() => _activeDecision = v),
-                child: const Column(
+                child: Column(
                   children: [
-                    RadioListTile<ActiveSessionDecision>(
+                    const RadioListTile<ActiveSessionDecision>(
                       contentPadding: EdgeInsets.zero,
                       title: Text('Keep current'),
                       subtitle: Text('Keep the session on this device'),
                       value: ActiveSessionDecision.keepCurrent,
                     ),
-                    RadioListTile<ActiveSessionDecision>(
+                    const RadioListTile<ActiveSessionDecision>(
                       contentPadding: EdgeInsets.zero,
                       title: Text('Prefer imported'),
                       subtitle: Text('Use the session from the backup'),
                       value: ActiveSessionDecision.preferImported,
                     ),
-                    RadioListTile<ActiveSessionDecision>(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('Complete imported with reviewed end'),
-                      subtitle: Text(
-                        'Keep current; mark the imported session completed',
+                    if (!_sameSessionCollision)
+                      const RadioListTile<ActiveSessionDecision>(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Complete imported with reviewed end'),
+                        subtitle: Text(
+                          'Keep current; mark the imported session completed',
+                        ),
+                        value: ActiveSessionDecision.completeOtherWithEnd,
                       ),
-                      value: ActiveSessionDecision.completeOtherWithEnd,
-                    ),
-                    RadioListTile<ActiveSessionDecision>(
+                    const RadioListTile<ActiveSessionDecision>(
                       contentPadding: EdgeInsets.zero,
                       title: Text('Cancel'),
                       subtitle: Text('Do not import'),

@@ -129,7 +129,8 @@ final class MergeEngine {
 
     if (collision != null &&
         activeDecision == ActiveSessionDecision.completeOtherWithEnd &&
-        reviewedEndAtUtc != null) {
+        reviewedEndAtUtc != null &&
+        !collision.sameSessionId) {
       final incomingId = collision.incomingLive.id;
       final session = sessions.singleWhere((s) => s.id == incomingId);
       final sessionSegs = segments
@@ -228,6 +229,12 @@ final class MergeEngine {
         }
         break;
       case ActiveSessionDecision.completeOtherWithEnd:
+        if (collision.sameSessionId) {
+          throw ArgumentError(
+            'completeOtherWithEnd is not valid when both sides share the '
+            'same live session id',
+          );
+        }
         if (reviewedEndAtUtc == null) {
           throw ArgumentError(
             'reviewedEndAtUtc is required for completeOtherWithEnd',

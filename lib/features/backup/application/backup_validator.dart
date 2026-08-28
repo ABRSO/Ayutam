@@ -133,9 +133,11 @@ Result<void> validateBackupPayload(BackupPayload payload) {
           ),
         );
       }
-      final openSegments = payload.sessionSegments.where(
-        (segment) =>
-            segment.sessionId == session.id && segment.endAtUtc == null,
+      final sessionSegments = payload.sessionSegments.where(
+        (segment) => segment.sessionId == session.id,
+      );
+      final openSegments = sessionSegments.where(
+        (segment) => segment.endAtUtc == null,
       );
       if (openSegments.isNotEmpty) {
         return Failure(
@@ -144,6 +146,34 @@ Result<void> validateBackupPayload(BackupPayload payload) {
             message: 'Completed session ${session.id} has open segment(s).',
           ),
         );
+      }
+      for (final segment in sessionSegments) {
+        if (segment.startAtUtc < session.startAtUtc) {
+          return Failure(
+            AppFailure(
+              code: 'BACKUP-SEGMENT-RANGE',
+              message:
+                  'Segment ${segment.id} starts before session ${session.id}.',
+            ),
+          );
+        }
+        if (segment.startAtUtc >= session.endAtUtc!) {
+          return Failure(
+            AppFailure(
+              code: 'BACKUP-SEGMENT-RANGE',
+              message: 'Segment ${segment.id} starts on or after session end.',
+            ),
+          );
+        }
+        if (segment.endAtUtc != null && segment.endAtUtc! > session.endAtUtc!) {
+          return Failure(
+            AppFailure(
+              code: 'BACKUP-SEGMENT-RANGE',
+              message:
+                  'Segment ${segment.id} ends after session ${session.id}.',
+            ),
+          );
+        }
       }
     }
     if (session.deletedAtUtc == null &&

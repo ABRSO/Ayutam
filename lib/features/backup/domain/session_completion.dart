@@ -2,8 +2,8 @@ import 'backup_models.dart';
 
 /// Portable session completion semantics for backup merge/import.
 ///
-/// Mirrors timer completion: close open work/pause segments at the reviewed
-/// end, then recompute parent active/paused totals from closed segments.
+/// Closes or truncates segments to fit within the reviewed end, then
+/// recomputes parent active/paused totals from the resulting closed segments.
 abstract final class BackupSessionCompletion {
   static const _pauseTypes = {'pause', 'pomodoro_break'};
 
@@ -23,7 +23,7 @@ abstract final class BackupSessionCompletion {
     }
   }
 
-  /// Closes open segments for [session], marks it completed, and reconciles totals.
+  /// Closes/truncates segments for [session], marks it completed, and reconciles totals.
   static ({BackupSessionRecord session, List<BackupSegmentRecord> segments})
   completeSessionAt({
     required BackupSessionRecord session,
@@ -38,26 +38,14 @@ abstract final class BackupSessionCompletion {
       nowUtcMs: nowUtcMs,
     );
     final updatedMs = updatedAtUtc ?? endAtUtc;
+    final clipped = _clipSegmentsToEnd(
+      segments: sessionSegments,
+      endAtUtc: endAtUtc,
+      updatedAtUtc: updatedMs,
+    );
 
-    final closedSegments = sessionSegments.map((segment) {
-      if (segment.endAtUtc != null) return segment;
-      final duration = _closedDuration(segment.startAtUtc, endAtUtc);
-      return BackupSegmentRecord(
-        id: segment.id,
-        sessionId: segment.sessionId,
-        segmentType: segment.segmentType,
-        pomodoroPhase: segment.pomodoroPhase,
-        cycleNumber: segment.cycleNumber,
-        startAtUtc: segment.startAtUtc,
-        endAtUtc: endAtUtc,
-        durationSeconds: duration,
-        createdAtUtc: segment.createdAtUtc,
-        updatedAtUtc: updatedMs,
-      );
-    }).toList();
-
-    final active = _sumWork(closedSegments);
-    final paused = _sumPause(closedSegments);
+    final active = _sumWork(clipped);
+    final paused = _sumPause(clipped);
 
     final completed = BackupSessionRecord(
       id: session.id,
@@ -79,7 +67,45 @@ abstract final class BackupSessionCompletion {
       deletedAtUtc: session.deletedAtUtc,
     );
 
-    return (session: completed, segments: closedSegments);
+    return (session: completed, segments: clipped);
+  }
+
+  /// Keeps only segment time within `[sessionStart, endAtUtc]`, truncating or
+  /// dropping segments that would extend past the reviewed end.
+  static List<BackupSegmentRecord> _clipSegmentsToEnd({
+    required List<BackupSegmentRecord> segments,
+    required int endAtUtc,
+    required int updatedAtUtc,
+  }) {
+    final sorted = [...segments]
+      ..sort((a, b) => a.startAtUtc.compareTo(b.startAtUtc));
+    final clipped = <BackupSegmentRecord>[];
+
+    for (final segment in sorted) {
+      if (segment.startAtUtc >= endAtUtc) continue;
+
+      final clipEnd = segment.endAtUtc == null
+          ? endAtUtc
+          : (segment.endAtUtc! > endAtUtc ? endAtUtc : segment.endAtUtc!);
+      if (clipEnd <= segment.startAtUtc) continue;
+
+      clipped.add(
+        BackupSegmentRecord(
+          id: segment.id,
+          sessionId: segment.sessionId,
+          segmentType: segment.segmentType,
+          pomodoroPhase: segment.pomodoroPhase,
+          cycleNumber: segment.cycleNumber,
+          startAtUtc: segment.startAtUtc,
+          endAtUtc: clipEnd,
+          durationSeconds: _closedDuration(segment.startAtUtc, clipEnd),
+          createdAtUtc: segment.createdAtUtc,
+          updatedAtUtc: updatedAtUtc,
+        ),
+      );
+    }
+
+    return clipped;
   }
 
   static int _closedDuration(int startAtUtc, int endAtUtc) {
