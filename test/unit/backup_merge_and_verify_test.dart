@@ -10,6 +10,7 @@ import 'package:ayutam/features/backup/application/merge_engine.dart';
 import 'package:ayutam/features/backup/data/drift_backup_store.dart';
 import 'package:ayutam/features/backup/domain/backup_models.dart';
 import 'package:ayutam/features/backup/domain/backup_store.dart';
+import 'package:ayutam/features/backup/domain/session_completion.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -200,6 +201,90 @@ void main() {
       );
       expect(completed.status, 'completed');
       expect(completed.endAtUtc, 5000);
+    });
+
+    test('completeOtherWithEnd closes open segment and reconciles totals', () {
+      const openSegId = '55555555-5555-4555-8555-555555555555';
+      final skill = _skill(skillId, 'Guitar', 1);
+      final incomingWithSegment = _emptyPayload(
+        skills: [skill],
+        sessions: [
+          _liveSession(
+            id: incomingLiveId,
+            skillId: skillId,
+            start: 1000,
+            updated: 3000,
+            title: 'incoming live',
+          ),
+        ],
+        segments: [
+          const BackupSegmentRecord(
+            id: openSegId,
+            sessionId: incomingLiveId,
+            segmentType: 'work',
+            startAtUtc: 1000,
+            endAtUtc: null,
+            durationSeconds: 0,
+            createdAtUtc: 1000,
+            updatedAtUtc: 1000,
+          ),
+        ],
+      );
+
+      final merged = engine.merge(
+        local: local,
+        incoming: incomingWithSegment,
+        activeDecision: ActiveSessionDecision.completeOtherWithEnd,
+        reviewedEndAtUtc: 5000,
+        nowUtcMs: 6000,
+      );
+      final completed = merged.payload.sessions.singleWhere(
+        (s) => s.id == incomingLiveId,
+      );
+      expect(completed.status, 'completed');
+      expect(completed.endAtUtc, 5000);
+      expect(completed.activeSeconds, 4);
+
+      final segment = merged.payload.sessionSegments.singleWhere(
+        (s) => s.id == openSegId,
+      );
+      expect(segment.endAtUtc, 5000);
+      expect(segment.durationSeconds, 4);
+    });
+
+    test('completeOtherWithEnd rejects future reviewed end', () {
+      expect(
+        () => engine.merge(
+          local: local,
+          incoming: incoming,
+          activeDecision: ActiveSessionDecision.completeOtherWithEnd,
+          reviewedEndAtUtc: 9000,
+          nowUtcMs: 5000,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('completeOtherWithEnd rejects tomorrow via domain validation', () {
+      expect(
+        () => BackupSessionCompletion.validateReviewedEnd(
+          startAtUtc: 1000,
+          endAtUtc: 9000,
+          nowUtcMs: 5000,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('completeOtherWithEnd rejects later today', () {
+      expect(
+        () => BackupSessionCompletion.validateReviewedEnd(
+          startAtUtc: 1000,
+          endAtUtc: 8000,
+          nowUtcMs: 6000,
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('completeOtherWithEnd rejects missing reviewed end', () {

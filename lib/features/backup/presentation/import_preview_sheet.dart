@@ -49,6 +49,8 @@ class ImportPreviewSheet extends StatefulWidget {
 class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
   var _restoreActiveTimer = false;
   var _conflictResolution = ConflictResolution.keepCurrent;
+  final Map<String, ConflictResolution> _perItem = {};
+  final Set<String> _expandedConflicts = {};
   ActiveSessionDecision? _activeDecision;
   DateTime? _reviewedEndUtc;
 
@@ -61,9 +63,15 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
     if (_activeDecision == null) return false;
     if (_activeDecision == ActiveSessionDecision.cancel) return true;
     if (_activeDecision == ActiveSessionDecision.completeOtherWithEnd) {
-      return _reviewedEndUtc != null;
+      return _reviewedEndUtc != null && !_reviewedEndIsFuture;
     }
     return true;
+  }
+
+  bool get _reviewedEndIsFuture {
+    final end = _reviewedEndUtc;
+    if (end == null) return false;
+    return end.isAfter(DateTime.now());
   }
 
   @override
@@ -72,9 +80,44 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
     _reviewedEndUtc = DateTime.now();
   }
 
+  ConflictResolution _resolutionFor(ImportConflict conflict) {
+    return _perItem[_conflictKey(conflict)] ?? _conflictResolution;
+  }
+
+  void _applyGlobalConflictResolution(ConflictResolution resolution) {
+    setState(() {
+      _conflictResolution = resolution;
+      for (final conflict in preview.conflicts) {
+        _perItem[_conflictKey(conflict)] = resolution;
+      }
+    });
+  }
+
+  void _setPerItemResolution(
+    ImportConflict conflict,
+    ConflictResolution value,
+  ) {
+    setState(() => _perItem[_conflictKey(conflict)] = value);
+  }
+
+  ImportPreviewChoice _buildChoice(ImportMode mode) {
+    return ImportPreviewChoice(
+      mode: mode,
+      conflictResolution: _conflictResolution,
+      perItem: Map.unmodifiable(_perItem),
+      activeDecision: _activeDecision,
+      reviewedEndUtc:
+          _activeDecision == ActiveSessionDecision.completeOtherWithEnd
+          ? _reviewedEndUtc
+          : null,
+      restoreActiveTimer: _restoreActiveTimer,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary = preview.manifest.summary;
+    final manifest = preview.manifest;
     final theme = Theme.of(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final showRestoreCheckbox =
@@ -98,6 +141,35 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
               ),
             ),
             const SizedBox(height: 16),
+            Text('Backup details', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _MetadataRow(
+              label: 'Created',
+              value: _formatCreatedDate(manifest.createdAtUtc),
+            ),
+            _MetadataRow(
+              label: 'App version',
+              value: manifest.applicationVersion.isEmpty
+                  ? 'Unknown'
+                  : manifest.applicationVersion,
+            ),
+            _MetadataRow(
+              label: 'Format version',
+              value: '${manifest.formatVersion}',
+            ),
+            _MetadataRow(
+              label: 'Device',
+              value: _shortDeviceId(manifest.sourceDeviceId),
+            ),
+            _MetadataRow(
+              label: 'Checksum',
+              value: preview.checksumOk ? 'Verified' : 'Failed',
+            ),
+            _MetadataRow(
+              label: 'Encryption',
+              value: manifest.encrypted ? 'Encrypted' : 'Not encrypted',
+            ),
+            const SizedBox(height: 12),
             Text(
               '${summary.skills} skills · ${summary.sessions} sessions · '
               '${summary.tags} tags',
@@ -107,6 +179,13 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
               'Completed practice: ${_formatSeconds(summary.completedActiveSeconds)}',
               style: theme.textTheme.bodyMedium,
             ),
+            if (summary.containsActiveOrPendingSession)
+              Text(
+                'Contains an active or pending session',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
             if (preview.conflicts.isNotEmpty) ...[
               const SizedBox(height: 16),
               Text(
@@ -116,7 +195,8 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
               const SizedBox(height: 4),
               Text(
                 '${preview.conflicts.length} item(s) share the same update time '
-                'but differ. Choose which side wins for merge:',
+                'but differ. Choose which side wins for each item, or apply one '
+                'choice to all:',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -134,23 +214,12 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
                   ),
                 ],
                 selected: {_conflictResolution},
-                onSelectionChanged: (s) {
-                  setState(() => _conflictResolution = s.first);
+                onSelectionChanged: (selection) {
+                  _applyGlobalConflictResolution(selection.first);
                 },
               ),
               const SizedBox(height: 8),
-              ...preview.conflicts.take(8).map((c) {
-                final label = c.label ?? c.id;
-                return Text(
-                  '· ${c.entityType}: $label',
-                  style: theme.textTheme.bodySmall,
-                );
-              }),
-              if (preview.conflicts.length > 8)
-                Text(
-                  '· …and ${preview.conflicts.length - 8} more',
-                  style: theme.textTheme.bodySmall,
-                ),
+              ...preview.conflicts.map(_buildConflictTile),
             ],
             if (_hasCollision) ...[
               const SizedBox(height: 16),
@@ -214,6 +283,13 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
                   trailing: const Icon(Icons.event),
                   onTap: () => _pickReviewedEnd(context),
                 ),
+                if (_reviewedEndIsFuture)
+                  Text(
+                    'End time cannot be in the future.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
               ],
             ],
             if (showRestoreCheckbox) ...[
@@ -234,41 +310,35 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
               ),
             ],
             const SizedBox(height: 16),
+            Text('How to import', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              'Merge combines records by UUID and newest update. Your current '
+              'data stays unless the backup is newer or you choose Prefer '
+              'imported for conflicts.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Replace removes all current local data after creating a safety '
+              'snapshot, then loads the backup.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
             FilledButton(
               onPressed: _canMerge
-                  ? () => Navigator.pop(
-                      context,
-                      ImportPreviewChoice(
-                        mode: ImportMode.merge,
-                        conflictResolution: _conflictResolution,
-                        activeDecision: _activeDecision,
-                        reviewedEndUtc:
-                            _activeDecision ==
-                                ActiveSessionDecision.completeOtherWithEnd
-                            ? _reviewedEndUtc
-                            : null,
-                        restoreActiveTimer: _restoreActiveTimer,
-                      ),
-                    )
+                  ? () => Navigator.pop(context, _buildChoice(ImportMode.merge))
                   : null,
               child: const Text('Merge'),
             ),
             const SizedBox(height: 8),
             OutlinedButton(
-              onPressed: () => Navigator.pop(
-                context,
-                ImportPreviewChoice(
-                  mode: ImportMode.replace,
-                  conflictResolution: _conflictResolution,
-                  activeDecision: _activeDecision,
-                  reviewedEndUtc:
-                      _activeDecision ==
-                          ActiveSessionDecision.completeOtherWithEnd
-                      ? _reviewedEndUtc
-                      : null,
-                  restoreActiveTimer: _restoreActiveTimer,
-                ),
-              ),
+              onPressed: () =>
+                  Navigator.pop(context, _buildChoice(ImportMode.replace)),
               child: const Text('Replace all local data'),
             ),
             const SizedBox(height: 8),
@@ -282,29 +352,100 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
     );
   }
 
+  Widget _buildConflictTile(ImportConflict conflict) {
+    final key = _conflictKey(conflict);
+    final expanded = _expandedConflicts.contains(key);
+    final resolution = _resolutionFor(conflict);
+    final label = conflict.label ?? conflict.id;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        children: [
+          ListTile(
+            title: Text('${conflict.entityType}: $label'),
+            subtitle: Text(
+              resolution == ConflictResolution.keepCurrent
+                  ? 'Keep current'
+                  : 'Prefer imported',
+            ),
+            trailing: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+            onTap: () {
+              setState(() {
+                if (expanded) {
+                  _expandedConflicts.remove(key);
+                } else {
+                  _expandedConflicts.add(key);
+                }
+              });
+            },
+          ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: SegmentedButton<ConflictResolution>(
+                segments: const [
+                  ButtonSegment(
+                    value: ConflictResolution.keepCurrent,
+                    label: Text('Keep current'),
+                  ),
+                  ButtonSegment(
+                    value: ConflictResolution.preferImported,
+                    label: Text('Prefer imported'),
+                  ),
+                ],
+                selected: {resolution},
+                onSelectionChanged: (selection) {
+                  _setPerItemResolution(conflict, selection.first);
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickReviewedEnd(BuildContext context) async {
-    final now = _reviewedEndUtc ?? DateTime.now();
+    final now = DateTime.now();
+    final initial = _reviewedEndUtc ?? now;
     final date = await showDatePicker(
       context: context,
-      initialDate: now,
+      initialDate: initial.isAfter(now) ? now : initial,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: now,
     );
     if (date == null || !context.mounted) return;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(now),
+      initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (time == null || !context.mounted) return;
+    final picked = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
     setState(() {
-      _reviewedEndUtc = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
+      _reviewedEndUtc = picked.isAfter(now) ? now : picked;
     });
+  }
+
+  static String _conflictKey(ImportConflict conflict) =>
+      '${conflict.entityType}:${conflict.id}';
+
+  static String _formatCreatedDate(String createdAtUtc) {
+    if (createdAtUtc.isEmpty) return 'Unknown';
+    final parsed = DateTime.tryParse(createdAtUtc);
+    if (parsed == null) return createdAtUtc;
+    return parsed.toLocal().toString();
+  }
+
+  static String _shortDeviceId(String deviceId) {
+    if (deviceId.isEmpty) return 'Unknown';
+    if (deviceId.length <= 12) return deviceId;
+    return '${deviceId.substring(0, 8)}…';
   }
 
   static String _formatSeconds(int seconds) {
@@ -312,5 +453,35 @@ class _ImportPreviewSheetState extends State<ImportPreviewSheet> {
     final m = (seconds % 3600) ~/ 60;
     if (h > 0) return '${h}h ${m}m';
     return '${m}m';
+  }
+}
+
+class _MetadataRow extends StatelessWidget {
+  const _MetadataRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(child: Text(value, style: theme.textTheme.bodySmall)),
+        ],
+      ),
+    );
   }
 }

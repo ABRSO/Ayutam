@@ -114,7 +114,8 @@ final weeklyBackupReminderProvider = StreamProvider<bool>((ref) {
 });
 
 final backupStoreProvider = Provider<BackupStore>((ref) {
-  return DriftBackupStore(ref.watch(appDatabaseProvider));
+  final db = ref.watch(appDatabaseProvider);
+  return DriftBackupStore(db, databasePath: db.databaseFilePath);
 });
 
 final backupFileIoProvider = Provider<BackupFileIo>((ref) {

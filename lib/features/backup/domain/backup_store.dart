@@ -7,10 +7,16 @@ abstract class BackupStore {
   Future<BackupPayload> readPayload();
 
   /// Replace all user data with [payload] inside one transaction.
-  Future<void> applyReplace(BackupPayload payload);
+  Future<void> applyReplace(
+    BackupPayload payload, {
+    bool restoreActiveTimer = false,
+  });
 
   /// Apply a pre-merged payload (same transactional write path as replace).
-  Future<void> applyMerged(BackupPayload payload);
+  Future<void> applyMerged(
+    BackupPayload payload, {
+    bool restoreActiveTimer = false,
+  });
 
   Future<bool> hasActiveOrPendingSession();
 

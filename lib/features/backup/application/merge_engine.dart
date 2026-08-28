@@ -1,4 +1,5 @@
 import '../domain/backup_models.dart';
+import '../domain/session_completion.dart';
 
 enum _MergeSide { local, incoming }
 
@@ -36,6 +37,7 @@ final class MergeEngine {
     Map<String, ConflictResolution> perItem = const {},
     ActiveSessionDecision? activeDecision,
     int? reviewedEndAtUtc,
+    int? nowUtcMs,
   }) {
     final conflicts = <ImportConflict>[];
     final collision = detectActiveCollision(local: local, incoming: incoming);
@@ -101,12 +103,13 @@ final class MergeEngine {
         collision: collision,
         decision: activeDecision,
         reviewedEndAtUtc: reviewedEndAtUtc,
+        nowUtcMs: nowUtcMs,
       );
     }
 
     // Child data follows the winning session wholesale — never union losers.
     final tagIdSet = tags.map((t) => t.id).toSet();
-    final segments = <BackupSegmentRecord>[];
+    var segments = <BackupSegmentRecord>[];
     final sessionTags = <BackupSessionTagRecord>[];
     for (final session in sessions) {
       final side = sessionSources[session.id] ?? _MergeSide.local;
@@ -122,6 +125,29 @@ final class MergeEngine {
           sessionTags.add(link);
         }
       }
+    }
+
+    if (collision != null &&
+        activeDecision == ActiveSessionDecision.completeOtherWithEnd &&
+        reviewedEndAtUtc != null) {
+      final incomingId = collision.incomingLive.id;
+      final session = sessions.singleWhere((s) => s.id == incomingId);
+      final sessionSegs = segments
+          .where((segment) => segment.sessionId == incomingId)
+          .toList();
+      final reconciled = BackupSessionCompletion.completeSessionAt(
+        session: session,
+        sessionSegments: sessionSegs,
+        endAtUtc: reviewedEndAtUtc,
+        nowUtcMs: nowUtcMs ?? reviewedEndAtUtc,
+      );
+      sessions = sessions
+          .map((s) => s.id == incomingId ? reconciled.session : s)
+          .toList();
+      segments = [
+        ...segments.where((segment) => segment.sessionId != incomingId),
+        ...reconciled.segments,
+      ];
     }
 
     final settings = _mergeSettings(
@@ -167,6 +193,7 @@ final class MergeEngine {
     required ActiveSessionCollision collision,
     required ActiveSessionDecision decision,
     required int? reviewedEndAtUtc,
+    required int? nowUtcMs,
   }) {
     final localId = collision.localLive.id;
     final incomingId = collision.incomingLive.id;
@@ -175,36 +202,6 @@ final class MergeEngine {
     void put(BackupSessionRecord session, _MergeSide side) {
       byId[session.id] = session;
       sessionSources[session.id] = side;
-    }
-
-    BackupSessionRecord asCompleted(
-      BackupSessionRecord s, {
-      required int endAtUtc,
-    }) {
-      if (endAtUtc < s.startAtUtc) {
-        throw ArgumentError(
-          'Reviewed end must be on or after the session start.',
-        );
-      }
-      return BackupSessionRecord(
-        id: s.id,
-        skillId: s.skillId,
-        title: s.title,
-        noteMarkdown: s.noteMarkdown,
-        mode: s.mode,
-        status: 'completed',
-        source: s.source,
-        startAtUtc: s.startAtUtc,
-        endAtUtc: endAtUtc,
-        activeSeconds: s.activeSeconds,
-        pausedSeconds: s.pausedSeconds,
-        timezoneIdAtCreation: s.timezoneIdAtCreation,
-        offsetMinutesAtStart: s.offsetMinutesAtStart,
-        createdAtUtc: s.createdAtUtc,
-        updatedAtUtc: s.updatedAtUtc,
-        sourceDeviceId: s.sourceDeviceId,
-        deletedAtUtc: s.deletedAtUtc,
-      );
     }
 
     switch (decision) {
@@ -236,9 +233,17 @@ final class MergeEngine {
             'reviewedEndAtUtc is required for completeOtherWithEnd',
           );
         }
+        BackupSessionCompletion.validateReviewedEnd(
+          startAtUtc: collision.incomingLive.startAtUtc,
+          endAtUtc: reviewedEndAtUtc,
+          nowUtcMs: nowUtcMs ?? reviewedEndAtUtc,
+        );
         put(collision.localLive, _MergeSide.local);
         put(
-          asCompleted(collision.incomingLive, endAtUtc: reviewedEndAtUtc),
+          collision.incomingLive.copyWith(
+            status: 'completed',
+            endAtUtc: reviewedEndAtUtc,
+          ),
           _MergeSide.incoming,
         );
         break;
@@ -420,6 +425,36 @@ final class MergeEngine {
       map.putIfAbsent(d.deviceId, () => d);
     }
     return map.values.toList();
+  }
+}
+
+extension on BackupSessionRecord {
+  BackupSessionRecord copyWith({
+    String? status,
+    int? endAtUtc,
+    int? activeSeconds,
+    int? pausedSeconds,
+    int? updatedAtUtc,
+  }) {
+    return BackupSessionRecord(
+      id: id,
+      skillId: skillId,
+      title: title,
+      noteMarkdown: noteMarkdown,
+      mode: mode,
+      status: status ?? this.status,
+      source: source,
+      startAtUtc: startAtUtc,
+      endAtUtc: endAtUtc ?? this.endAtUtc,
+      activeSeconds: activeSeconds ?? this.activeSeconds,
+      pausedSeconds: pausedSeconds ?? this.pausedSeconds,
+      timezoneIdAtCreation: timezoneIdAtCreation,
+      offsetMinutesAtStart: offsetMinutesAtStart,
+      createdAtUtc: createdAtUtc,
+      updatedAtUtc: updatedAtUtc ?? this.updatedAtUtc,
+      sourceDeviceId: sourceDeviceId,
+      deletedAtUtc: deletedAtUtc,
+    );
   }
 }
 

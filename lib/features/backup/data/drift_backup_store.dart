@@ -59,12 +59,21 @@ final class DriftBackupStore implements BackupStore {
   }
 
   @override
-  Future<void> applyReplace(BackupPayload payload) => _applyPayload(payload);
+  Future<void> applyReplace(
+    BackupPayload payload, {
+    bool restoreActiveTimer = false,
+  }) => _applyPayload(payload, restoreActiveTimer: restoreActiveTimer);
 
   @override
-  Future<void> applyMerged(BackupPayload payload) => _applyPayload(payload);
+  Future<void> applyMerged(
+    BackupPayload payload, {
+    bool restoreActiveTimer = false,
+  }) => _applyPayload(payload, restoreActiveTimer: restoreActiveTimer);
 
-  Future<void> _applyPayload(BackupPayload payload) async {
+  Future<void> _applyPayload(
+    BackupPayload payload, {
+    required bool restoreActiveTimer,
+  }) async {
     await _db.transaction(() async {
       // Drop FK from timer_runtime before wiping sessions.
       await (_db.update(
@@ -130,13 +139,17 @@ final class DriftBackupStore implements BackupStore {
         }
       });
 
-      await _rebuildTimerRuntimeFromSessions();
+      await _rebuildTimerRuntimeFromSessions(
+        restoreActiveTimer: restoreActiveTimer,
+      );
     });
 
     await SessionSearchIndexer(_db).rebuildAll();
   }
 
-  Future<void> _rebuildTimerRuntimeFromSessions() async {
+  Future<void> _rebuildTimerRuntimeFromSessions({
+    bool restoreActiveTimer = false,
+  }) async {
     final inProgress =
         await (_db.select(_db.sessions)..where(
               (t) =>
@@ -171,35 +184,75 @@ final class DriftBackupStore implements BackupStore {
     }
 
     final session = inProgress.single;
+
+    if (!restoreActiveTimer) {
+      await _db
+          .into(_db.timerRuntime)
+          .insertOnConflictUpdate(
+            TimerRuntimeCompanion.insert(
+              singletonId: const Value(1),
+              sessionId: Value(session.id),
+              machineState: const Value('recovery_review'),
+              currentSegmentId: const Value(null),
+              phasePlannedSeconds: const Value(null),
+              phaseStartedAtUtc: const Value(null),
+              phaseAccumulatedSeconds: const Value(0),
+              currentCycle: const Value(1),
+              monotonicAnchorMicros: const Value(null),
+              wallClockAnchorUtc: const Value(null),
+              lastHeartbeatUtc: const Value(null),
+              lastCheckpointAtUtc: const Value(null),
+              recoveryReason: const Value('imported'),
+              updatedAtUtc: nowMs,
+            ),
+          );
+      return;
+    }
+
+    final segmentRows =
+        await (_db.select(_db.sessionSegments)
+              ..where((t) => t.sessionId.equals(session.id))
+              ..orderBy([(t) => OrderingTerm.asc(t.startAtUtc)]))
+            .get();
+    SessionSegmentRow? openSegment;
+    for (final row in segmentRows) {
+      if (row.endAtUtc == null) {
+        openSegment = row;
+        break;
+      }
+    }
+
+    final machineState = switch (session.status) {
+      'completion_pending' => 'completion_pending',
+      'paused' => 'paused',
+      _
+          when openSegment?.segmentType == 'pause' ||
+              openSegment?.segmentType == 'pomodoro_break' =>
+        'paused',
+      _ => 'running',
+    };
+
     await _db
         .into(_db.timerRuntime)
         .insertOnConflictUpdate(
           TimerRuntimeCompanion.insert(
             singletonId: const Value(1),
             sessionId: Value(session.id),
-            machineState: Value(_machineStateFromSessionStatus(session.status)),
-            currentSegmentId: const Value(null),
+            machineState: Value(machineState),
+            currentSegmentId: Value(openSegment?.id),
             phasePlannedSeconds: const Value(null),
             phaseStartedAtUtc: const Value(null),
             phaseAccumulatedSeconds: const Value(0),
             currentCycle: const Value(1),
             monotonicAnchorMicros: const Value(null),
-            wallClockAnchorUtc: const Value(null),
+            wallClockAnchorUtc: Value(nowMs),
             lastHeartbeatUtc: const Value(null),
-            lastCheckpointAtUtc: const Value(null),
-            recoveryReason: const Value('imported'),
+            lastCheckpointAtUtc: Value(nowMs),
+            recoveryReason: const Value(null),
             updatedAtUtc: nowMs,
           ),
         );
   }
-
-  static String _machineStateFromSessionStatus(String status) =>
-      switch (status) {
-        'active' => 'running',
-        'paused' => 'paused',
-        'completion_pending' => 'completion_pending',
-        _ => 'idle',
-      };
 
   @override
   Future<bool> hasActiveOrPendingSession() async {

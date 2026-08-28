@@ -393,10 +393,16 @@ class SettingsScreen extends ConsumerWidget {
                                 if (!context.mounted) return;
                                 final messenger = ScaffoldMessenger.of(context);
                                 result.when(
-                                  success: (_) {
+                                  success: (_) async {
                                     ref.invalidate(backupStatusProvider);
                                     ref.invalidate(activeSkillsProvider);
                                     ref.invalidate(allSkillsProvider);
+                                    ref.invalidate(learningLogListProvider);
+                                    ref.invalidate(statsBundleProvider);
+                                    await ref
+                                        .read(timerSessionProvider.notifier)
+                                        .refresh();
+                                    if (!context.mounted) return;
                                     messenger.showSnackBar(
                                       const SnackBar(
                                         content: Text('Snapshot restored.'),

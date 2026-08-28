@@ -597,6 +597,17 @@ final class BackupService {
       );
     }
 
+    if (activeDecision == ActiveSessionDecision.completeOtherWithEnd &&
+        reviewedEndUtc != null &&
+        reviewedEndUtc.toUtc().isAfter(_clock.nowUtc())) {
+      return const Failure(
+        AppFailure(
+          code: 'BACKUP-REVIEWED-END',
+          message: 'Reviewed end time cannot be in the future.',
+        ),
+      );
+    }
+
     final snap = await createSafetySnapshot(
       reason: mode == ImportMode.replace ? 'pre_replace' : 'pre_merge',
     );
@@ -605,6 +616,7 @@ final class BackupService {
     }
 
     final local = await _store.readPayload();
+    final nowMs = _clock.nowUtc().millisecondsSinceEpoch;
     late BackupPayload toApply;
     if (mode == ImportMode.replace) {
       toApply = preview.payload;
@@ -616,6 +628,7 @@ final class BackupService {
         perItem: perItem,
         activeDecision: activeDecision,
         reviewedEndAtUtc: reviewedEndUtc?.toUtc().millisecondsSinceEpoch,
+        nowUtcMs: nowMs,
       );
       if (merged.cancelled) {
         return const Failure(
@@ -625,19 +638,26 @@ final class BackupService {
       toApply = merged.payload;
     }
 
-    final decisionResolvedLive =
-        mode == ImportMode.merge &&
-        activeDecision != null &&
-        activeDecision != ActiveSessionDecision.cancel;
-    if (!restoreActiveTimer && !decisionResolvedLive) {
-      toApply = _forceIdleSessions(toApply);
+    if (!restoreActiveTimer) {
+      toApply = _withoutTimerRuntime(toApply);
+    }
+
+    final semantic = validateBackupPayload(toApply);
+    if (semantic is Failure<void>) {
+      return Failure(semantic.error);
     }
 
     try {
       if (mode == ImportMode.replace) {
-        await _store.applyReplace(toApply);
+        await _store.applyReplace(
+          toApply,
+          restoreActiveTimer: restoreActiveTimer,
+        );
       } else {
-        await _store.applyMerged(toApply);
+        await _store.applyMerged(
+          toApply,
+          restoreActiveTimer: restoreActiveTimer,
+        );
       }
       return const Success(null);
     } catch (e) {
@@ -809,39 +829,12 @@ final class BackupService {
     return false;
   }
 
-  BackupPayload _forceIdleSessions(BackupPayload payload) {
-    final sessions = payload.sessions.map((s) {
-      if (s.deletedAtUtc == null &&
-          (s.status == 'active' ||
-              s.status == 'paused' ||
-              s.status == 'completion_pending')) {
-        return BackupSessionRecord(
-          id: s.id,
-          skillId: s.skillId,
-          title: s.title,
-          noteMarkdown: s.noteMarkdown,
-          mode: s.mode,
-          status: 'completed',
-          source: s.source,
-          startAtUtc: s.startAtUtc,
-          endAtUtc: s.endAtUtc ?? s.startAtUtc,
-          activeSeconds: s.activeSeconds,
-          pausedSeconds: s.pausedSeconds,
-          timezoneIdAtCreation: s.timezoneIdAtCreation,
-          offsetMinutesAtStart: s.offsetMinutesAtStart,
-          createdAtUtc: s.createdAtUtc,
-          updatedAtUtc: s.updatedAtUtc,
-          sourceDeviceId: s.sourceDeviceId,
-          deletedAtUtc: s.deletedAtUtc,
-        );
-      }
-      return s;
-    }).toList();
+  BackupPayload _withoutTimerRuntime(BackupPayload payload) {
     return BackupPayload(
       dataVersion: payload.dataVersion,
       exportedAtUtc: payload.exportedAtUtc,
       skills: payload.skills,
-      sessions: sessions,
+      sessions: payload.sessions,
       sessionSegments: payload.sessionSegments,
       tags: payload.tags,
       sessionTags: payload.sessionTags,
@@ -903,6 +896,9 @@ final class BackupService {
     final list = await _store.listSnapshots();
     list.sort((a, b) => b.createdAtUtc.compareTo(a.createdAtUtc));
     for (final old in list.skip(keep)) {
+      if (!old.filePath.startsWith('memory://')) {
+        await _store.deleteFileIfExists(old.filePath);
+      }
       await _store.deleteSnapshotRow(old.id);
     }
   }
@@ -939,7 +935,10 @@ final class BackupService {
       if (guard is Failure<LocalSnapshotInfo>) {
         return Failure(guard.error);
       }
-      await _store.applyReplace(_forceIdleSessions(payload));
+      await _store.applyReplace(
+        _withoutTimerRuntime(payload),
+        restoreActiveTimer: false,
+      );
       return const Success(null);
     } catch (e) {
       return Failure(

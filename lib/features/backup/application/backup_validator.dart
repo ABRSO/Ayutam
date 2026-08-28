@@ -124,6 +124,28 @@ Result<void> validateBackupPayload(BackupPayload payload) {
         ),
       );
     }
+    if (session.deletedAtUtc == null && session.status == 'completed') {
+      if (session.endAtUtc == null) {
+        return Failure(
+          AppFailure(
+            code: 'BACKUP-SESSION-END',
+            message: 'Completed session ${session.id} is missing end time.',
+          ),
+        );
+      }
+      final openSegments = payload.sessionSegments.where(
+        (segment) =>
+            segment.sessionId == session.id && segment.endAtUtc == null,
+      );
+      if (openSegments.isNotEmpty) {
+        return Failure(
+          AppFailure(
+            code: 'BACKUP-SEGMENT-OPEN',
+            message: 'Completed session ${session.id} has open segment(s).',
+          ),
+        );
+      }
+    }
     if (session.deletedAtUtc == null &&
         (session.status == 'active' ||
             session.status == 'paused' ||

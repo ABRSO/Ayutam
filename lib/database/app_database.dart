@@ -31,17 +31,21 @@ part 'app_database.g.dart';
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase(super.e);
+  AppDatabase(super.e, {this.databaseFilePath});
+
+  /// Absolute path of the on-disk SQLite file when known; null for in-memory DBs.
+  final String? databaseFilePath;
 
   /// Opens the on-device database under the application support directory.
   static Future<AppDatabase> open({
     required ClockService clock,
     required IdGenerator ids,
   }) async {
+    final dir = await getApplicationSupportDirectory();
+    final filePath = p.join(dir.path, 'ayutam.sqlite');
     final db = AppDatabase(
       LazyDatabase(() async {
-        final dir = await getApplicationSupportDirectory();
-        final file = File(p.join(dir.path, 'ayutam.sqlite'));
+        final file = File(filePath);
         if (Platform.isAndroid) {
           await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
         }
@@ -49,6 +53,7 @@ class AppDatabase extends _$AppDatabase {
         sqlite3.tempDirectory = cachebase;
         return NativeDatabase.createInBackground(file);
       }),
+      databaseFilePath: filePath,
     );
     await db.ensureSeeded(clock: clock, ids: ids);
     return db;
