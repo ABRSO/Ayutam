@@ -180,6 +180,8 @@ Identity is **UUID** only — never time overlap, title, or note similarity.
 
 **Active session conflicts:** If both sides have active/paused/pending, do not silently pick — offer keep current / prefer imported / import other as completed with reviewed end / cancel. Maintain one-active invariant. Never fabricate a zero-length completion (`endAtUtc = startAtUtc`) automatically.
 
+If a live session conflict and a generic LWW conflict refer to the same session UUID, active-session conflict resolution takes precedence. That session is not shown a second time in the generic equal-timestamp conflict list.
+
 ---
 
 ## 7. Format compatibility

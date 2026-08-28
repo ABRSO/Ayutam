@@ -388,6 +388,151 @@ void main() {
     });
   });
 
+  group('same-uuid live session precedence over generic LWW', () {
+    const sharedLiveId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const sharedUpdated = 5000;
+
+    late BackupPayload local;
+    late BackupPayload incoming;
+
+    setUp(() {
+      final skill = _skill(skillId, 'local skill name', sharedUpdated);
+      const incomingSkill = BackupSkillRecord(
+        id: skillId,
+        name: 'imported skill name',
+        targetSeconds: 36000000,
+        createdLocalDate: '2026-01-01',
+        status: 'active',
+        sortOrder: 0,
+        createdAtUtc: sharedUpdated,
+        updatedAtUtc: sharedUpdated,
+        sourceDeviceId: 'd',
+      );
+      local = _emptyPayload(
+        skills: [skill],
+        sessions: [
+          _liveSession(
+            id: sharedLiveId,
+            skillId: skillId,
+            start: 1000,
+            updated: sharedUpdated,
+            title: 'local live',
+          ),
+        ],
+      );
+      incoming = _emptyPayload(
+        skills: [incomingSkill],
+        sessions: [
+          _liveSession(
+            id: sharedLiveId,
+            skillId: skillId,
+            start: 1000,
+            updated: sharedUpdated,
+            title: 'incoming live',
+          ),
+        ],
+      );
+    });
+
+    test('dry merge exposes active collision but not session LWW conflict', () {
+      final merged = engine.merge(local: local, incoming: incoming);
+      expect(merged.activeSessionCollision, isNotNull);
+      expect(merged.activeSessionCollision!.sameSessionId, isTrue);
+      expect(
+        merged.conflicts.where(
+          (c) => c.entityType == 'session' && c.id == sharedLiveId,
+        ),
+        isEmpty,
+      );
+      expect(
+        merged.conflicts.singleWhere((c) => c.entityType == 'skill').label,
+        'local skill name',
+      );
+    });
+
+    test('preview conflicts hide superseded session LWW row', () {
+      final merged = engine.merge(local: local, incoming: incoming);
+      final previewConflicts = previewConflictsFor(
+        conflicts: merged.conflicts,
+        collision: merged.activeSessionCollision,
+      );
+      expect(
+        previewConflicts.where(
+          (c) => c.entityType == 'session' && c.id == sharedLiveId,
+        ),
+        isEmpty,
+      );
+      expect(previewConflicts, hasLength(1));
+      expect(previewConflicts.single.entityType, 'skill');
+    });
+
+    test('keepCurrent wins over contradictory generic prefer imported', () {
+      final merged = engine.merge(
+        local: local,
+        incoming: incoming,
+        activeDecision: ActiveSessionDecision.keepCurrent,
+        defaultResolution: ConflictResolution.preferImported,
+        perItem: {
+          'session:$sharedLiveId': ConflictResolution.preferImported,
+          'skill:$skillId': ConflictResolution.keepCurrent,
+        },
+      );
+      final live = merged.payload.sessions.singleWhere(
+        (s) => s.status == 'active',
+      );
+      expect(live.title, 'local live');
+      expect(
+        merged.payload.skills.singleWhere((s) => s.id == skillId).name,
+        'local skill name',
+      );
+    });
+
+    test('preferImported keeps incoming live copy', () {
+      final merged = engine.merge(
+        local: local,
+        incoming: incoming,
+        activeDecision: ActiveSessionDecision.preferImported,
+      );
+      expect(
+        merged.payload.sessions.singleWhere((s) => s.status == 'active').title,
+        'incoming live',
+      );
+    });
+
+    test('cancel leaves local payload unchanged', () {
+      final merged = engine.merge(
+        local: local,
+        incoming: incoming,
+        activeDecision: ActiveSessionDecision.cancel,
+      );
+      expect(merged.cancelled, isTrue);
+      expect(merged.payload.sessions.single.title, 'local live');
+      expect(merged.payload.skills.single.name, 'local skill name');
+    });
+
+    test(
+      'unrelated equal-timestamp conflicts stay independently resolvable',
+      () {
+        final merged = engine.merge(
+          local: local,
+          incoming: incoming,
+          activeDecision: ActiveSessionDecision.keepCurrent,
+          perItem: {'skill:$skillId': ConflictResolution.preferImported},
+        );
+        expect(
+          merged.payload.skills.singleWhere((s) => s.id == skillId).name,
+          'imported skill name',
+        );
+        expect(
+          merged.payload.sessions
+              .singleWhere((s) => s.status == 'active')
+              .title,
+          'local live',
+        );
+      },
+    );
+  });
+
   group('reviewed completion segment integrity', () {
     const incomingLiveId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     const localLiveId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

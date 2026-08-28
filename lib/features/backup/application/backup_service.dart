@@ -549,7 +549,10 @@ final class BackupService {
         manifest: manifest,
         payload: payload,
         checksumOk: true,
-        conflicts: dryRun.conflicts,
+        conflicts: previewConflictsFor(
+          conflicts: dryRun.conflicts,
+          collision: dryRun.activeSessionCollision,
+        ),
         localHasActiveOrPending: await _store.hasActiveOrPendingSession(),
         activeSessionCollision: dryRun.activeSessionCollision,
         sourceKind: sourceKind,
@@ -638,7 +641,10 @@ final class BackupService {
         local: local,
         incoming: preview.payload,
         defaultResolution: conflictResolution,
-        perItem: perItem,
+        perItem: perItemForMerge(
+          perItem: perItem,
+          collision: preview.activeSessionCollision,
+        ),
         activeDecision: activeDecision,
         reviewedEndAtUtc: reviewedEndUtc?.toUtc().millisecondsSinceEpoch,
         nowUtcMs: nowMs,

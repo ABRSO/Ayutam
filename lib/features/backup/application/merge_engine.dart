@@ -52,6 +52,9 @@ final class MergeEngine {
     }
 
     final needsDecision = collision != null && activeDecision == null;
+    final suppressedSessionConflictId = collision?.sameSessionId == true
+        ? collision!.localLive.id
+        : null;
 
     final skills = _mergeById(
       local: local.skills,
@@ -90,6 +93,7 @@ final class MergeEngine {
       conflicts: conflicts,
       defaultResolution: defaultResolution,
       perItem: perItem,
+      suppressGenericConflictId: suppressedSessionConflictId,
     );
     var sessions = List<BackupSessionRecord>.from(sessionMerge.items);
     final sessionSources = Map<String, _MergeSide>.from(sessionMerge.sides);
@@ -315,6 +319,7 @@ final class MergeEngine {
     required List<ImportConflict> conflicts,
     required ConflictResolution defaultResolution,
     required Map<String, ConflictResolution> perItem,
+    String? suppressGenericConflictId,
   }) {
     final localMap = {for (final item in local) idOf(item): item};
     final incomingMap = {for (final item in incoming) idOf(item): item};
@@ -348,16 +353,23 @@ final class MergeEngine {
         out.add(loc);
         sides[id] = _MergeSide.local;
       } else {
-        conflicts.add(
-          ImportConflict(
-            entityType: entityType,
-            id: id,
-            localUpdatedAtUtc: locUpdated,
-            incomingUpdatedAtUtc: incUpdated,
-            label: labelOf(loc),
-          ),
-        );
-        final resolution = perItem['$entityType:$id'] ?? defaultResolution;
+        final suppressGeneric =
+            suppressGenericConflictId != null &&
+            id == suppressGenericConflictId;
+        if (!suppressGeneric) {
+          conflicts.add(
+            ImportConflict(
+              entityType: entityType,
+              id: id,
+              localUpdatedAtUtc: locUpdated,
+              incomingUpdatedAtUtc: incUpdated,
+              label: labelOf(loc),
+            ),
+          );
+        }
+        final resolution = suppressGeneric
+            ? ConflictResolution.keepCurrent
+            : (perItem['$entityType:$id'] ?? defaultResolution);
         if (resolution == ConflictResolution.preferImported) {
           out.add(inc);
           sides[id] = _MergeSide.incoming;

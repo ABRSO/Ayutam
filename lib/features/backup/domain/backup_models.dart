@@ -662,6 +662,34 @@ final class ActiveSessionCollision {
   bool get sameSessionId => localLive.id == incomingLive.id;
 }
 
+/// Filters generic equal-timestamp conflicts superseded by a same-UUID live
+/// session collision. Active-session resolution is the sole control for that
+/// session in import preview.
+List<ImportConflict> previewConflictsFor({
+  required List<ImportConflict> conflicts,
+  required ActiveSessionCollision? collision,
+}) {
+  if (collision == null || !collision.sameSessionId) return conflicts;
+  final sessionId = collision.localLive.id;
+  return conflicts
+      .where(
+        (conflict) =>
+            !(conflict.entityType == 'session' && conflict.id == sessionId),
+      )
+      .toList();
+}
+
+/// Removes per-item LWW choices for a live session owned by [collision].
+Map<String, ConflictResolution> perItemForMerge({
+  required Map<String, ConflictResolution> perItem,
+  required ActiveSessionCollision? collision,
+}) {
+  if (collision == null || !collision.sameSessionId) return perItem;
+  final filtered = Map<String, ConflictResolution>.from(perItem);
+  filtered.remove('session:${collision.localLive.id}');
+  return filtered;
+}
+
 final class ImportConflict {
   const ImportConflict({
     required this.entityType,

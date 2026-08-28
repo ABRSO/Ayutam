@@ -178,6 +178,76 @@ void main() {
     expect(enabled.onPressed, isNotNull);
   });
 
+  testWidgets(
+    'same-session active collision hides duplicate generic session conflict',
+    (tester) async {
+      const sharedId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+      const skillId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const sharedUpdated = 5000;
+      const collision = ActiveSessionCollision(
+        localLive: BackupSessionRecord(
+          id: sharedId,
+          skillId: skillId,
+          mode: 'stopwatch',
+          status: 'active',
+          source: 'timer',
+          startAtUtc: 1000,
+          activeSeconds: 10,
+          pausedSeconds: 0,
+          timezoneIdAtCreation: 'UTC',
+          offsetMinutesAtStart: 0,
+          createdAtUtc: 1000,
+          updatedAtUtc: sharedUpdated,
+          sourceDeviceId: 'd',
+        ),
+        incomingLive: BackupSessionRecord(
+          id: sharedId,
+          skillId: skillId,
+          mode: 'stopwatch',
+          status: 'active',
+          source: 'timer',
+          startAtUtc: 1000,
+          activeSeconds: 20,
+          pausedSeconds: 0,
+          timezoneIdAtCreation: 'UTC',
+          offsetMinutesAtStart: 0,
+          createdAtUtc: 1000,
+          updatedAtUtc: sharedUpdated,
+          sourceDeviceId: 'd',
+        ),
+      );
+      final preview = ImportPreview(
+        fileName: 'ayutam-backup.skilltracker',
+        manifest: _preview().manifest,
+        payload: _preview().payload,
+        checksumOk: true,
+        conflicts: const [
+          ImportConflict(
+            entityType: 'skill',
+            id: skillId,
+            localUpdatedAtUtc: sharedUpdated,
+            incomingUpdatedAtUtc: sharedUpdated,
+            label: 'Guitar',
+          ),
+        ],
+        localHasActiveOrPending: true,
+        activeSessionCollision: collision,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: ImportPreviewSheet(preview: preview)),
+        ),
+      );
+
+      expect(find.text('Active session conflict'), findsOneWidget);
+      expect(find.text('Equal-timestamp conflicts'), findsOneWidget);
+      expect(find.text('skill: Guitar'), findsOneWidget);
+      expect(find.textContaining('session:'), findsNothing);
+      expect(find.text('Complete imported with reviewed end'), findsNothing);
+    },
+  );
+
   testWidgets('hides complete-imported option for same-session collision', (
     tester,
   ) async {
