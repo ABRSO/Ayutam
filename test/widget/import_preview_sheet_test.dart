@@ -10,7 +10,7 @@ ImportPreview _preview({
 }) {
   const skillId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const sessionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-  final skill = BackupSkillRecord(
+  const skill = BackupSkillRecord(
     id: skillId,
     name: 'Guitar',
     targetSeconds: 36000000,
@@ -21,7 +21,7 @@ ImportPreview _preview({
     updatedAtUtc: 1,
     sourceDeviceId: 'device-1234567890abcdef',
   );
-  final session = BackupSessionRecord(
+  const session = BackupSessionRecord(
     id: sessionId,
     skillId: skillId,
     title: 'Practice',
@@ -37,18 +37,18 @@ ImportPreview _preview({
     updatedAtUtc: 2000,
     sourceDeviceId: 'device-1234567890abcdef',
   );
-  final payload = BackupPayload(
+  const payload = BackupPayload(
     dataVersion: 1,
     exportedAtUtc: '2026-08-26T12:00:00.000Z',
     skills: [skill],
     sessions: [session],
-    sessionSegments: const [],
-    tags: const [],
-    sessionTags: const [],
-    settings: const [],
-    deviceMetadata: const [],
+    sessionSegments: [],
+    tags: [],
+    sessionTags: [],
+    settings: [],
+    deviceMetadata: [],
   );
-  final manifest = BackupManifest(
+  const manifest = BackupManifest(
     format: skilltrackerFormat,
     formatVersion: skilltrackerFormatVersion,
     createdAtUtc: '2026-08-26T12:00:00.000Z',
@@ -124,7 +124,7 @@ void main() {
     const localId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     const incomingId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     const skillId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    final collision = ActiveSessionCollision(
+    const collision = ActiveSessionCollision(
       localLive: BackupSessionRecord(
         id: localId,
         skillId: skillId,
