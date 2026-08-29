@@ -283,26 +283,28 @@ Defects found during smoke: none in the app. Two harness gotchas: the WSL script
 
 ### Exit criteria
 
-- [ ] Export → wipe/replace → identical skills/sessions/segments/notes/settings.
-- [ ] Merge divergent UUIDs keeps both; same UUID newest wins.
-- [ ] Corrupt file rejected with no mutation.
-- [ ] `lastSuccessfulBackupAt` only updates after verify.
+- [x] Export → wipe/replace → identical skills/sessions/segments/notes/settings.
+- [x] Merge divergent UUIDs keeps both; same UUID newest wins.
+- [x] Corrupt file rejected with no mutation.
+- [x] `lastSuccessfulBackupAt` only updates after verify.
 
 **Phase 5 notes (2026-08-26):** Implemented on `phase/5-backup-restore`. Canonical `.skilltracker` ZIP (manifest + payload JSON + checksums; ADR-004) with verify-before-success `backup_history` (re-read of the saved destination only — never the in-memory zip). Standalone human-readable JSON export/import and SQLite snapshot export/import (Replace-oriented). Import stages: file → manifest → checksum → semantic → preview → safety snapshot → Merge (UUID LWW, ADR-012; equal-timestamp conflicts with Keep Current / Prefer Imported UI) or Replace. Active-session collisions on merge require an explicit choice (keep current / prefer imported / complete other with reviewed end / cancel) — never silent demotion or fabricated zero-length ends. Winning sessions take segments and session-tags wholesale (no union with the losing side). Safety snapshots retain 3; Settings lists/restores them. Permanent skill delete types the name, shows session count/duration, recommends backup, snapshots, then cascades. CSV / per-skill Markdown / `VACUUM INTO` SQLite exports. Weekly reminder + last-backup status + Skills banner. Schema v1 migration harness. New deps: `archive`, `crypto`, `package_info_plus`.
 
-**Phase 5 follow-up (2026-08-28):** Review fixes for active-session conflict UX, wholesale child merge, destination verify-before-success, conflict UI, and JSON/SQLite restore paths. Exit criteria remain **unchecked** until Validate CI is green and the principal manual round-trip checklist on PR #29 is exercised.
+**Phase 5 follow-up (2026-08-28):** Review fixes for active-session conflict UX, wholesale child merge, destination verify-before-success, conflict UI, and JSON/SQLite restore paths. Same-UUID live-session collisions take precedence over generic equal-`updatedAt` LWW rows for that session. Segment clipping on reviewed completion; same-UUID collisions reject “complete other with reviewed end.”
+
+**Phase 5 closed (2026-08-29):** Merged to `main` via [PR #29](https://github.com/ABRSO/Ayutam/pull/29). Exit criteria covered by `test/unit/backup_roundtrip_test.dart` (+ merge/verify and import-preview widget coverage); Validate CI green on the merge commit.
 
 Platform smoke (2026-08-26, see [`docs/testing/platform-smoke.md`](../testing/platform-smoke.md)):
 
 | Check | Result |
 |---|---|
-| `flutter analyze` | ✅ No issues (re-verify after 2026-08-28 follow-up) |
-| `flutter test` | ✅ All tests passed (re-verify after 2026-08-28 follow-up) |
+| `flutter analyze` | ✅ No issues |
+| `flutter test` | ✅ All tests passed |
 | **Windows** build + launch | ✅ `tool\win_build.bat --debug` → `ayutam.exe`; alive after 7 s (`WIN_SMOKE_OK`) |
 | **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → install + `am start` → `pidof` (`ANDROID_SMOKE_OK`) |
 | **Linux** build + launch (WSL) | ✅ `tool/wsl_build_linux.sh` → `LINUX_SMOKE_OK` |
 
-Defects found during smoke: none. Post-smoke review (2026-08-28) found merge/verify/UX gaps addressed on the same branch; re-run Validate before merge.
+Defects found during smoke: none. Post-smoke review fixes landed on the same branch before merge.
 
 ---
 

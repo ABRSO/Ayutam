@@ -13,9 +13,9 @@
 | Area | Status |
 |---|---|
 | Docs (product / UX / architecture) | Authoritative baseline |
-| Application code | **Phase 5 in progress** — portable backup/restore on `phase/5-backup-restore` (exit criteria pending manual + green CI) |
+| Application code | **Phases 0–5 complete** on `main` (backup/restore merged via [PR #29](https://github.com/ABRSO/Ayutam/pull/29)) |
 | Distribution | GitHub Releases (ADR-021): split Android APKs, Windows installer + zip, Linux `.deb` + tarball |
-| Next | Finish Phase 5 acceptance, then Phase 6 — Platform integrations ([execution plan](docs/plan/execution-plan.md)) |
+| Next | Phase 6 — Platform integrations ([execution plan](docs/plan/execution-plan.md)) |
 | Platforms verified | Android emulator, Windows, Linux (WSLg) — see [platform smoke](docs/testing/platform-smoke.md) |
 
 ## Documentation map
