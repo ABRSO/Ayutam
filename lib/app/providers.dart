@@ -158,16 +158,14 @@ final foregroundTimerNotificationProvider =
     });
 
 final desktopTrayServiceProvider = Provider<DesktopTrayService>((ref) {
-  if (_platformPluginsEnabled &&
-      (Platform.isWindows || Platform.isLinux)) {
+  if (_platformPluginsEnabled && (Platform.isWindows || Platform.isLinux)) {
     return PluginDesktopTrayService();
   }
   return NoOpDesktopTrayService();
 });
 
 final desktopWindowLifecycleProvider = Provider<DesktopWindowLifecycle>((ref) {
-  if (_platformPluginsEnabled &&
-      (Platform.isWindows || Platform.isLinux)) {
+  if (_platformPluginsEnabled && (Platform.isWindows || Platform.isLinux)) {
     return PluginDesktopWindowLifecycle();
   }
   return NoOpDesktopWindowLifecycle();
