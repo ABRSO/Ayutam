@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,11 +40,18 @@ import '../features/statistics/data/drift_statistics_source.dart';
 import '../features/statistics/domain/statistics_models.dart';
 import '../features/statistics/domain/statistics_source.dart';
 import '../features/timer/application/stopwatch_timer_service.dart';
+import '../features/timer/application/timer_platform_coordinator.dart';
 import '../features/timer/data/drift_session_repository.dart';
 import '../features/timer/data/drift_timer_runtime_repository.dart';
 import '../features/timer/data/drift_unit_of_work.dart';
 import '../features/timer/domain/models.dart';
 import '../features/timer/domain/repositories.dart';
+import '../features/timer/domain/timer_platform_ports.dart';
+import '../platform/android/android_foreground_timer_notification.dart';
+import '../platform/desktop/plugin_desktop_tray_service.dart';
+import '../platform/desktop/plugin_desktop_window_lifecycle.dart';
+import '../platform/no_op_timer_platform.dart';
+import '../platform/plugin_timer_chrome_service.dart';
 
 final clockServiceProvider = Provider<ClockService>((ref) {
   return SystemClockService();
@@ -111,6 +119,79 @@ final reducedMotionProvider = StreamProvider<bool>((ref) {
 
 final weeklyBackupReminderProvider = StreamProvider<bool>((ref) {
   return ref.watch(settingsServiceProvider).watchWeeklyBackupReminder();
+});
+
+final keepScreenAwakeProvider = StreamProvider<bool>((ref) {
+  return ref.watch(settingsServiceProvider).watchKeepScreenAwake();
+});
+
+final forceLandscapeAndroidProvider = StreamProvider<bool>((ref) {
+  return ref.watch(settingsServiceProvider).watchForceLandscapeAndroid();
+});
+
+/// Last skill used for desktop Ctrl+Enter start shortcut.
+final shortcutSkillIdProvider =
+    NotifierProvider<ShortcutSkillIdNotifier, String?>(
+      ShortcutSkillIdNotifier.new,
+    );
+
+final class ShortcutSkillIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setSkillId(String? id) => state = id;
+}
+
+bool get _platformPluginsEnabled {
+  // Widget/unit tests must not bind tray/window/FGS plugins (pending timers,
+  // missing method channels). Production hosts still use real adapters.
+  if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
+  return true;
+}
+
+final foregroundTimerNotificationProvider =
+    Provider<ForegroundTimerNotification>((ref) {
+      if (_platformPluginsEnabled && Platform.isAndroid) {
+        return AndroidForegroundTimerNotification();
+      }
+      return NoOpForegroundTimerNotification();
+    });
+
+final desktopTrayServiceProvider = Provider<DesktopTrayService>((ref) {
+  if (_platformPluginsEnabled &&
+      (Platform.isWindows || Platform.isLinux)) {
+    return PluginDesktopTrayService();
+  }
+  return NoOpDesktopTrayService();
+});
+
+final desktopWindowLifecycleProvider = Provider<DesktopWindowLifecycle>((ref) {
+  if (_platformPluginsEnabled &&
+      (Platform.isWindows || Platform.isLinux)) {
+    return PluginDesktopWindowLifecycle();
+  }
+  return NoOpDesktopWindowLifecycle();
+});
+
+final timerChromeServiceProvider = Provider<TimerChromeService>((ref) {
+  if (_platformPluginsEnabled) {
+    return PluginTimerChromeService();
+  }
+  return NoOpTimerChromeService();
+});
+
+final timerPlatformCoordinatorProvider = Provider<TimerPlatformCoordinator>((
+  ref,
+) {
+  final coordinator = TimerPlatformCoordinator(
+    notification: ref.watch(foregroundTimerNotificationProvider),
+    tray: ref.watch(desktopTrayServiceProvider),
+    logger: ref.watch(appLoggerProvider),
+  );
+  ref.onDispose(() {
+    unawaited(coordinator.dispose());
+  });
+  return coordinator;
 });
 
 final backupStoreProvider = Provider<BackupStore>((ref) {

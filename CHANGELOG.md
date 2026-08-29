@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-29
+
+Phase 6 — platform integrations (notification, tray, shortcuts, timer chrome).
+
+### Added
+
+- Android ongoing timer notification via foreground service type **`specialUse`** (ADR-016): skill name, live elapsed from timestamps, Pause/Resume/Stop invoking the same application commands. FGS timeout stops the service only; the session keeps running and a SnackBar warns that controls may be limited until the app is opened.
+- Windows/Linux system tray while a session is live (tooltip + Pause/Resume/Stop/Show/Exit). Window close with an active session hides to tray (first-run explanation); Exit confirms when a session is live.
+- Desktop shortcuts: Space pause/resume, Ctrl+Enter start (last Play skill), Ctrl+Shift+Enter stop — suppressed while text fields are focused.
+- Desktop drag-and-drop import for `.skilltracker` / `.json` / `.sqlite` (same preview flow as Settings).
+- Settings: keep screen awake, request landscape on Android timer, shortcut reference.
+- Dependencies: `flutter_foreground_task`, `wakelock_plus`, `window_manager`, `tray_manager`; `desktop_drop` vendored under `third_party/desktop_drop` (AGP 9 + `builtInKotlin=false` Gradle patch until upstream ships a fix).
+
+### Changed
+
+- Platform integrations remain secondary to DB truth (ADR-014); failures are logged and never roll back timer state.
+
 ## [0.5.0] - 2026-08-26
 
 Phase 5 — portable backup, restore, and migration harness.

@@ -6,9 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../../../app/providers.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/result/result.dart';
 import '../../backup/domain/backup_models.dart';
-import '../../backup/presentation/import_preview_sheet.dart';
+import '../../backup/presentation/import_flow.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -22,6 +21,9 @@ class SettingsScreen extends ConsumerWidget {
         ref.watch(reducedMotionProvider).asData?.value ?? false;
     final weeklyReminder =
         ref.watch(weeklyBackupReminderProvider).asData?.value ?? true;
+    final keepAwake = ref.watch(keepScreenAwakeProvider).asData?.value ?? true;
+    final forceLandscape =
+        ref.watch(forceLandscapeAndroidProvider).asData?.value ?? true;
     final backupStatus = ref.watch(backupStatusProvider);
 
     return Scaffold(
@@ -44,6 +46,45 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(settingsServiceProvider).setReducedMotion(value),
               );
             },
+          ),
+          const Divider(),
+          const ListTile(
+            title: Text('Timer'),
+            subtitle: Text('Screen and orientation while practicing'),
+          ),
+          SwitchListTile(
+            title: const Text('Keep screen awake'),
+            subtitle: const Text(
+              'Prevents sleep only while the immersive timer is visible.',
+            ),
+            value: keepAwake,
+            onChanged: (value) {
+              unawaited(
+                ref.read(settingsServiceProvider).setKeepScreenAwake(value),
+              );
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Request landscape on Android'),
+            subtitle: const Text(
+              'Asks Android phones to rotate when the timer opens. '
+              'Portrait still works if the OS refuses.',
+            ),
+            value: forceLandscape,
+            onChanged: (value) {
+              unawaited(
+                ref
+                    .read(settingsServiceProvider)
+                    .setForceLandscapeAndroid(value),
+              );
+            },
+          ),
+          const ListTile(
+            title: Text('Desktop shortcuts'),
+            subtitle: Text(
+              'Space pause/resume · Ctrl+Enter start · Ctrl+Shift+Enter stop '
+              '(disabled while typing)',
+            ),
           ),
           const Divider(),
           const ListTile(
@@ -219,118 +260,24 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   static Future<void> _importBackup(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
     final previewResult = await ref.read(backupServiceProvider).previewImport();
     if (!context.mounted) return;
-    await _finishImport(
+    await runImportPreviewFlow(
       context: context,
       ref: ref,
-      messenger: messenger,
       previewResult: previewResult,
     );
   }
 
   static Future<void> _importSqlite(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
     final previewResult = await ref
         .read(backupServiceProvider)
         .previewSqliteImport();
     if (!context.mounted) return;
-    await _finishImport(
+    await runImportPreviewFlow(
       context: context,
       ref: ref,
-      messenger: messenger,
       previewResult: previewResult,
-    );
-  }
-
-  static Future<void> _finishImport({
-    required BuildContext context,
-    required WidgetRef ref,
-    required ScaffoldMessengerState messenger,
-    required Result<ImportPreview> previewResult,
-  }) async {
-    final preview = previewResult.valueOrNull;
-    if (preview == null) {
-      if (!context.mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            previewResult.when(
-              success: (_) => 'Import cancelled.',
-              failure: (f) => f.message,
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    if (!context.mounted) return;
-    final choice = await showImportPreviewSheet(context, preview: preview);
-    if (choice == null || !context.mounted) return;
-
-    if (choice.activeDecision == ActiveSessionDecision.cancel) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Import cancelled.')),
-      );
-      return;
-    }
-
-    if (choice.mode == ImportMode.replace) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Replace all local data?'),
-          content: const Text(
-            'This overwrites skills, sessions, and settings on this device '
-            'with the backup. A safety snapshot is created first.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Replace'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !context.mounted) return;
-    }
-
-    messenger.showSnackBar(const SnackBar(content: Text('Importing…')));
-    final result = await ref
-        .read(backupServiceProvider)
-        .applyImport(
-          preview: preview,
-          mode: choice.mode,
-          conflictResolution: choice.conflictResolution,
-          perItem: choice.perItem,
-          activeDecision: choice.activeDecision,
-          reviewedEndUtc: choice.reviewedEndUtc,
-          restoreActiveTimer: choice.restoreActiveTimer,
-        );
-    ref.invalidate(backupStatusProvider);
-    ref.invalidate(activeSkillsProvider);
-    ref.invalidate(allSkillsProvider);
-    ref.invalidate(learningLogListProvider);
-    ref.invalidate(statsBundleProvider);
-    await ref.read(timerSessionProvider.notifier).refresh();
-    if (!context.mounted) return;
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          result.when(
-            success: (_) => choice.mode == ImportMode.replace
-                ? 'Replace complete.'
-                : 'Merge complete.',
-            failure: (f) => f.message,
-          ),
-        ),
-      ),
     );
   }
 

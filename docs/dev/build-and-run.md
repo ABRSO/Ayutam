@@ -663,10 +663,11 @@ sudo apt install -y \
   clang cmake ninja-build pkg-config \
   libgtk-3-dev liblzma-dev \
   libstdc++-12-dev \
-  mesa-utils
+  mesa-utils \
+  libayatana-appindicator3-dev
 ```
 
-(On newer Ubuntu, if `libstdc++-12-dev` is unavailable, install the `libstdc++-*-dev` package your release provides.)
+(On newer Ubuntu, if `libstdc++-12-dev` is unavailable, install the `libstdc++-*-dev` package your release provides. `libayatana-appindicator3-dev` enables the Phase 6 system tray; without it the app still starts and the tray degrades gracefully.)
 
 Optional but useful: `build-essential`.
 

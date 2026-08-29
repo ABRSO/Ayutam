@@ -777,4 +777,6 @@ final class LocalSnapshotInfo {
 const mergeableSettingsKeys = {
   'appearance.reduced_motion',
   'backup.weekly_reminder_enabled',
+  'timer.keep_screen_awake',
+  'timer.force_landscape_android',
 };
