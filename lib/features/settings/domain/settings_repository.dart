@@ -14,4 +14,5 @@ abstract class SettingsRepository {
 
 abstract final class SettingsKeys {
   static const reducedMotion = 'appearance.reduced_motion';
+  static const weeklyBackupReminder = 'backup.weekly_reminder_enabled';
 }

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-26
+
+Phase 5 — portable backup, restore, and migration harness.
+
+### Added
+
+- Portable `.skilltracker` export/import (ADR-004): ZIP with `manifest.json`, `payload/data.json`, and `checksums.sha256`. Export marks `backup_history` successful only after re-reading and verifying the **saved** destination file.
+- Standalone human-readable JSON export/import and SQLite snapshot export/import (Replace-oriented).
+- Import preview with Merge (UUID LWW, ADR-012) or Replace; equal-timestamp conflict UI (Keep Current / Prefer Imported); active-session collisions require keep current / prefer imported / complete other with reviewed end / cancel.
+- Winning merge sessions take segments and session-tags wholesale (no union with the losing side).
+- Local safety snapshots (retain 3) before import/destructive ops; restore from Settings.
+- Permanent skill delete: type the skill name, show session count/duration, recommend backup, snapshot, then cascade sessions.
+- CSV session export, per-skill Markdown export, and consistent SQLite snapshot export (`VACUUM INTO`).
+- Settings Backup & Data status card, weekly reminder toggle, Skills home “Backup recommended” banner.
+- Schema v1 migration harness test for future Drift bumps.
+- Dependencies: `archive` (Apache-2.0; ZIP), `crypto` (BSD-3; SHA-256), `package_info_plus` (BSD-3; app version in manifests).
+
 ### Fixed
 
 - Release CI verifies every split APK’s signer SHA-256 against the pinned permanent Ayutam certificate in `android/release-cert.sha256` (v0.4.0 GitHub Release APKs match the local keystore).

@@ -7,6 +7,9 @@ abstract class SessionRepository {
 
   Future<List<PracticeSession>> listInProgress();
 
+  /// All session ids for [skillId] (any status, including soft-deleted).
+  Future<List<String>> listIdsForSkill(String skillId);
+
   /// Newest completed sessions for a skill (Home card expand).
   Future<List<PracticeSession>> listRecentCompletedForSkill(
     String skillId, {

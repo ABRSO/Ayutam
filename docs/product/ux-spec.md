@@ -192,6 +192,8 @@ States: recent / due / never / last export failed.
 
 Show file name, created date, app version, format version, shortened device ID, skills/sessions/total duration, active/pending timer presence, checksum result, encryption status. Then Merge vs Replace with consequences.
 
+When a live session conflict and a generic equal-timestamp LWW conflict refer to the same session UUID, active-session conflict resolution takes precedence. That session is not shown a second time in the generic equal-timestamp conflict list.
+
 ### 4.10 Onboarding
 
 Three concise screens (see product spec). Primary CTA ends on create skill or empty Skills.

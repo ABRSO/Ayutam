@@ -80,8 +80,9 @@ Installed-Size: ${SIZE_KB}
 Depends: libgtk-3-0, liblzma5, libstdc++6, hicolor-icon-theme
 Homepage: https://github.com/ABRSO/Ayutam
 Description: Local-first skill practice tracker
- Ayutam tracks deliberate practice with a timer, Learning Log and statistics.
- Data stays on device; no accounts or automatic cloud sync.
+ Ayutam tracks deliberate practice with a timer, Learning Log, statistics,
+ and portable .skilltracker backups. Data stays on device; no accounts or
+ automatic cloud sync.
 EOF
 
 cat > "${STAGE}/DEBIAN/postinst" <<'EOF'

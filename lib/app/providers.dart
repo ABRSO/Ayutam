@@ -1,10 +1,21 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../core/id/id_generator.dart';
 import '../core/logging/app_logger.dart';
+import '../core/platform/host_platform.dart';
 import '../core/time/clock_service.dart';
 import '../core/time/timezone_service.dart';
 import '../database/app_database.dart';
+import '../features/backup/application/auxiliary_export_service.dart';
+import '../features/backup/application/backup_service.dart';
+import '../features/backup/data/drift_backup_store.dart';
+import '../features/backup/data/platform_backup_file_io.dart';
+import '../features/backup/domain/backup_models.dart';
+import '../features/backup/domain/backup_store.dart';
 import '../features/learning_log/application/indexed_session_completion.dart';
 import '../features/learning_log/application/indexed_session_deletion.dart';
 import '../features/learning_log/application/indexed_skill_rename.dart';
@@ -18,6 +29,7 @@ import '../features/learning_log/domain/tag_repository.dart';
 import '../features/settings/application/settings_service.dart';
 import '../features/settings/data/drift_settings_repository.dart';
 import '../features/settings/domain/settings_repository.dart';
+import '../features/skills/application/permanent_skill_deletion.dart';
 import '../features/skills/application/skill_service.dart';
 import '../features/skills/data/drift_skill_repository.dart';
 import '../features/skills/domain/skill.dart';
@@ -95,6 +107,72 @@ final settingsServiceProvider = Provider<SettingsService>((ref) {
 
 final reducedMotionProvider = StreamProvider<bool>((ref) {
   return ref.watch(settingsServiceProvider).watchReducedMotion();
+});
+
+final weeklyBackupReminderProvider = StreamProvider<bool>((ref) {
+  return ref.watch(settingsServiceProvider).watchWeeklyBackupReminder();
+});
+
+final backupStoreProvider = Provider<BackupStore>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return DriftBackupStore(db, databasePath: db.databaseFilePath);
+});
+
+final backupFileIoProvider = Provider<BackupFileIo>((ref) {
+  return const PlatformBackupFileIo();
+});
+
+final backupServiceProvider = Provider<BackupService>((ref) {
+  final ids = ref.watch(idGeneratorProvider);
+  return BackupService(
+    store: ref.watch(backupStoreProvider),
+    files: ref.watch(backupFileIoProvider),
+    clock: ref.watch(clockServiceProvider),
+    timezones: ref.watch(timezoneServiceProvider),
+    deviceId: () => ref.watch(appDatabaseProvider).requireDeviceId(),
+    applicationVersion: () async => (await PackageInfo.fromPlatform()).version,
+    snapshotsDirectory: () async {
+      final support = await getApplicationSupportDirectory();
+      final dir = Directory('${support.path}/snapshots');
+      await dir.create(recursive: true);
+      return dir.path;
+    },
+    newId: ids.v4,
+    platform: hostPlatformId(),
+  );
+});
+
+final auxiliaryExportServiceProvider = Provider<AuxiliaryExportService>((ref) {
+  return AuxiliaryExportService(
+    store: ref.watch(backupStoreProvider),
+    files: ref.watch(backupFileIoProvider),
+    tempDirectory: () async => (await getTemporaryDirectory()).path,
+  );
+});
+
+final permanentSkillDeletionProvider = Provider<PermanentSkillDeletion>((ref) {
+  final backup = ref.watch(backupServiceProvider);
+  return PermanentSkillDeletion(
+    skills: ref.watch(skillRepositoryProvider),
+    sessions: ref.watch(sessionRepositoryProvider),
+    sessionDeletion: ref.watch(permanentSessionDeletionProvider),
+    uow: ref.watch(unitOfWorkProvider),
+    createSafetySnapshot: backup.createSafetySnapshot,
+  );
+});
+
+final backupStatusProvider = FutureProvider<BackupStatus>((ref) async {
+  final reminder =
+      ref.watch(weeklyBackupReminderProvider).asData?.value ?? true;
+  final status = await ref.watch(backupServiceProvider).status();
+  return BackupStatus(
+    lastSuccessfulBackupAtUtc: status.lastSuccessfulBackupAtUtc,
+    sessionsChangedSinceBackup: status.sessionsChangedSinceBackup,
+    reminderEnabled: reminder,
+    due: status.due,
+    neverBackedUp: status.neverBackedUp,
+    lastFailedAtUtc: status.lastFailedAtUtc,
+  );
 });
 
 final skillServiceProvider = Provider<SkillService>((ref) {

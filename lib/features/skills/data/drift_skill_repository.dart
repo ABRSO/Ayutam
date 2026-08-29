@@ -117,6 +117,11 @@ final class DriftSkillRepository implements SkillRepository {
     await _db.update(_db.skills).replace(_toCompanion(skill));
   }
 
+  @override
+  Future<void> hardDelete(String id) async {
+    await (_db.delete(_db.skills)..where((t) => t.id.equals(id))).go();
+  }
+
   Future<int> _sumCompleted(String skillId) async {
     final query = _db.selectOnly(_db.sessions)
       ..addColumns([_db.sessions.activeSeconds.sum()])

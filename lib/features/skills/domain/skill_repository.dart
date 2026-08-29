@@ -27,4 +27,7 @@ abstract class SkillRepository {
   Future<void> insert(Skill skill);
 
   Future<void> update(Skill skill);
+
+  /// Hard-deletes the skill row. Caller must cascade sessions first.
+  Future<void> hardDelete(String id);
 }
