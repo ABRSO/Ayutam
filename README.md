@@ -13,9 +13,9 @@
 | Area | Status |
 |---|---|
 | Docs (product / UX / architecture) | Authoritative baseline |
-| Application code | **Phases 0–5 complete** on `main` (backup/restore merged via [PR #29](https://github.com/ABRSO/Ayutam/pull/29)) |
+| Application code | **Phase 6 in progress** — platform integrations on `phase/6-platform-integrations` |
 | Distribution | GitHub Releases (ADR-021): split Android APKs, Windows installer + zip, Linux `.deb` + tarball |
-| Next | Phase 6 — Platform integrations ([execution plan](docs/plan/execution-plan.md)) |
+| Next | Finish Phase 6 acceptance, then Phase 7 — Pomodoro ([execution plan](docs/plan/execution-plan.md)) |
 | Platforms verified | Android emulator, Windows, Linux (WSLg) — see [platform smoke](docs/testing/platform-smoke.md) |
 
 ## Documentation map

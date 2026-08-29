@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/timer/presentation/session_heartbeat.dart';
 import 'app_theme.dart';
+import 'desktop_import_drop_target.dart';
+import 'desktop_timer_shortcuts.dart';
+import 'platform_integration_host.dart';
 import 'providers.dart';
 import 'startup_gate.dart';
 
@@ -18,7 +21,13 @@ class AyutamApp extends StatelessWidget {
       theme: buildAyutamTheme(Brightness.light),
       darkTheme: buildAyutamTheme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: const SessionHeartbeat(child: StartupGate()),
+      home: const SessionHeartbeat(
+        child: PlatformIntegrationHost(
+          child: DesktopTimerShortcuts(
+            child: DesktopImportDropTarget(child: StartupGate()),
+          ),
+        ),
+      ),
       navigatorKey: ayutamNavigatorKey,
       scaffoldMessengerKey: ayutamScaffoldMessengerKey,
       builder: (context, child) {

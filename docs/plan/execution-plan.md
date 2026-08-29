@@ -327,9 +327,23 @@ Defects found during smoke: none. Post-smoke review fixes landed on the same bra
 
 ### Exit criteria
 
-- [ ] Core timer works with integrations disabled.
-- [ ] Notification/tray reflect running/paused state when available.
-- [ ] Linux tray failure does not prevent startup.
+- [x] Core timer works with integrations disabled.
+- [x] Notification/tray reflect running/paused state when available.
+- [x] Linux tray failure does not prevent startup.
+
+**Phase 6 notes (2026-08-29):** Implemented on `phase/6-platform-integrations`. Android FGS type **`specialUse`** (ADR-016) via `flutter_foreground_task` with Pause/Resume/Stop → same `TimerSessionNotifier` commands; elapsed text from persisted anchors (no per-second DB writes). FGS `onTimeout` clears the service, keeps the session, and surfaces a SnackBar. Windows/Linux: `window_manager` + `tray_manager` (close → tray while live; first-run explanation; Exit confirms). Desktop shortcuts (Space / Ctrl+Enter / Ctrl+Shift+Enter) with text-focus suppression. `desktop_drop` import reuses Settings preview/apply (vendored under `third_party/desktop_drop` for AGP 9 + `builtInKotlin=false`). Settings: keep-awake + Android landscape request. No-op adapters + coordinator ensure timer correctness when plugins fail / under `FLUTTER_TEST`. Linux tray init failure is caught and logged; app continues. Linux **build** requires `libayatana-appindicator3-dev` (added to `tool/wsl_setup_flutter.sh` and build-and-run).
+
+Platform smoke (2026-08-29):
+
+| Check | Result |
+|---|---|
+| `flutter analyze` | ✅ No issues |
+| `flutter test` | ✅ 201 tests passed |
+| **Windows** build + launch | ✅ `tool\win_build.bat --debug` → `ayutam.exe`; alive after 7 s (`WIN_SMOKE_OK`) |
+| **Android** build + launch (emulator `ayutam_api34`) | ✅ `flutter build apk --debug` → uninstall/install + `am start` → `pidof` (`ANDROID_SMOKE_OK`) |
+| **Linux** build + launch (WSL) | ⏳ Needs `libayatana-appindicator3-dev` on the WSL image (`sudo apt install …`); re-run `tool/wsl_build_linux.sh` after install |
+
+Defects found during smoke: Android install of debug over a higher store/versionCode release needs uninstall first (expected). Linux cmake blocked until appindicator headers are present.
 
 ---
 

@@ -10,6 +10,8 @@ import 'open_in_progress_session.dart';
 import 'timer_screen.dart';
 
 Future<void> showPreSessionSheet(BuildContext context, {required Skill skill}) {
+  final container = ProviderScope.containerOf(context);
+  container.read(shortcutSkillIdProvider.notifier).setSkillId(skill.id);
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,

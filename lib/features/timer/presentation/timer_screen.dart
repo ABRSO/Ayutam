@@ -12,6 +12,7 @@ import '../../../core/time/duration_format.dart';
 import '../../skills/domain/skill.dart';
 import '../application/long_session_warning.dart';
 import '../domain/models.dart';
+import '../domain/timer_platform_ports.dart';
 import 'completion_screen.dart';
 import 'open_in_progress_session.dart';
 import 'widgets/flip_clock.dart';
@@ -30,6 +31,8 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   Timer? _tick;
   var _redirected = false;
   var _longSessionWarned = false;
+  TimerChromeService? _chrome;
+  var _chromeEntered = false;
 
   @override
   void initState() {
@@ -39,11 +42,32 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
         setState(() {});
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_enterChrome());
+    });
+  }
+
+  Future<void> _enterChrome() async {
+    if (_chromeEntered || !mounted) return;
+    final chrome = ref.read(timerChromeServiceProvider);
+    _chrome = chrome;
+    _chromeEntered = true;
+    final keepAwake = ref.read(keepScreenAwakeProvider).asData?.value ?? true;
+    final landscape =
+        ref.read(forceLandscapeAndroidProvider).asData?.value ?? true;
+    await chrome.enterTimerVisible(
+      keepScreenAwake: keepAwake,
+      requestLandscape: landscape,
+    );
   }
 
   @override
   void dispose() {
     _tick?.cancel();
+    final chrome = _chrome;
+    if (_chromeEntered && chrome != null) {
+      unawaited(chrome.leaveTimerVisible());
+    }
     super.dispose();
   }
 
