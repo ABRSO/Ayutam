@@ -13,6 +13,12 @@ Thanks for interest in Ayutam.
 To install toolchains and run the app locally (manual UI checks), follow
 [`docs/dev/build-and-run.md`](docs/dev/build-and-run.md).
 
+Cursor Cloud Agent environments bootstrap with
+[`tool/cloud-agent-install.sh`](tool/cloud-agent-install.sh)
+(see [`.cursor/environment.json`](.cursor/environment.json)). That script installs
+Flutter **3.44.7** (the same pin as [`.github/workflows/validate.yml`](.github/workflows/validate.yml))
+and runs `flutter pub get` plus Drift code generation.
+
 ```bash
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs

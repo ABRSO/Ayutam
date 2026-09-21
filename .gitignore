@@ -8,7 +8,8 @@
 .atom/
 .build/
 .buildlog/
-.cursor/
+.cursor/*
+!.cursor/environment.json
 .history
 .svn/
 .swiftpm/

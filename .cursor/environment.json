@@ -1,0 +1,4 @@
+{
+  "name": "Ayutam",
+  "install": "./tool/cloud-agent-install.sh"
+}
