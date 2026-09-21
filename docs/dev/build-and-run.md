@@ -667,7 +667,7 @@ sudo apt install -y \
   libayatana-appindicator3-dev
 ```
 
-(On newer Ubuntu, if `libstdc++-12-dev` is unavailable, install the `libstdc++-*-dev` package your release provides. `libayatana-appindicator3-dev` enables the Phase 6 system tray; without it the app still starts and the tray degrades gracefully.)
+(On newer Ubuntu, if `libstdc++-12-dev` is unavailable, install the `libstdc++-*-dev` package your release provides. `libayatana-appindicator3-dev` is the build-time tray dependency; without those headers the Linux build fails. The release `.deb` depends on the runtime package `libayatana-appindicator3-1`, so `apt install ./ayutam-*.deb` pulls it in. The portable `.tar.gz` does not bundle that library — install `libayatana-appindicator3-1` before running the unpacked binary. If the tray still cannot be created at runtime, closing a live session leaves the window open.)
 
 Optional but useful: `build-essential`.
 

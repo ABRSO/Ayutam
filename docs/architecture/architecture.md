@@ -211,7 +211,7 @@ Controller asks injectable clock for `now`, combines with persisted anchors — 
 
 **Android foreground / notification:** Improves visibility and Pause/Stop actions. Duration still comes from DB. Must declare FGS type correctly for Android 14+; handle Android 15 timeouts for restricted types; `stopWithTask` / boot policy reviewed before Play submission (ADR-016). Interface must allow swapping plugin for native Kotlin.
 
-**Desktop lifecycle:** Close with no session → exit. Close with active session → minimize to tray after first-run explanation. Explicit Exit confirms if needed. Tray/shortcut failure must not block DB or timer.
+**Desktop lifecycle:** Close with no session → exit. Close with an active session → hide to tray after a first-run explanation, only after a tray icon exists. If the tray is unavailable, the window stays open and Exit is offered instead of hiding it. Tray Exit shows and focuses the window before the confirmation. Tray/shortcut failure must not block DB or timer.
 
 ---
 

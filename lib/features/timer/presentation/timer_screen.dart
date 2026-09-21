@@ -32,11 +32,14 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   var _redirected = false;
   var _longSessionWarned = false;
   TimerChromeService? _chrome;
+  TimerScreenMounts? _mounts;
   var _chromeEntered = false;
 
   @override
   void initState() {
     super.initState();
+    _mounts = ref.read(timerScreenMountsProvider);
+    _mounts!.retain();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
         setState(() {});
@@ -47,14 +50,23 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
     });
   }
 
+  /// Applies persisted chrome settings. A first [StreamProvider] read is still
+  /// loading, and its `?? true` fallback used to ignore a saved `false`.
   Future<void> _enterChrome() async {
     if (_chromeEntered || !mounted) return;
+    var keepAwake = true;
+    var landscape = true;
+    try {
+      final settings = ref.read(settingsServiceProvider);
+      keepAwake = await settings.keepScreenAwake();
+      landscape = await settings.forceLandscapeAndroid();
+    } catch (_) {
+      // Product default is on when the saved value cannot be read.
+    }
+    if (!mounted || _chromeEntered) return;
     final chrome = ref.read(timerChromeServiceProvider);
     _chrome = chrome;
     _chromeEntered = true;
-    final keepAwake = ref.read(keepScreenAwakeProvider).asData?.value ?? true;
-    final landscape =
-        ref.read(forceLandscapeAndroidProvider).asData?.value ?? true;
     await chrome.enterTimerVisible(
       keepScreenAwake: keepAwake,
       requestLandscape: landscape,
@@ -64,6 +76,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   @override
   void dispose() {
     _tick?.cancel();
+    _mounts?.release();
     final chrome = _chrome;
     if (_chromeEntered && chrome != null) {
       unawaited(chrome.leaveTimerVisible());

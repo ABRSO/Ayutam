@@ -22,6 +22,9 @@ final class PluginDesktopWindowLifecycle
     if (!Platform.isWindows && !Platform.isLinux) return;
     if (_ready) return;
     await windowManager.ensureInitialized();
+    // window_manager 0.5.2 leaves the Windows ITaskbarList3 null until this
+    // call. setSkipTaskbar then dereferences it (access violation 0xc0000005).
+    await windowManager.waitUntilReadyToShow();
     windowManager.addListener(this);
     await windowManager.setPreventClose(true);
     _ready = true;
@@ -35,16 +38,32 @@ final class PluginDesktopWindowLifecycle
   @override
   Future<void> showAndFocus() async {
     if (!_ready) return;
+    // Drop the skip-taskbar hint before mapping. A hidden window whose hint
+    // is still set can stay unmapped when Show/Exit asks for it back.
+    try {
+      await windowManager.setSkipTaskbar(false);
+    } catch (_) {}
     await windowManager.show();
-    await windowManager.focus();
-    await windowManager.setSkipTaskbar(false);
+    try {
+      await windowManager.focus();
+    } catch (_) {}
   }
 
   @override
   Future<void> hideToTray() async {
     if (!_ready) return;
     await windowManager.hide();
-    await windowManager.setSkipTaskbar(true);
+    try {
+      await windowManager.setSkipTaskbar(true);
+    } catch (_) {
+      try {
+        await windowManager.setSkipTaskbar(false);
+      } catch (_) {}
+      try {
+        await windowManager.show();
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   @override

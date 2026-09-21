@@ -16,8 +16,13 @@ final class PluginDesktopTrayService
   final _actions = StreamController<TimerPlatformAction>.broadcast();
   var _ready = false;
   var _visible = false;
+  var _available = false;
+  var _statusLabelFailed = false;
   Timer? _tick;
   TimerPlatformProjection? _current;
+
+  @override
+  bool get isAvailable => _available;
 
   @override
   Stream<TimerPlatformAction> get actions => _actions.stream;
@@ -36,9 +41,7 @@ final class PluginDesktopTrayService
     await ensureReady();
     _current = projection;
     _tick?.cancel();
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      unawaited(_refreshTooltip());
-    });
+    _tick = null;
 
     try {
       if (!_visible) {
@@ -46,11 +49,18 @@ final class PluginDesktopTrayService
         _visible = true;
       }
       await _setMenu(projection);
-      await _refreshTooltip();
+      _available = true;
     } catch (_) {
       // Linux without appindicator: degrade — caller logs via coordinator.
+      _available = false;
       rethrow;
     }
+
+    _statusLabelFailed = false;
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      unawaited(_refreshStatusLabel());
+    });
+    await _refreshStatusLabel();
   }
 
   @override
@@ -58,6 +68,7 @@ final class PluginDesktopTrayService
     _tick?.cancel();
     _tick = null;
     _current = null;
+    _available = false;
     if (!_visible) return;
     try {
       await trayManager.destroy();
@@ -120,7 +131,11 @@ final class PluginDesktopTrayService
     await trayManager.setContextMenu(Menu(items: items));
   }
 
-  Future<void> _refreshTooltip() async {
+  /// Linux `tray_manager` 0.5.3 implements `setTitle` (indicator label) and
+  /// returns not-implemented for `setToolTip`. Windows uses the tooltip.
+  /// Periodic failures are swallowed so they cannot become uncaught errors.
+  Future<void> _refreshStatusLabel() async {
+    if (_statusLabelFailed) return;
     final p = _current;
     if (p == null || !_visible) return;
     final now = DateTime.now().toUtc();
@@ -128,7 +143,18 @@ final class PluginDesktopTrayService
     final phase = p.machineState == TimerMachineState.paused
         ? 'Paused'
         : 'Running';
-    await trayManager.setToolTip('${p.skillName} · $phase · $elapsed');
+    final label = '${p.skillName} · $phase · $elapsed';
+    try {
+      if (Platform.isLinux) {
+        await trayManager.setTitle(label);
+      } else {
+        await trayManager.setToolTip(label);
+      }
+    } catch (_) {
+      _statusLabelFailed = true;
+      _tick?.cancel();
+      _tick = null;
+    }
   }
 
   String _iconPath() {

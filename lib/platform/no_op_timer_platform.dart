@@ -37,18 +37,26 @@ class NoOpForegroundTimerNotification implements ForegroundTimerNotification {
 
 class NoOpDesktopTrayService implements DesktopTrayService {
   final _actions = StreamController<TimerPlatformAction>.broadcast();
+  var _available = false;
 
   @override
   Stream<TimerPlatformAction> get actions => _actions.stream;
 
   @override
+  bool get isAvailable => _available;
+
+  @override
   Future<void> ensureReady() async {}
 
   @override
-  Future<void> sync(TimerPlatformProjection projection) async {}
+  Future<void> sync(TimerPlatformProjection projection) async {
+    _available = true;
+  }
 
   @override
-  Future<void> clear() async {}
+  Future<void> clear() async {
+    _available = false;
+  }
 
   @override
   Future<void> dispose() async {
@@ -61,12 +69,14 @@ class NoOpDesktopTrayService implements DesktopTrayService {
 final class NoOpTimerChromeService implements TimerChromeService {
   bool keepScreenAwakeActive = false;
   bool landscapeRequested = false;
+  int enterCount = 0;
 
   @override
   Future<void> enterTimerVisible({
     required bool keepScreenAwake,
     required bool requestLandscape,
   }) async {
+    enterCount++;
     keepScreenAwakeActive = keepScreenAwake;
     landscapeRequested = requestLandscape;
   }

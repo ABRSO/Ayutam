@@ -113,6 +113,12 @@ class _PlatformIntegrationHostState
         final err = await notifier.stop();
         if (err == null) {
           await ref.read(desktopWindowLifecycleProvider).showAndFocus();
+          // A mounted timer replaces itself when state becomes
+          // completion-pending. Pushing here as well leaves that timer under
+          // the completion page (Back still says Running; wakelock stays on).
+          if (ref.read(timerScreenMountsProvider).count > 0) {
+            break;
+          }
           final snap = ref.read(timerSessionProvider).asData?.value;
           final skillId = snap?.session?.skillId;
           final nav = ayutamNavigatorKey.currentState;
@@ -153,19 +159,61 @@ class _PlatformIntegrationHostState
         live == TimerMachineState.running || live == TimerMachineState.paused;
     final desktop = Platform.isWindows || Platform.isLinux;
     if (isLive && desktop) {
+      if (!ref.read(desktopTrayServiceProvider).isAvailable) {
+        ref
+            .read(appLoggerProvider)
+            .warning(
+              'Close-to-tray skipped because the system tray is unavailable',
+            );
+        await _closeWithoutTray();
+        return;
+      }
       await _maybeExplainCloseToTray();
-      await ref.read(desktopWindowLifecycleProvider).hideToTray();
+      try {
+        await ref.read(desktopWindowLifecycleProvider).hideToTray();
+      } catch (e, st) {
+        ref
+            .read(appLoggerProvider)
+            .warning('Hide to tray failed: $e', error: e, stackTrace: st);
+      }
       return;
     }
     await ref.read(desktopWindowLifecycleProvider).destroyAndQuit();
   }
 
-  Future<void> _confirmExit() async {
+  Future<void> _closeWithoutTray() async {
     final ctx = ayutamNavigatorKey.currentContext;
-    if (ctx == null) {
-      await ref.read(desktopWindowLifecycleProvider).destroyAndQuit();
+    if (ctx == null || !ctx.mounted) {
       return;
     }
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('System tray unavailable'),
+        content: const Text(
+          'Ayutam can\'t hide to the system tray on this desktop, so this '
+          'window stays open. Exit quits the app. Reopen Ayutam to recover '
+          'this session.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep open'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Exit'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await ref.read(desktopWindowLifecycleProvider).destroyAndQuit();
+    }
+  }
+
+  Future<void> _confirmExit() async {
+    final windows = ref.read(desktopWindowLifecycleProvider);
     final live = ref
         .read(timerSessionProvider)
         .asData
@@ -175,7 +223,15 @@ class _PlatformIntegrationHostState
     final isLive =
         live == TimerMachineState.running || live == TimerMachineState.paused;
     if (!isLive) {
-      await ref.read(desktopWindowLifecycleProvider).destroyAndQuit();
+      await windows.destroyAndQuit();
+      return;
+    }
+    // The window may already be hidden. Show it before the dialog so Exit
+    // can be answered.
+    await windows.showAndFocus();
+    final ctx = ayutamNavigatorKey.currentContext;
+    if (ctx == null || !ctx.mounted) {
+      await windows.destroyAndQuit();
       return;
     }
     final ok = await showDialog<bool>(
@@ -199,9 +255,7 @@ class _PlatformIntegrationHostState
       ),
     );
     if (ok == true) {
-      await ref.read(desktopWindowLifecycleProvider).destroyAndQuit();
-    } else {
-      await ref.read(desktopWindowLifecycleProvider).showAndFocus();
+      await windows.destroyAndQuit();
     }
   }
 

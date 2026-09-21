@@ -110,7 +110,7 @@ Only one session may be `active`, `paused`, or `completion_pending` at a time. S
 **Platform:**
 
 - Android: persistent notification with skill, elapsed, Pause/Stop (secondary to DB truth; see ADR on Android 15 FGS).
-- Desktop: system tray while timer runs; shortcuts Space = pause/resume, Ctrl+Enter = start, Ctrl+Shift+Enter = stop (disabled while text fields focused).
+- Desktop: system tray while a timer runs, when a tray can be created. Closing the window with a live session hides to that tray after a one-time explanation. If the tray is unavailable, the window stays open and Exit is offered. Shortcuts: Space = pause/resume, Ctrl+Enter = start, Ctrl+Shift+Enter = stop (disabled while text fields focused).
 - Mobile: request landscape for timer when setting enabled; keep-screen-awake while timer visible if enabled.
 
 ### 2.4 Session completion and notes
@@ -229,7 +229,7 @@ Three steps: track skills → local-only / no accounts → manual backup respons
 | F-014 | Pomodoro | P1 | Work-only totals; phase recovery |
 | F-015 | Manual session | P1 | Historical entry + overlap warn; no future timestamps |
 | F-016 | Android notification | P1 | Persistent; Pause/Stop same commands |
-| F-017 | Desktop tray + shortcuts | P1 | Tray live state; keyboard when focused |
+| F-017 | Desktop tray + shortcuts | P1 | Tray live state when available; window stays reachable if the tray is not; keyboard when focused |
 | F-018 | Backup reminders | P1 | Weekly + last-backup indicator |
 | F-019 | SQLite/CSV/Markdown exports | P1 | Snapshot consistent; reports non-importable |
 | F-020 | Local snapshots | P1 | Last 3; restorable |

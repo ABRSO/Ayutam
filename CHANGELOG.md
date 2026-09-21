@@ -24,6 +24,16 @@ Phase 6 — platform integrations (notification, tray, shortcuts, timer chrome).
 
 - Platform integrations remain secondary to DB truth (ADR-014); failures are logged and never roll back timer state.
 
+### Fixed
+
+- Windows close-to-tray no longer crashes: `window_manager` 0.5.2 initializes its taskbar pointer in `waitUntilReadyToShow`, and `setSkipTaskbar` ran before that.
+- Closing a live session when the tray icon was not created leaves the window open and offers Exit, instead of hiding the only window.
+- Tray Exit shows and focuses the window before the confirmation dialog.
+- Keep-screen-awake and Android landscape follow the saved settings on the first timer open, including after a cold start.
+- Stop from the notification or tray uses the timer route's own completion transition when that route is open, so Back does not return to a Running timer.
+- Linux tray status uses the plugin's `setTitle` label. `setToolTip` is not implemented on Linux `tray_manager` 0.5.3 and was throwing every second.
+- Linux release builds install `libayatana-appindicator3-dev`, and the `.deb` depends on `libayatana-appindicator3-1`.
+
 ## [0.5.0] - 2026-08-26
 
 Phase 5 — portable backup, restore, and migration harness.

@@ -345,6 +345,10 @@ Platform smoke (2026-08-29):
 
 Defects found during smoke: Android install of debug over a higher store/versionCode release needs uninstall first (expected). Linux cmake blocked until appindicator headers are present.
 
+**Acceptance follow-up (2026-09-21):** Review on Windows, Linux, and Android API 34 found defects fixed on this branch before merge. Windows `setSkipTaskbar` crashed (`0xc0000005` in `window_manager_plugin.dll`) because `waitUntilReadyToShow` had not created the native taskbar pointer. Close-to-tray now requires a successful tray sync; otherwise the window stays up and Exit is offered. Tray Exit shows the window before its dialog. Timer chrome waits for the saved keep-awake and landscape values. Platform Stop does not push a second completion route over a mounted timer. Linux tray status uses `setTitle` (0.5.3 has no `setToolTip`). Release CI installs `libayatana-appindicator3-dev`; the `.deb` depends on `libayatana-appindicator3-1`.
+
+An Android ANR during the first landscape transition is recorded but not closed. The dump shows an input timeout on `FocusEvent(hasFocus=false)` while the activity had requested landscape, the window was `waitingToShow`, and no window had been drawn (user rotation was locked; a notification-permission activity had also been in front). Landscape is now requested only after the saved setting is known, after a frame has been drawn, and while the activity is resumed, so it is not applied under that permission dialog. That ANR still needs a device retest. Linux Show-from-tray on the isolated test desktop was not isolated to one call; Show now clears the skip-taskbar hint before mapping the window. Native retest of tray lifecycle, shortcuts, drag-and-drop, sleep, and the ANR is still required before Phase 6 is accepted.
+
 ---
 
 ## Phase 7 — Pomodoro

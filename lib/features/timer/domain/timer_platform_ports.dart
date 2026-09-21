@@ -68,6 +68,11 @@ abstract class DesktopTrayService {
 
   Future<void> clear();
 
+  /// True only after a tray icon was created and the latest sync succeeded.
+  ///
+  /// Close-to-tray must not hide the only window while this is false.
+  bool get isAvailable;
+
   Stream<TimerPlatformAction> get actions;
 
   Future<void> dispose();

@@ -171,6 +171,28 @@ final desktopWindowLifecycleProvider = Provider<DesktopWindowLifecycle>((ref) {
   return NoOpDesktopWindowLifecycle();
 });
 
+/// How many [TimerScreen] routes are mounted.
+///
+/// Platform Stop must not push a second completion page while one of these
+/// will replace its own route.
+final timerScreenMountsProvider = Provider<TimerScreenMounts>((ref) {
+  return TimerScreenMounts();
+});
+
+final class TimerScreenMounts {
+  int _count = 0;
+
+  int get count => _count;
+
+  void retain() => _count++;
+
+  void release() {
+    if (_count > 0) {
+      _count--;
+    }
+  }
+}
+
 final timerChromeServiceProvider = Provider<TimerChromeService>((ref) {
   if (_platformPluginsEnabled) {
     return PluginTimerChromeService();
