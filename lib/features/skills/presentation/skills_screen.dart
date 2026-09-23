@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_theme.dart';
@@ -25,19 +28,59 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
 
   var _filter = SkillHomeFilter.inProgress;
   var _searching = false;
+  var _creating = false;
   final _searchController = TextEditingController();
+  ModalRoute<dynamic>? _route;
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKeyEvent);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+  }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     _searchController.dispose();
     super.dispose();
   }
 
+  /// Ctrl+N = New skill, the standard "New" shortcut on Windows and Linux.
+  /// Only while Skills is the top route, so sheets, dialogs and the timer
+  /// keep their own keys.
+  bool _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyN) {
+      return false;
+    }
+    final keys = HardwareKeyboard.instance;
+    if (!keys.isControlPressed ||
+        keys.isShiftPressed ||
+        keys.isAltPressed ||
+        keys.isMetaPressed) {
+      return false;
+    }
+    if (!mounted || _creating || !(_route?.isCurrent ?? true)) return false;
+    unawaited(_createSkill());
+    return true;
+  }
+
   Future<void> _createSkill() async {
-    final saved = await showSkillEditorSheet(context);
-    if (saved && mounted) {
-      ref.invalidate(activeSkillsProvider);
-      ref.invalidate(allSkillsProvider);
+    if (_creating) return;
+    _creating = true;
+    try {
+      final saved = await showSkillEditorSheet(context);
+      if (saved && mounted) {
+        ref.invalidate(activeSkillsProvider);
+        ref.invalidate(allSkillsProvider);
+      }
+    } finally {
+      _creating = false;
     }
   }
 
@@ -101,10 +144,13 @@ class _SkillsScreenState extends ConsumerState<SkillsScreen> {
           if (desktop)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: FilledButton.tonalIcon(
-                onPressed: _createSkill,
-                icon: const Icon(Icons.add),
-                label: const Text('New Skill'),
+              child: Tooltip(
+                message: 'Create skill (Ctrl+N)',
+                child: FilledButton.tonalIcon(
+                  onPressed: _createSkill,
+                  icon: const Icon(Icons.add),
+                  label: const Text('New Skill'),
+                ),
               ),
             ),
         ],

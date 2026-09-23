@@ -104,6 +104,7 @@ namespace {
         HWND window_handle_;
         LONG ref_count_;
         bool need_revoke_ole_initialize_;
+        DWORD drop_effect_;
     };
 
     class DesktopDropPlugin : public flutter::Plugin {
@@ -161,7 +162,8 @@ namespace {
 
 
     DesktopDropTarget::DesktopDropTarget(FlutterMethodChannel channel, HWND window_handle) : channel_(
-            std::move(channel)), window_handle_(window_handle), ref_count_(0), need_revoke_ole_initialize_(false) {
+            std::move(channel)), window_handle_(window_handle), ref_count_(0), need_revoke_ole_initialize_(false),
+            drop_effect_(DROPEFFECT_NONE) {
         auto ret = RegisterDragDrop(window_handle_, this);
         if (ret == E_OUTOFMEMORY) {
             OleInitialize(nullptr);
@@ -177,6 +179,14 @@ namespace {
     }
 
     HRESULT DesktopDropTarget::DragEnter(IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) {
+        // Ayutam patch: files are only read, so answer COPY (never the
+        // source's full mask, which lets Explorer treat the drop as a move)
+        // and refuse non-file data outright.
+        FORMATETC fmtetc = {CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL};
+        drop_effect_ = (pDataObj->QueryGetData(&fmtetc) == S_OK && (*pdwEffect & DROPEFFECT_COPY))
+                       ? DROPEFFECT_COPY
+                       : DROPEFFECT_NONE;
+        *pdwEffect = drop_effect_;
         POINT point = {pt.x, pt.y};
         ScreenToClient(window_handle_, &point);
         channel_->InvokeMethod("entered", std::make_unique<flutter::EncodableValue>(
@@ -189,6 +199,7 @@ namespace {
     }
 
     HRESULT DesktopDropTarget::DragOver(DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) {
+        *pdwEffect = drop_effect_;
         POINT point = {pt.x, pt.y};
         ScreenToClient(window_handle_, &point);
         channel_->InvokeMethod("updated", std::make_unique<flutter::EncodableValue>(
@@ -238,6 +249,7 @@ namespace {
         }
         channel_->InvokeMethod("performOperation", std::make_unique<flutter::EncodableValue>(list));
 
+        *pdwEffect = drop_effect_;
         return 0;
     }
 

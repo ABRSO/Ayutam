@@ -80,10 +80,10 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
           const ListTile(
-            title: Text('Desktop shortcuts'),
+            title: Text('Keyboard shortcuts'),
             subtitle: Text(
-              'Space pause/resume · Ctrl+Enter start · Ctrl+Shift+Enter stop '
-              '(disabled while typing)',
+              'Timer: Space pause/resume (when no button is focused) · '
+              'Skills: Ctrl+N new skill · Esc returns to Skills',
             ),
           ),
           const Divider(),

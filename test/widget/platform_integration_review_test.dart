@@ -42,7 +42,7 @@ class RecordingWindow implements DesktopWindowLifecycle {
   }
 
   @override
-  Future<void> destroyAndQuit() async {
+  Future<void> quit() async {
     quits++;
   }
 

@@ -68,10 +68,11 @@ abstract class DesktopTrayService {
 
   Future<void> clear();
 
-  /// True only after a tray icon was created and the latest sync succeeded.
+  /// Whether the tray icon can actually be seen and used right now: the
+  /// latest sync succeeded and (on Linux) a tray host is running.
   ///
   /// Close-to-tray must not hide the only window while this is false.
-  bool get isAvailable;
+  Future<bool> checkAvailable();
 
   Stream<TimerPlatformAction> get actions;
 
@@ -99,7 +100,9 @@ abstract class DesktopWindowLifecycle {
 
   Future<void> hideToTray();
 
-  Future<void> destroyAndQuit();
+  /// Quits through a normal window close so the engine is torn down while the
+  /// platform message loop is still running.
+  Future<void> quit();
 
   Stream<void> get closeRequested;
 

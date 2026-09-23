@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:tray_manager/tray_manager.dart';
 
 import '../../core/time/duration_format.dart';
@@ -21,8 +22,21 @@ final class PluginDesktopTrayService
   Timer? _tick;
   TimerPlatformProjection? _current;
 
+  /// Implemented by `linux/runner/my_application.cc`.
+  static const _desktopChannel = MethodChannel('ayutam/desktop');
+
   @override
-  bool get isAvailable => _available;
+  Future<bool> checkAvailable() async {
+    if (!_available) return false;
+    if (!Platform.isLinux) return true;
+    // AppIndicator creation succeeds with no host to display it; without
+    // one, hiding to "tray" would leave an invisible process.
+    try {
+      return await _desktopChannel.invokeMethod<bool>('hasTrayHost') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   Stream<TimerPlatformAction> get actions => _actions.stream;

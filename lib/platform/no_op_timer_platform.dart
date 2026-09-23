@@ -42,8 +42,10 @@ class NoOpDesktopTrayService implements DesktopTrayService {
   @override
   Stream<TimerPlatformAction> get actions => _actions.stream;
 
-  @override
   bool get isAvailable => _available;
+
+  @override
+  Future<bool> checkAvailable() async => _available;
 
   @override
   Future<void> ensureReady() async {}
@@ -110,7 +112,7 @@ final class NoOpDesktopWindowLifecycle implements DesktopWindowLifecycle {
   Future<void> hideToTray() async {}
 
   @override
-  Future<void> destroyAndQuit() async {}
+  Future<void> quit() async {}
 
   @override
   Future<void> dispose() async {

@@ -11,8 +11,47 @@ Ayutam is a Flutter app for **Windows**, **Android**, and **Linux**. For day-to-
 |---|---|---|
 | Android | `ayutam-v*-android-arm64-v8a.apk` on nearly all phones | Also `armeabi-v7a` (older 32-bit) and `x86_64` (emulators). **Release-mode** APKs signed with the permanent Ayutam release certificate (ADR-021). |
 | Windows | `ayutam-v*-windows-x64-setup.exe` | Inno Setup copies exe + DLLs + `data/`. Portable: `*-windows-x64.zip` for no-admin / USB. |
-| Linux (Debian/Ubuntu) | `ayutam-v*-linux-amd64.deb` | Or unpack `*-linux-x64.tar.gz` and run `./ayutam`. |
+| Linux (Debian/Ubuntu) | `ayutam-v*-linux-amd64.deb` | Step by step, including WSL: [Installing on Linux](#installing-on-linux-deb-native-or-wsl). Or unpack `*-linux-x64.tar.gz`. |
 | Source | GitHub’s automatic source zip/tarball on the release page | |
+
+### Installing on Linux (`.deb`, native or WSL)
+
+For Ubuntu 22.04+ / Debian 12+ on amd64. This is the same package a user downloads from a GitHub Release. Until a phase is released, build the package from your checkout instead ([§4.6](#46-build-a-release-deb-from-this-checkout)); it is written to `dist\linux\` in the repo.
+
+**Native Ubuntu / Debian desktop**
+
+1. Download `ayutam-vX.Y.Z-linux-amd64.deb` from the release page (or copy it from `dist/linux/`).
+2. Open a terminal where the file is and install it with apt (the `./` matters, otherwise apt looks for a package named like the file online):
+
+   ```bash
+   sudo apt update
+   sudo apt install ./ayutam-vX.Y.Z-linux-amd64.deb
+   ```
+
+   apt installs the dependencies (GTK 3 and `libayatana-appindicator3-1` for the tray) automatically.
+3. Start **Ayutam** from the app menu, or run `ayutam` in a terminal.
+
+**Windows 11 with WSL (WSLg)**
+
+1. One-time setup, if `wsl -l -v` in PowerShell does not list Ubuntu: run `wsl --install -d Ubuntu`, reboot if asked, then open **Ubuntu** from the Start menu and create a Linux user name and password. Run `wsl --update` so Linux GUI apps (WSLg) work.
+2. Open **Ubuntu** from the Start menu (or type `wsl` in PowerShell) and install the package. Copy it into your Linux home first; apt cannot read files under `/mnt/c` as its sandbox user and prints a warning otherwise:
+
+   ```bash
+   cp /mnt/c/Project/Ayutam/dist/linux/ayutam-vX.Y.Z-linux-amd64.deb ~/
+   cd ~
+   sudo apt update
+   sudo apt install ./ayutam-vX.Y.Z-linux-amd64.deb
+   ayutam &
+   ```
+
+   For a release download, use `/mnt/c/Users/<you>/Downloads/…` as the source path. The window opens on the Windows desktop, and WSLg usually also adds **Ayutam (Ubuntu)** to the Windows Start menu.
+3. WSLg has **no system tray**. Closing the window while a session is running keeps it open and offers **Keep open / Exit** instead of hiding it.
+
+**System tray on Linux.** KDE Plasma, Xfce, Cinnamon, MATE, and Ubuntu's GNOME (AppIndicator extension on by default) show the Ayutam tray icon. Stock GNOME (Fedora, Debian GNOME) needs the *AppIndicator and KStatusNotifierItem Support* extension. With no tray, Ayutam never hides its only window.
+
+**Update:** install the newer `.deb` the same way; your data is kept. **Uninstall:** `sudo apt remove ayutam`. Data stays in `~/.local/share/com.ayutam.ayutam/` (`ayutam.sqlite`); export a backup before deleting that folder.
+
+**Portable tarball:** `sudo apt install libgtk-3-0 libayatana-appindicator3-1`, then `mkdir -p ~/ayutam && tar -xzf ayutam-vX.Y.Z-linux-x64.tar.gz -C ~/ayutam && ~/ayutam/ayutam`. The tarball does not bundle those libraries.
 
 This guide is written so someone who has never installed Flutter/Android/Linux desktop toolchains can follow it end-to-end. Paths marked **(reference)** are from the project’s Windows 11 development machine; on your PC, substitute your own locations but keep the same structure.
 
@@ -648,6 +687,16 @@ flutter pub get
 | Script fails with `$'\r': command not found` | `sed -i 's/\r$//' script.sh` before running |
 | Extremely slow I/O on `/mnt/c` | Prefer cloning the repo into the Linux filesystem (`~/src/Ayutam`) for day-to-day Linux work |
 
+### 4.6 Build a release `.deb` from this checkout
+
+Use this to test a branch on Linux before it is released, the same way `tool\win_build.bat --release` produces a Windows build. After the one-time setup in [§4.2](#42-one-time-flutter--build-dependencies-inside-wsl), from **Windows PowerShell** in the repo root:
+
+```powershell
+wsl bash tool/wsl_package_deb.sh
+```
+
+[`tool/wsl_package_deb.sh`](../../tool/wsl_package_deb.sh) copies the sources to `~/ayutam-build` inside WSL (so the Windows `.dart_tool` is not rewritten), runs `flutter build linux --release` and [`tool/package_linux_deb.sh`](../../tool/package_linux_deb.sh), and writes `dist\linux\ayutam-v<version>-linux-amd64.deb` plus the tarball. Install it as in [Installing on Linux](#installing-on-linux-deb-native-or-wsl).
+
 ---
 
 ## 5. Native Linux (Ubuntu / Debian-style)
@@ -768,6 +817,7 @@ Checklist:
 |---|---|
 | Windows interactive | `flutter run -d windows` |
 | Windows debug exe | `cmd /c tool\win_build.bat --debug` |
+| Windows release exe | `cmd /c tool\win_build.bat --release` |
 | Android licenses | `flutter doctor --android-licenses` |
 | Start Android emulator | `emulator -avd ayutam_api34` (then wait for `adb` `device`) |
 | Android interactive | `flutter run -d emulator-5554` |
@@ -776,6 +826,7 @@ Checklist:
 | Linux interactive (native or WSL) | `flutter run -d linux` |
 | Linux WSL smoke helper | `tool/wsl_build_linux.sh` via `wsl …` |
 | Linux bundle | `flutter build linux --debug` |
+| Linux release `.deb` from Windows (WSL) | `wsl bash tool/wsl_package_deb.sh` → `dist\linux\` |
 | Analyze / tests | `flutter analyze` / `flutter test` |
 
 Per-phase agent smoke markers (`WIN_SMOKE_OK`, etc.): [`platform-smoke.md`](../testing/platform-smoke.md).

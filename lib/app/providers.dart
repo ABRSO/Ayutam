@@ -129,19 +129,6 @@ final forceLandscapeAndroidProvider = StreamProvider<bool>((ref) {
   return ref.watch(settingsServiceProvider).watchForceLandscapeAndroid();
 });
 
-/// Last skill used for desktop Ctrl+Enter start shortcut.
-final shortcutSkillIdProvider =
-    NotifierProvider<ShortcutSkillIdNotifier, String?>(
-      ShortcutSkillIdNotifier.new,
-    );
-
-final class ShortcutSkillIdNotifier extends Notifier<String?> {
-  @override
-  String? build() => null;
-
-  void setSkillId(String? id) => state = id;
-}
-
 bool get _platformPluginsEnabled {
   // Widget/unit tests must not bind tray/window/FGS plugins (pending timers,
   // missing method channels). Production hosts still use real adapters.

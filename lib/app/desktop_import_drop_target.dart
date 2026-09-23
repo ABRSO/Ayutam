@@ -80,6 +80,19 @@ class _DesktopImportDropTargetState
     }
     final path = files.first.path;
     final lower = path.toLowerCase();
+    final sqlite = lower.endsWith('.sqlite') || lower.endsWith('.db');
+    if (!sqlite &&
+        !lower.endsWith('.skilltracker') &&
+        !lower.endsWith('.json')) {
+      ayutamScaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unsupported file. Use .skilltracker, .json, or .sqlite.',
+          ),
+        ),
+      );
+      return;
+    }
     final ctx = ayutamNavigatorKey.currentContext;
     if (ctx == null) return;
 
@@ -87,32 +100,9 @@ class _DesktopImportDropTargetState
     try {
       final bytes = await File(path).readAsBytes();
       final backup = ref.read(backupServiceProvider);
-      late final Result<ImportPreview> previewResult;
-      if (lower.endsWith('.skilltracker')) {
-        previewResult = await backup.previewImportBytes(
-          bytes: bytes,
-          fileName: path,
-        );
-      } else if (lower.endsWith('.json')) {
-        previewResult = await backup.previewImportBytes(
-          bytes: bytes,
-          fileName: path,
-        );
-      } else if (lower.endsWith('.sqlite') || lower.endsWith('.db')) {
-        previewResult = await backup.previewSqliteImportBytes(
-          bytes: bytes,
-          fileName: path,
-        );
-      } else {
-        ayutamScaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Unsupported file. Use .skilltracker, .json, or .sqlite.',
-            ),
-          ),
-        );
-        return;
-      }
+      final Result<ImportPreview> previewResult = sqlite
+          ? await backup.previewSqliteImportBytes(bytes: bytes, fileName: path)
+          : await backup.previewImportBytes(bytes: bytes, fileName: path);
       if (!ctx.mounted) return;
       await runImportPreviewFlow(
         context: ctx,

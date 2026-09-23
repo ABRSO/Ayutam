@@ -315,7 +315,7 @@ Defects found during smoke: none. Post-smoke review fixes landed on the same bra
 1. Android ongoing notification + Pause/Stop → same commands; handle FGS timeout per ADR-016.
 2. Orientation request for timer; wakelock while visible.
 3. Windows/Linux tray + window close → tray when session active.
-4. Desktop shortcuts (respect text-field focus).
+4. Desktop shortcuts, focus-scoped per [ADR-022](../architecture/decisions/022-desktop-keyboard-shortcuts.md) (Space on Timer, Ctrl+N on Skills).
 5. Drag-and-drop import on desktop.
 6. Graceful degrade if tray/notification unavailable.
 
@@ -331,7 +331,7 @@ Defects found during smoke: none. Post-smoke review fixes landed on the same bra
 - [x] Notification/tray reflect running/paused state when available.
 - [x] Linux tray failure does not prevent startup.
 
-**Phase 6 notes (2026-08-29):** Implemented on `phase/6-platform-integrations`. Android FGS type **`specialUse`** (ADR-016) via `flutter_foreground_task` with Pause/Resume/Stop → same `TimerSessionNotifier` commands; elapsed text from persisted anchors (no per-second DB writes). FGS `onTimeout` clears the service, keeps the session, and surfaces a SnackBar. Windows/Linux: `window_manager` + `tray_manager` (close → tray while live; first-run explanation; Exit confirms). Desktop shortcuts (Space / Ctrl+Enter / Ctrl+Shift+Enter) with text-focus suppression. `desktop_drop` import reuses Settings preview/apply (vendored under `third_party/desktop_drop` for AGP 9 + `builtInKotlin=false`). Settings: keep-awake + Android landscape request. No-op adapters + coordinator ensure timer correctness when plugins fail / under `FLUTTER_TEST`. Linux tray init failure is caught and logged; app continues. Linux **build** requires `libayatana-appindicator3-dev` (added to `tool/wsl_setup_flutter.sh` and build-and-run).
+**Phase 6 notes (2026-08-29):** Implemented on `phase/6-platform-integrations`. Android FGS type **`specialUse`** (ADR-016) via `flutter_foreground_task` with Pause/Resume/Stop → same `TimerSessionNotifier` commands; elapsed text from persisted anchors (no per-second DB writes). FGS `onTimeout` clears the service, keeps the session, and surfaces a SnackBar. Windows/Linux: `window_manager` + `tray_manager` (close → tray while live; first-run explanation; Exit confirms). Desktop shortcuts per ADR-022 (first shipped as Space / Ctrl+Enter / Ctrl+Shift+Enter; revised 2026-09-24, see below). `desktop_drop` import reuses Settings preview/apply (vendored under `third_party/desktop_drop` for AGP 9 + `builtInKotlin=false`). Settings: keep-awake + Android landscape request. No-op adapters + coordinator ensure timer correctness when plugins fail / under `FLUTTER_TEST`. Linux tray init failure is caught and logged; app continues. Linux **build** requires `libayatana-appindicator3-dev` (added to `tool/wsl_setup_flutter.sh` and build-and-run).
 
 Platform smoke (2026-08-29):
 
@@ -348,6 +348,31 @@ Defects found during smoke: Android install of debug over a higher store/version
 **Acceptance follow-up (2026-09-21):** Review on Windows, Linux, and Android API 34 found defects fixed on this branch before merge. Windows `setSkipTaskbar` crashed (`0xc0000005` in `window_manager_plugin.dll`) because `waitUntilReadyToShow` had not created the native taskbar pointer. Close-to-tray now requires a successful tray sync; otherwise the window stays up and Exit is offered. Tray Exit shows the window before its dialog. Timer chrome waits for the saved keep-awake and landscape values. Platform Stop does not push a second completion route over a mounted timer. Linux tray status uses `setTitle` (0.5.3 has no `setToolTip`). Release CI installs `libayatana-appindicator3-dev`; the `.deb` depends on `libayatana-appindicator3-1`.
 
 An Android ANR during the first landscape transition is recorded but not closed. The dump shows an input timeout on `FocusEvent(hasFocus=false)` while the activity had requested landscape, the window was `waitingToShow`, and no window had been drawn (user rotation was locked; a notification-permission activity had also been in front). Landscape is now requested only after the saved setting is known, after a frame has been drawn, and while the activity is resumed, so it is not applied under that permission dialog. That ANR still needs a device retest. Linux Show-from-tray on the isolated test desktop was not isolated to one call; Show now clears the skip-taskbar hint before mapping the window. Native retest of tray lifecycle, shortcuts, drag-and-drop, sleep, and the ANR is still required before Phase 6 is accepted.
+
+**Acceptance follow-up (2026-09-24):** Manual Windows testing of the release build found three defects, fixed on this branch.
+
+- *Exit hung or crashed.* Windows logged `0xc0000005` then `0xc000041d` at `flutter_windows.dll+0x1d7b0`, plus hang events. Quit called `windowManager.destroy()`, which on Windows only posts `WM_QUIT`; with `SetQuitOnClose(false)` the loop stopped while the engine was alive and teardown ran from `~FlutterWindow`. Quit now uses `setPreventClose(false)` + `close()`, the runner quits on `WM_DESTROY` and destroys the window after the loop. Separately, completion and recovery return home with `pushAndRemoveUntil`, which disposed the home route hosting the heartbeat, platform host, and drop target, so X did nothing after the first saved session. Those hosts now live in `MaterialApp.builder`.
+- *Drag-and-drop never worked in practice.* Same host disposal (the SOP saves a session before dropping). The vendored Windows drop target also now reports `DROPEFFECT_COPY`.
+- *Shortcuts.* Ctrl+Enter needed a prior Play click; replaced per ADR-022.
+- *Linux (found while verifying):* with no tray host, AppIndicator creation still succeeds, so close hid the only window. The runner exposes `hasTrayHost` (StatusNotifierWatcher or XEmbed tray).
+
+Native evidence (QA entrypoint with an isolated data directory; Windows release build, Linux release bundle on Xvfb + Openbox, with and without `trayer`):
+
+| Check | Result |
+|---|---|
+| `flutter analyze` / `flutter test` | ✅ No issues / ✅ all tests passed |
+| Windows: idle X | ✅ exit code 0 within ~2 s, no crash/hang events |
+| Windows: X after home route replaced (`pushAndRemoveUntil`) | ✅ exit code 0 (previously ignored) |
+| Windows: live session X → hidden, tray Exit → window shown → Exit | ✅ hidden while running; exit code 0 about 1 s after Exit |
+| Windows: pre-fix runner + `destroy()` (control) | ❌ reproduced: window "Not responding" about 10 s, then `0xc0000005` / `0xc000041d` at the same offset as the user's log |
+| Windows: fixed runner + `destroy()` (defensive teardown) | ✅ exit code 0 |
+| Windows: OLE drop target on `FLUTTERVIEW` | ✅ `OleDropTargetInterface` registered |
+| Linux: build release bundle + `.deb` (WSL, Ubuntu 22.04) | ✅; `Depends: …, libayatana-appindicator3-1`; `apt-get install --simulate` resolves |
+| Linux: idle / route-replaced X | ✅ exit code 0 |
+| Linux + tray host: live X → hidden, tray Exit → Exit | ✅ exit code 0; no `setToolTip` errors |
+| Linux, no tray host: live X | ✅ window stays, Keep open / Exit prompt; Exit → exit code 0 |
+
+Still manual: native Explorer / file-manager drag-and-drop, a clean-VM `.deb` install, real GNOME/KDE sessions, sleep/wake, and the Android items.
 
 ---
 

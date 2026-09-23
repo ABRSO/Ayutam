@@ -18,6 +18,20 @@ void main() {
         'Ayutam tracks deliberate practice with a timer, Learning Log, statistics,',
       ),
     );
+    expect(
+      RegExp(
+        r'^Depends:.*libayatana-appindicator3-1',
+        multiLine: true,
+      ).hasMatch(script),
+      isTrue,
+      reason:
+          'tray_manager links the appindicator runtime and does not '
+          'bundle it',
+    );
+    expect(
+      File('.github/workflows/release.yml').readAsStringSync(),
+      contains('libayatana-appindicator3-dev'),
+    );
     expect(File('branding/ayutam-logo.png').existsSync(), isTrue);
     expect(File('linux/runner/resources/ayutam.png').existsSync(), isTrue);
     expect(File('windows/runner/resources/app_icon.ico').existsSync(), isTrue);

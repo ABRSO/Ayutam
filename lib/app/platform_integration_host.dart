@@ -30,6 +30,7 @@ class _PlatformIntegrationHostState
   StreamSubscription<void>? _timeouts;
   StreamSubscription<void>? _closeRequests;
   var _closeToTrayExplained = false;
+  var _windowPromptOpen = false;
 
   @override
   void initState() {
@@ -56,7 +57,9 @@ class _PlatformIntegrationHostState
     }
     _actions = coordinator.actions.listen(_onAction);
     _timeouts = coordinator.serviceTimeouts.listen((_) => _onTimeout());
-    _closeRequests = windows.closeRequested.listen((_) => _onCloseRequested());
+    _closeRequests = windows.closeRequested.listen(
+      (_) => _whileNoWindowPrompt(_onCloseRequested),
+    );
     await _syncFromSnapshot();
   }
 
@@ -133,7 +136,18 @@ class _PlatformIntegrationHostState
       case TimerPlatformAction.showWindow:
         await ref.read(desktopWindowLifecycleProvider).showAndFocus();
       case TimerPlatformAction.exitApp:
-        await _confirmExit();
+        await _whileNoWindowPrompt(_confirmExit);
+    }
+  }
+
+  /// Repeated X / tray Exit clicks must not stack dialogs or race a quit.
+  Future<void> _whileNoWindowPrompt(Future<void> Function() flow) async {
+    if (_windowPromptOpen) return;
+    _windowPromptOpen = true;
+    try {
+      await flow();
+    } finally {
+      _windowPromptOpen = false;
     }
   }
 
@@ -159,7 +173,7 @@ class _PlatformIntegrationHostState
         live == TimerMachineState.running || live == TimerMachineState.paused;
     final desktop = Platform.isWindows || Platform.isLinux;
     if (isLive && desktop) {
-      if (!ref.read(desktopTrayServiceProvider).isAvailable) {
+      if (!await ref.read(desktopTrayServiceProvider).checkAvailable()) {
         ref
             .read(appLoggerProvider)
             .warning(
@@ -178,7 +192,7 @@ class _PlatformIntegrationHostState
       }
       return;
     }
-    await ref.read(desktopWindowLifecycleProvider).destroyAndQuit();
+    await ref.read(desktopWindowLifecycleProvider).quit();
   }
 
   Future<void> _closeWithoutTray() async {
@@ -208,7 +222,7 @@ class _PlatformIntegrationHostState
       ),
     );
     if (ok == true) {
-      await ref.read(desktopWindowLifecycleProvider).destroyAndQuit();
+      await ref.read(desktopWindowLifecycleProvider).quit();
     }
   }
 
@@ -223,7 +237,7 @@ class _PlatformIntegrationHostState
     final isLive =
         live == TimerMachineState.running || live == TimerMachineState.paused;
     if (!isLive) {
-      await windows.destroyAndQuit();
+      await windows.quit();
       return;
     }
     // The window may already be hidden. Show it before the dialog so Exit
@@ -231,7 +245,7 @@ class _PlatformIntegrationHostState
     await windows.showAndFocus();
     final ctx = ayutamNavigatorKey.currentContext;
     if (ctx == null || !ctx.mounted) {
-      await windows.destroyAndQuit();
+      await windows.quit();
       return;
     }
     final ok = await showDialog<bool>(
@@ -255,7 +269,7 @@ class _PlatformIntegrationHostState
       ),
     );
     if (ok == true) {
-      await windows.destroyAndQuit();
+      await windows.quit();
     }
   }
 

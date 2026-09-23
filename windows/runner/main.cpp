@@ -30,13 +30,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!window.Create(L"ayutam", origin, size)) {
     return EXIT_FAILURE;
   }
-  window.SetQuitOnClose(false);
+  // Close-to-tray is done by window_manager swallowing WM_CLOSE, so the
+  // message loop must only end after WM_DESTROY has torn the engine down.
+  window.SetQuitOnClose(true);
 
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
     ::TranslateMessage(&msg);
     ::DispatchMessage(&msg);
   }
+
+  // A stray WM_QUIT (e.g. window_manager's destroy()) ends the loop with the
+  // engine still alive. Tear it down here, before COM goes away, instead of
+  // in ~FlutterWindow, where re-entrant window messages reach a
+  // half-destroyed controller (0xc0000005 in flutter_windows.dll).
+  window.Destroy();
 
   ::CoUninitialize();
   return EXIT_SUCCESS;

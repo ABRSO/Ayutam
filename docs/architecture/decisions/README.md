@@ -25,3 +25,4 @@ Index of decisions for Ayutam. Each ADR is a short, immutable-once-accepted reco
 | [019](019-four-destination-nav.md) | Four-destination navigation | Accepted |
 | [020](020-pomodoro-reuses-pause.md) | Pomodoro reuses pause accounting | Accepted |
 | [021](021-github-releases-distribution.md) | GitHub Releases distribution (sideload) | Accepted |
+| [022](022-desktop-keyboard-shortcuts.md) | Desktop keyboard shortcuts | Accepted |

@@ -56,7 +56,7 @@ Drift/SQLite   File/backup I/O   Platform services
 | Archive / hash | `archive`, `crypto` | ZIP + SHA-256 |
 | Files | `path_provider`, `file_picker` / `file_selector` | Re-verify at implement time |
 | Notifications | Interface + `flutter_foreground_task` or native Kotlin | Replaceable; Android 15 FGS rules (ADR-016) |
-| Desktop | `window_manager`, `tray_manager` | Graceful degrade if tray fails |
+| Desktop | `window_manager`, `tray_manager`, `desktop_drop` (vendored) | Graceful degrade if tray fails; Linux tray-host check in the runner (§8) |
 | Wakelock | `wakelock_plus` | |
 | IDs / locale | `uuid`, `intl`, `timezone` | |
 | Device IANA zone | `flutter_timezone` | Default configured timezone until Settings ships |
@@ -211,7 +211,11 @@ Controller asks injectable clock for `now`, combines with persisted anchors — 
 
 **Android foreground / notification:** Improves visibility and Pause/Stop actions. Duration still comes from DB. Must declare FGS type correctly for Android 14+; handle Android 15 timeouts for restricted types; `stopWithTask` / boot policy reviewed before Play submission (ADR-016). Interface must allow swapping plugin for native Kotlin.
 
-**Desktop lifecycle:** Close with no session → exit. Close with an active session → hide to tray after a first-run explanation, only after a tray icon exists. If the tray is unavailable, the window stays open and Exit is offered instead of hiding it. Tray Exit shows and focuses the window before the confirmation. Tray/shortcut failure must not block DB or timer.
+**Desktop lifecycle:** Close with no session → exit. Close with an active session → hide to tray after a first-run explanation, only when the tray is usable: the last sync succeeded and, on Linux, the runner's `ayutam/desktop` `hasTrayHost` channel reports a StatusNotifierItem watcher or an XEmbed `_NET_SYSTEM_TRAY_S<n>` owner (AppIndicator creation succeeds even with no host). Otherwise the window stays open and Keep open / Exit is offered. Tray Exit shows and focuses the window before the confirmation. Repeated close/Exit requests while a prompt is open are ignored. Tray/shortcut failure must not block DB or timer.
+
+Quitting always goes through a normal window close (`setPreventClose(false)` then `windowManager.close()`), never `windowManager.destroy()`: on Windows `destroy()` only posts `WM_QUIT`, stopping the message loop while the engine is alive ("Not responding", then `0xc0000005` in `flutter_windows.dll`). The Windows runner keeps `SetQuitOnClose(true)` (close-to-tray works by window_manager swallowing `WM_CLOSE`) and destroys the window after the loop, before `CoUninitialize`, in case anything else posts `WM_QUIT`.
+
+**App-lifetime hosts:** `SessionHeartbeat`, `PlatformIntegrationHost` (notification/tray sync, close/Exit handling), and `DesktopImportDropTarget` are mounted in `MaterialApp.builder`, above the Navigator. Completion and recovery return home with `pushAndRemoveUntil`, which disposes the `home` route, so nothing that must live for the whole process may sit inside it.
 
 ---
 

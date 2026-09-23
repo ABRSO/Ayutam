@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/app_theme.dart';
@@ -34,6 +36,7 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   TimerChromeService? _chrome;
   TimerScreenMounts? _mounts;
   var _chromeEntered = false;
+  final _keyboardFocus = FocusNode(debugLabel: 'TimerScreen');
 
   @override
   void initState() {
@@ -77,11 +80,55 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
   void dispose() {
     _tick?.cancel();
     _mounts?.release();
+    _keyboardFocus.dispose();
     final chrome = _chrome;
     if (_chromeEntered && chrome != null) {
       unawaited(chrome.leaveTimerVisible());
     }
     super.dispose();
+  }
+
+  /// Space toggles pause/resume only while the timer itself holds focus. Once
+  /// the user tabs to a control, Space activates that control as usual (and a
+  /// global single-key shortcut would fail WCAG 2.1.4).
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.space ||
+        !node.hasPrimaryFocus) {
+      return KeyEventResult.ignored;
+    }
+    final keys = HardwareKeyboard.instance;
+    if (keys.isControlPressed ||
+        keys.isAltPressed ||
+        keys.isMetaPressed ||
+        keys.isShiftPressed) {
+      return KeyEventResult.ignored;
+    }
+    unawaited(_togglePause());
+    return KeyEventResult.handled;
+  }
+
+  Future<void> _togglePause() async {
+    final state = ref
+        .read(timerSessionProvider)
+        .asData
+        ?.value
+        .runtime
+        .machineState;
+    final notifier = ref.read(timerSessionProvider.notifier);
+    final String? error;
+    if (state == TimerMachineState.running) {
+      error = await notifier.pause();
+    } else if (state == TimerMachineState.paused) {
+      error = await notifier.resume();
+    } else {
+      return;
+    }
+    if (error != null && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+    }
   }
 
   @override
@@ -102,6 +149,10 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
       }
     }
 
+    final desktop =
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux;
+
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
@@ -109,139 +160,133 @@ class _TimerScreenState extends ConsumerState<TimerScreen> {
           _remindSessionStillRunning();
         }
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
+      child: Focus(
+        focusNode: _keyboardFocus,
+        autofocus: true,
+        onKeyEvent: _onKeyEvent,
+        child: Scaffold(
           backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          title: Text(skill?.name ?? 'Stopwatch'),
-          automaticallyImplyLeading: Navigator.canPop(context),
-        ),
-        body: snapAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('$e')),
-          data: (snap) {
-            _redirectIfNotTimer(snap);
-            final sessionActive = _liveActiveSeconds(snap);
-            final completed = skill?.completedActiveSeconds ?? 0;
-            final accumulated = completed + sessionActive;
-            final paused =
-                snap.runtime.machineState == TimerMachineState.paused;
-            final longSession = exceedsLongSessionWarning(sessionActive);
-            _maybeWarnLongSession(longSession);
-            final accent = SkillAccentPalette.fromArgb(
-              skill?.accentArgb,
-              fallback: theme.colorScheme.primary,
-            );
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: Text(skill?.name ?? 'Stopwatch'),
+            automaticallyImplyLeading: Navigator.canPop(context),
+          ),
+          body: snapAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('$e')),
+            data: (snap) {
+              _redirectIfNotTimer(snap);
+              final sessionActive = _liveActiveSeconds(snap);
+              final completed = skill?.completedActiveSeconds ?? 0;
+              final accumulated = completed + sessionActive;
+              final paused =
+                  snap.runtime.machineState == TimerMachineState.paused;
+              final longSession = exceedsLongSessionWarning(sessionActive);
+              _maybeWarnLongSession(longSession);
+              final accent = SkillAccentPalette.fromArgb(
+                skill?.accentArgb,
+                fallback: theme.colorScheme.primary,
+              );
 
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                child: Column(
-                  children: [
-                    if (longSession) ...[
-                      const _LongSessionBanner(),
-                      const SizedBox(height: 8),
-                    ],
-                    Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Column(
-                            children: [
-                              Expanded(
-                                flex: 7,
-                                child: Center(
-                                  child: SizedBox(
-                                    width: constraints.maxWidth,
-                                    height: constraints.maxHeight * 0.72,
-                                    child: FlipClock(
-                                      totalSeconds: accumulated,
-                                      semanticLabel:
-                                          'Skill total ${formatFlipClockDuration(accumulated)}',
+              return SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  child: Column(
+                    children: [
+                      if (longSession) ...[
+                        const _LongSessionBanner(),
+                        const SizedBox(height: 8),
+                      ],
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Column(
+                              children: [
+                                Expanded(
+                                  flex: 7,
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: constraints.maxWidth,
+                                      height: constraints.maxHeight * 0.72,
+                                      child: FlipClock(
+                                        totalSeconds: accumulated,
+                                        semanticLabel:
+                                            'Skill total ${formatFlipClockDuration(accumulated)}',
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Text(
-                                'Skill total',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: Colors.white70,
-                                  letterSpacing: 0.8,
+                                Text(
+                                  'Skill total',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: Colors.white70,
+                                    letterSpacing: 0.8,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Current session  ${formatActiveDuration(sessionActive)}',
-                                style: durationMonoStyle(
-                                  context,
-                                  base: theme.textTheme.titleMedium,
-                                ).copyWith(color: Colors.white60),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                paused ? 'Paused' : 'Running',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  color: accent,
-                                  fontWeight: FontWeight.w600,
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Current session  ${formatActiveDuration(sessionActive)}',
+                                  style: durationMonoStyle(
+                                    context,
+                                    base: theme.textTheme.titleMedium,
+                                  ).copyWith(color: Colors.white60),
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                          );
-                        },
+                                const SizedBox(height: 8),
+                                Text(
+                                  paused ? 'Paused' : 'Running',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: accent,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        TimerIconControl(
-                          tooltip: paused ? 'Resume' : 'Pause',
-                          semanticLabel: paused
-                              ? 'Resume stopwatch'
-                              : 'Pause stopwatch',
-                          icon: paused ? Icons.play_arrow : Icons.pause,
-                          onPressed: () async {
-                            final error = paused
-                                ? await ref
-                                      .read(timerSessionProvider.notifier)
-                                      .resume()
-                                : await ref
-                                      .read(timerSessionProvider.notifier)
-                                      .pause();
-                            if (error != null && context.mounted) {
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(SnackBar(content: Text(error)));
-                            }
-                          },
-                        ),
-                        TimerIconControl(
-                          tooltip: 'Stop',
-                          semanticLabel: 'Stop stopwatch',
-                          icon: Icons.stop,
-                          onPressed: () async {
-                            final error = await ref
-                                .read(timerSessionProvider.notifier)
-                                .stop();
-                            if (!context.mounted) {
-                              return;
-                            }
-                            if (error != null) {
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(SnackBar(content: Text(error)));
-                              return;
-                            }
-                            await _goToCompletion(context);
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          TimerIconControl(
+                            tooltip:
+                                '${paused ? 'Resume' : 'Pause'}'
+                                '${desktop ? ' (Space)' : ''}',
+                            semanticLabel: paused
+                                ? 'Resume stopwatch'
+                                : 'Pause stopwatch',
+                            icon: paused ? Icons.play_arrow : Icons.pause,
+                            onPressed: _togglePause,
+                          ),
+                          TimerIconControl(
+                            tooltip: 'Stop',
+                            semanticLabel: 'Stop stopwatch',
+                            icon: Icons.stop,
+                            onPressed: () async {
+                              final error = await ref
+                                  .read(timerSessionProvider.notifier)
+                                  .stop();
+                              if (!context.mounted) {
+                                return;
+                              }
+                              if (error != null) {
+                                ScaffoldMessenger.of(
+                                  context,
+                                ).showSnackBar(SnackBar(content: Text(error)));
+                                return;
+                              }
+                              await _goToCompletion(context);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
