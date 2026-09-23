@@ -10,10 +10,10 @@ v1 requires a persistent Android notification with Pause/Stop. Android 14+ requi
 ## Decision
 
 1. Implement notification behind `ForegroundTimerService` / notification interface.  
-2. Prefer a policy-appropriate FGS type after current Play/Android docs review at implement time; document chosen type in release notes.  
+2. **Chosen FGS type (Phase 6):** `specialUse` with Play Console subtype text documenting a deliberate-practice timer with Pause/Stop controls. Session accuracy does not depend on the service (timestamps in SQLite). Not `dataSync`/`mediaProcessing` (6h limit) and not `health` (no sensor permissions).  
 3. Handle `onTimeout` / exhaustion gracefully: stop the **service**, keep session running in DB, show user that notification controls may be limited until app is opened.  
 4. Do not rely on boot-auto-start of FGS for correctness — recover on app open.  
-5. Play Console declarations and evidence before store submission. Prototype may use `flutter_foreground_task` if it meets policy; retain native Kotlin escape hatch.
+5. Play Console declarations and evidence before store submission. Prototype uses `flutter_foreground_task` (MIT); retain native Kotlin escape hatch.
 
 ## Consequences
 

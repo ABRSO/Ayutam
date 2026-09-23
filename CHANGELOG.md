@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-29
+
+Phase 6 — platform integrations (notification, tray, shortcuts, timer chrome).
+
+### Added
+
+- Android ongoing timer notification via foreground service type **`specialUse`** (ADR-016): skill name, live elapsed from timestamps, Pause/Resume/Stop invoking the same application commands. FGS timeout stops the service only; the session keeps running and a SnackBar warns that controls may be limited until the app is opened.
+- Windows/Linux system tray while a session is live (tooltip + Pause/Resume/Stop/Show/Exit). Window close with an active session hides to tray (first-run explanation); Exit confirms when a session is live.
+- Keyboard shortcuts (ADR-022): Space pauses/resumes on the Timer screen while no control there has focus; Ctrl+N opens New skill on Skills. Tooltips and Settings → Keyboard shortcuts list them.
+- Desktop drag-and-drop import for `.skilltracker` / `.json` / `.sqlite` on any screen (same preview flow as Settings).
+- Settings: keep screen awake, request landscape on Android timer, shortcut reference.
+- `tool/wsl_package_deb.sh`: build the release `.deb` and tarball from a Windows checkout inside WSL.
+- Dependencies: `flutter_foreground_task`, `wakelock_plus`, `window_manager`, `tray_manager`; `desktop_drop` vendored under `third_party/desktop_drop` (AGP 9 + `builtInKotlin=false` Gradle patch until upstream ships a fix).
+
+### Changed
+
+- Platform integrations remain secondary to DB truth (ADR-014); failures are logged and never roll back timer state.
+
+### Fixed
+
+- Windows close-to-tray no longer crashes: `window_manager` 0.5.2 initializes its taskbar pointer in `waitUntilReadyToShow`, and `setSkipTaskbar` ran before that.
+- Closing a live session when the tray icon was not created leaves the window open and offers Exit, instead of hiding the only window.
+- Tray Exit shows and focuses the window before the confirmation dialog.
+- Keep-screen-awake and Android landscape follow the saved settings on the first timer open, including after a cold start.
+- Stop from the notification or tray uses the timer route's own completion transition when that route is open, so Back does not return to a Running timer.
+- Linux tray status uses the plugin's `setTitle` label. `setToolTip` is not implemented on Linux `tray_manager` 0.5.3 and was throwing every second.
+- Linux release builds install `libayatana-appindicator3-dev`, and the `.deb` depends on `libayatana-appindicator3-1`.
+- Exit no longer hangs or crashes on Windows. Quitting used `windowManager.destroy()`, which only posts `WM_QUIT`: the window went "Not responding" and the engine crashed during teardown (`0xc0000005` / `0xc000041d` in `flutter_windows.dll`). Quit now closes the window normally, and the runner quits on `WM_DESTROY`.
+- Window close, tray actions, drag-and-drop import, and the session heartbeat kept working only until the first saved or discarded session. Returning home replaced the route that hosted them; they now live above the Navigator.
+- On Linux without a tray host (WSLg, GNOME without the AppIndicator extension), closing a live session no longer hides the only window. The runner reports whether a StatusNotifierItem host or XEmbed tray exists.
+- The Windows drop target reports a copy effect, so Explorer never treats dropping a backup on Ayutam as a move.
+
+### Removed
+
+- Ctrl+Enter (start last skill) and Ctrl+Shift+Enter (stop). They depended on a previous Play click and conflicted with the usual meaning of Ctrl+Enter (ADR-022).
+
 ## [0.5.0] - 2026-08-26
 
 Phase 5 — portable backup, restore, and migration harness.

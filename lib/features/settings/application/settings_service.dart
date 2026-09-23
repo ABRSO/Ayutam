@@ -61,6 +61,50 @@ final class SettingsService {
     );
   }
 
+  Stream<bool> watchKeepScreenAwake() {
+    return _settings
+        .watchValue(SettingsKeys.keepScreenAwake)
+        .map((raw) => _parseBool(raw, defaultValue: true));
+  }
+
+  Future<bool> keepScreenAwake() async {
+    return _parseBool(
+      await _settings.readValue(SettingsKeys.keepScreenAwake),
+      defaultValue: true,
+    );
+  }
+
+  Future<void> setKeepScreenAwake(bool enabled) async {
+    await _settings.writeValue(
+      key: SettingsKeys.keepScreenAwake,
+      valueJson: jsonEncode(enabled),
+      updatedAtUtc: _clock.nowUtc(),
+      sourceDeviceId: await _deviceId(),
+    );
+  }
+
+  Stream<bool> watchForceLandscapeAndroid() {
+    return _settings
+        .watchValue(SettingsKeys.forceLandscapeAndroid)
+        .map((raw) => _parseBool(raw, defaultValue: true));
+  }
+
+  Future<bool> forceLandscapeAndroid() async {
+    return _parseBool(
+      await _settings.readValue(SettingsKeys.forceLandscapeAndroid),
+      defaultValue: true,
+    );
+  }
+
+  Future<void> setForceLandscapeAndroid(bool enabled) async {
+    await _settings.writeValue(
+      key: SettingsKeys.forceLandscapeAndroid,
+      valueJson: jsonEncode(enabled),
+      updatedAtUtc: _clock.nowUtc(),
+      sourceDeviceId: await _deviceId(),
+    );
+  }
+
   static bool _parseBool(String? raw, {required bool defaultValue}) {
     if (raw == null || raw.trim().isEmpty) {
       return defaultValue;

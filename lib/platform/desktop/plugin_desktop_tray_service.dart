@@ -1,0 +1,180 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:tray_manager/tray_manager.dart';
+
+import '../../core/time/duration_format.dart';
+import '../../features/timer/domain/timer_enums.dart';
+import '../../features/timer/domain/timer_platform_ports.dart';
+
+/// Windows/Linux tray icon while a practice session is live.
+final class PluginDesktopTrayService
+    with TrayListener
+    implements DesktopTrayService {
+  PluginDesktopTrayService();
+
+  final _actions = StreamController<TimerPlatformAction>.broadcast();
+  var _ready = false;
+  var _visible = false;
+  var _available = false;
+  var _statusLabelFailed = false;
+  Timer? _tick;
+  TimerPlatformProjection? _current;
+
+  /// Implemented by `linux/runner/my_application.cc`.
+  static const _desktopChannel = MethodChannel('ayutam/desktop');
+
+  @override
+  Future<bool> checkAvailable() async {
+    if (!_available) return false;
+    if (!Platform.isLinux) return true;
+    // AppIndicator creation succeeds with no host to display it; without
+    // one, hiding to "tray" would leave an invisible process.
+    try {
+      return await _desktopChannel.invokeMethod<bool>('hasTrayHost') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Stream<TimerPlatformAction> get actions => _actions.stream;
+
+  @override
+  Future<void> ensureReady() async {
+    if (!Platform.isWindows && !Platform.isLinux) return;
+    if (_ready) return;
+    trayManager.addListener(this);
+    _ready = true;
+  }
+
+  @override
+  Future<void> sync(TimerPlatformProjection projection) async {
+    if (!Platform.isWindows && !Platform.isLinux) return;
+    await ensureReady();
+    _current = projection;
+    _tick?.cancel();
+    _tick = null;
+
+    try {
+      if (!_visible) {
+        await trayManager.setIcon(_iconPath());
+        _visible = true;
+      }
+      await _setMenu(projection);
+      _available = true;
+    } catch (_) {
+      // Linux without appindicator: degrade — caller logs via coordinator.
+      _available = false;
+      rethrow;
+    }
+
+    _statusLabelFailed = false;
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      unawaited(_refreshStatusLabel());
+    });
+    await _refreshStatusLabel();
+  }
+
+  @override
+  Future<void> clear() async {
+    _tick?.cancel();
+    _tick = null;
+    _current = null;
+    _available = false;
+    if (!_visible) return;
+    try {
+      await trayManager.destroy();
+    } catch (_) {}
+    _visible = false;
+  }
+
+  @override
+  Future<void> dispose() async {
+    await clear();
+    if (_ready) {
+      trayManager.removeListener(this);
+      _ready = false;
+    }
+    await _actions.close();
+  }
+
+  @override
+  void onTrayIconMouseDown() {
+    if (Platform.isWindows) {
+      _actions.add(TimerPlatformAction.showWindow);
+    } else {
+      unawaited(trayManager.popUpContextMenu());
+    }
+  }
+
+  @override
+  void onTrayIconRightMouseDown() {
+    unawaited(trayManager.popUpContextMenu());
+  }
+
+  @override
+  void onTrayMenuItemClick(MenuItem menuItem) {
+    switch (menuItem.key) {
+      case 'pause':
+        _actions.add(TimerPlatformAction.pause);
+      case 'resume':
+        _actions.add(TimerPlatformAction.resume);
+      case 'stop':
+        _actions.add(TimerPlatformAction.stop);
+      case 'show':
+        _actions.add(TimerPlatformAction.showWindow);
+      case 'exit':
+        _actions.add(TimerPlatformAction.exitApp);
+    }
+  }
+
+  Future<void> _setMenu(TimerPlatformProjection projection) async {
+    final items = <MenuItem>[
+      MenuItem(key: 'show', label: 'Show Ayutam'),
+      MenuItem.separator(),
+      if (projection.machineState == TimerMachineState.running)
+        MenuItem(key: 'pause', label: 'Pause')
+      else if (projection.machineState == TimerMachineState.paused)
+        MenuItem(key: 'resume', label: 'Resume'),
+      MenuItem(key: 'stop', label: 'Stop'),
+      MenuItem.separator(),
+      MenuItem(key: 'exit', label: 'Exit'),
+    ];
+    await trayManager.setContextMenu(Menu(items: items));
+  }
+
+  /// Linux `tray_manager` 0.5.3 implements `setTitle` (indicator label) and
+  /// returns not-implemented for `setToolTip`. Windows uses the tooltip.
+  /// Periodic failures are swallowed so they cannot become uncaught errors.
+  Future<void> _refreshStatusLabel() async {
+    if (_statusLabelFailed) return;
+    final p = _current;
+    if (p == null || !_visible) return;
+    final now = DateTime.now().toUtc();
+    final elapsed = formatActiveDuration(p.displayActiveSeconds(now));
+    final phase = p.machineState == TimerMachineState.paused
+        ? 'Paused'
+        : 'Running';
+    final label = '${p.skillName} · $phase · $elapsed';
+    try {
+      if (Platform.isLinux) {
+        await trayManager.setTitle(label);
+      } else {
+        await trayManager.setToolTip(label);
+      }
+    } catch (_) {
+      _statusLabelFailed = true;
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  String _iconPath() {
+    if (Platform.isWindows) {
+      return 'windows/runner/resources/app_icon.ico';
+    }
+    return 'branding/ayutam-logo.png';
+  }
+}

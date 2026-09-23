@@ -139,6 +139,8 @@ Skill total …
 
 **Keep screen awake:** Only while timer visible and setting on.
 
+**Keyboard (desktop):** The timer screen takes keyboard focus when it opens, so Space toggles pause/resume. After Tab moves focus to a control, Space activates that control instead. The Pause/Resume tooltip reads “Pause (Space)” / “Resume (Space)” on desktop ([ADR-022](../architecture/decisions/022-desktop-keyboard-shortcuts.md)).
+
 ### 4.4 Flip-clock motion
 
 Each digit: top/bottom panels, hinge seam, subtle shadow. On change, ~350–550 ms 3D rotateX of top flap (fast-out-slow-in). Only changed digits animate. Reduced Motion → instant/fade. Pause frame updates when app not visible; timestamps remain authoritative. Custom widget — no novelty package.
@@ -218,7 +220,7 @@ Immersive timer: navigation hidden.
 
 **Statistics:** Stacked on compact; fuller hover/tooltips on desktop.
 
-**Input:** Touch 48×48; mouse hover/tooltips/context menus; keyboard tab order, Enter/Space, Escape closes modals; desktop drag-drop import with file picker fallback.
+**Input:** Touch 48×48; mouse hover/tooltips/context menus; keyboard tab order, Enter/Space, Escape closes modals; Ctrl+N on Skills opens New skill (desktop button tooltip “Create skill (Ctrl+N)”); desktop drag-drop import on any screen (drop overlay, same preview as Settings) with file picker fallback.
 
 **Sheets / dialogs:** Material type sizes and 48×48 targets are the baseline (not per-device custom fonts). Layout must adapt to available height and aspect ratio: scroll or pin actions so Cancel / primary CTAs remain reachable in landscape and with large text / IME insets.
 

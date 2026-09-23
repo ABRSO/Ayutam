@@ -7,6 +7,7 @@ sudo apt-get install -y -qq \
   curl git unzip xz-utils zip libglu1-mesa \
   clang cmake ninja-build pkg-config \
   libgtk-3-dev liblzma-dev libstdc++-12-dev \
+  libayatana-appindicator3-dev \
   mesa-utils
 if [ ! -x "$HOME/flutter/bin/flutter" ]; then
   echo "Cloning Flutter stable into ~/flutter ..."

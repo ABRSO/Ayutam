@@ -69,6 +69,10 @@ EOF
 # Installed size in KiB for the control file.
 SIZE_KB="$(du -sk "${STAGE}" | awk '{print $1}')"
 
+# tray_manager links libayatana-appindicator3.so.1 and does not bundle it.
+# libayatana-appindicator3-dev is build-time only; the .deb needs the runtime
+# package so a clean apt install pulls the tray library in.
+
 cat > "${STAGE}/DEBIAN/control" <<EOF
 Package: ayutam
 Version: ${VERSION}
@@ -77,7 +81,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: Ayutam maintainers <noreply@users.noreply.github.com>
 Installed-Size: ${SIZE_KB}
-Depends: libgtk-3-0, liblzma5, libstdc++6, hicolor-icon-theme
+Depends: libgtk-3-0, liblzma5, libstdc++6, hicolor-icon-theme, libayatana-appindicator3-1
 Homepage: https://github.com/ABRSO/Ayutam
 Description: Local-first skill practice tracker
  Ayutam tracks deliberate practice with a timer, Learning Log, statistics,

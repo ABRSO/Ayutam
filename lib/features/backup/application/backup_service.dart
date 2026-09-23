@@ -425,7 +425,6 @@ final class BackupService {
   }
 
   /// Import preview for a standalone JSON or `.skilltracker` archive.
-  @visibleForTesting
   Future<Result<ImportPreview>> previewImportBytes({
     required Uint8List bytes,
     required String fileName,
@@ -481,7 +480,6 @@ final class BackupService {
     );
   }
 
-  @visibleForTesting
   Future<Result<ImportPreview>> previewSqliteImportBytes({
     required Uint8List bytes,
     required String fileName,

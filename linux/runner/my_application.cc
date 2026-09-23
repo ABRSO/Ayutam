@@ -1,18 +1,73 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <gio/gio.h>
 #ifdef GDK_WINDOWING_X11
+#include <X11/Xlib.h>
 #include <gdk/gdkx.h>
 #endif
+
+#include <cstring>
 
 #include "flutter/generated_plugin_registrant.h"
 
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  FlMethodChannel* desktop_channel;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+// tray_manager creates its AppIndicator successfully even when nothing can
+// show it (GNOME without the AppIndicator extension, WSLg, bare X servers),
+// so close-to-tray would hide the only window. Report whether a
+// StatusNotifierItem host or an XEmbed system tray is actually running.
+static gboolean tray_host_present() {
+  g_autoptr(GError) error = nullptr;
+  g_autoptr(GDBusConnection) bus =
+      g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &error);
+  if (bus != nullptr) {
+    g_autoptr(GVariant) reply = g_dbus_connection_call_sync(
+        bus, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+        "org.freedesktop.DBus", "NameHasOwner",
+        g_variant_new("(s)", "org.kde.StatusNotifierWatcher"),
+        G_VARIANT_TYPE("(b)"), G_DBUS_CALL_FLAGS_NONE, 500, nullptr, nullptr);
+    gboolean owned = FALSE;
+    if (reply != nullptr) {
+      g_variant_get(reply, "(b)", &owned);
+    }
+    if (owned) {
+      return TRUE;
+    }
+  }
+#ifdef GDK_WINDOWING_X11
+  GdkDisplay* display = gdk_display_get_default();
+  if (GDK_IS_X11_DISPLAY(display)) {
+    Display* xdisplay = GDK_DISPLAY_XDISPLAY(display);
+    g_autofree gchar* selection =
+        g_strdup_printf("_NET_SYSTEM_TRAY_S%d", DefaultScreen(xdisplay));
+    Atom atom = XInternAtom(xdisplay, selection, False);
+    if (XGetSelectionOwner(xdisplay, atom) != None) {
+      return TRUE;
+    }
+  }
+#endif
+  return FALSE;
+}
+
+static void desktop_method_cb(FlMethodChannel* channel,
+                              FlMethodCall* method_call,
+                              gpointer user_data) {
+  g_autoptr(FlMethodResponse) response = nullptr;
+  if (strcmp(fl_method_call_get_name(method_call), "hasTrayHost") == 0) {
+    g_autoptr(FlValue) result = fl_value_new_bool(tray_host_present());
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  } else {
+    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  }
+  fl_method_call_respond(method_call, response, nullptr);
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -88,6 +143,13 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  self->desktop_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "ayutam/desktop", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->desktop_channel, desktop_method_cb, self, nullptr);
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
@@ -134,6 +196,7 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  g_clear_object(&self->desktop_channel);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 
